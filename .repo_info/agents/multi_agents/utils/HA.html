@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HA — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#collect_redshift_hypotheses" class="sidebar-link sidebar-sublink" data-label="collect_redshift_hypotheses()">collect_redshift_hypotheses</a>
+      <a href="#compute_dn4000" class="sidebar-link sidebar-sublink" data-label="compute_dn4000()">compute_dn4000</a>
+      <a href="#build_dn4000_lookup" class="sidebar-link sidebar-sublink" data-label="build_dn4000_lookup()">build_dn4000_lookup</a>
+      <a href="#prepare_diagnostic_slices" class="sidebar-link sidebar-sublink" data-label="prepare_diagnostic_slices()">prepare_diagnostic_slices</a>
+      <a href="#_read_csv_lines" class="sidebar-link sidebar-sublink" data-label="_read_csv_lines()">_read_csv_lines</a>
+      <a href="#_build_line_table" class="sidebar-link sidebar-sublink" data-label="_build_line_table()">_build_line_table</a>
+      <a href="#format_structured_summary" class="sidebar-link sidebar-sublink" data-label="format_structured_summary()">format_structured_summary</a>
+      <a href="#extract_harness_summary" class="sidebar-link sidebar-sublink" data-label="extract_harness_summary()">extract_harness_summary</a>
+      <a href="#a_extract_harness_summaries" class="sidebar-link sidebar-sublink" data-label="a_extract_harness_summaries()">a_extract_harness_summaries</a>
+      <a href="#_parse_extraction_json" class="sidebar-link sidebar-sublink" data-label="_parse_extraction_json()">_parse_extraction_json</a>
+      <a href="#extract_verdict_summary" class="sidebar-link sidebar-sublink" data-label="extract_verdict_summary()">extract_verdict_summary</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#utils">Utils</a> / HA
+</div>
+
+<h1><span class="section-label">Utils</span>HA.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/utils/HA.py</code></p>
+  <p>HypothesisAnalyst helpers — hypothesis collection from Redrock/brute-force output, Dn4000 break index computation, harness report CSV parsing, structured Markdown formatting, async LLM-driven text extraction, and synthesis verdict extraction.</p>
+  <div class="tag-row"><span class="tag">utils</span> <span class="tag">HA</span> <span class="tag">hypothesis</span> <span class="tag">spectroscopy</span> <span class="tag">Dn4000</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#collect_redshift_hypotheses">collect_redshift_hypotheses(data)</a></li>
+  <li><a href="#compute_dn4000">compute_dn4000(wl, fl, z)</a></li>
+  <li><a href="#build_dn4000_lookup">build_dn4000_lookup(wl, fl, results)</a></li>
+  <li><a href="#prepare_diagnostic_slices">prepare_diagnostic_slices(wl, fl, results)</a></li>
+  <li><a href="#_read_csv_lines">_read_csv_lines(csv_path)</a></li>
+  <li><a href="#_build_line_table">_build_line_table(csv_rows)</a></li>
+  <li><a href="#format_structured_summary">format_structured_summary(**kwargs)</a></li>
+  <li><a href="#extract_harness_summary">extract_harness_summary(result, ...)</a></li>
+  <li><a href="#a_extract_harness_summaries">a_extract_harness_summaries(results, ...)</a></li>
+  <li><a href="#_parse_extraction_json">_parse_extraction_json(text)</a></li>
+  <li><a href="#extract_verdict_summary">extract_verdict_summary(rule_analysis)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Hypothesis Collection</h2>
+
+<div class="func-block" id="collect_redshift_hypotheses">
+  <h3>collect_redshift_hypotheses</h3>
+  <div class="sig"><code>collect_redshift_hypotheses(data: dict) -> list[dict]</code></div>
+  <p>Extract hypotheses from <code>redshift_hypotheses</code> output (Redrock or brute-force). Returns a flat list sorted by score descending, with each entry in the format HypothesisAnalyst expects: z, score, n_lines, details, hypothesis, n_em, n_ab, category. Uses <code>z_representative</code> as the redshift to test; falls back to <code>z_center</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>data</code></td><td><code>dict</code></td><td>—</td><td>Redshift hypotheses dict with <code>"hypotheses"</code> list</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>hypotheses</td><td><code>list[dict]</code></td><td>Flat list sorted by score descending; category = 'low' (z&lt;1) or 'high'</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Dn4000 Diagnostics</h2>
+
+<div class="func-block" id="compute_dn4000">
+  <h3>compute_dn4000</h3>
+  <div class="sig"><code>compute_dn4000(wl, fl, z) -> tuple | None</code></div>
+  <p>Compute the Dn4000 break index (Balogh+ 1999) for a single redshift hypothesis. Dn4000 = ⟨F(4000–4100 Å rest)⟩ / ⟨F(3850–3950 Å rest)⟩. Returns None if either window has fewer than 3 pixels or the blue continuum mean is ≤ 0.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray</code></td><td>—</td><td>Observed wavelength grid</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values</td></tr>
+    <tr><td><code>z</code></td><td><code>float</code></td><td>—</td><td>Redshift hypothesis to evaluate</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>tuple | None</code></td><td><code>(dn4000, n_blue, n_red, blue_mean, red_mean, blue_lo, blue_hi, red_lo, red_hi, blue_fluxes, red_fluxes)</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="build_dn4000_lookup">
+  <h3>build_dn4000_lookup</h3>
+  <div class="sig"><code>build_dn4000_lookup(wl, fl, harness_results: list) -> dict</code></div>
+  <p>Build a lookup dict mapping rounded redshift → Dn4000 + interpretation for all unique redshifts in harness results. Interpretation: &gt;1.6 = strong, 1.3–1.6 = moderate, &lt;1.3 = weak or absent.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray</code></td><td>—</td><td>Observed wavelength grid</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values</td></tr>
+    <tr><td><code>harness_results</code></td><td><code>list[dict]</code></td><td>—</td><td>Per-hypothesis harness results (z key or redshift)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>lookup</td><td><code>dict[float, dict]</code></td><td><code>{z: {"dn4000": float|None, "interpretation": str}}</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="prepare_diagnostic_slices">
+  <h3>prepare_diagnostic_slices</h3>
+  <div class="sig"><code>prepare_diagnostic_slices(wl, fl, harness_results: list) -> str</code></div>
+  <p>Build a Dn4000 comparison table for all hypotheses in Markdown format. Dn4000 is a completely independent continuum-based tiebreaker, independent of the CWT→harness pipeline.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray</code></td><td>—</td><td>Observed wavelength grid</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values</td></tr>
+    <tr><td><code>harness_results</code></td><td><code>list[dict]</code></td><td>—</td><td>Per-hypothesis harness results</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>table</td><td><code>str</code></td><td>Markdown comparison table "## Dn4000 Comparison"</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Harness Report Middleware</h2>
+
+<div class="func-block" id="_read_csv_lines">
+  <h3>_read_csv_lines</h3>
+  <div class="sig"><code>_read_csv_lines(csv_path: str) -> list[dict]</code></div>
+  <p>Read per-line fitting results from a harness CSV file. Returns a list of dicts with keys: name, rest_wavelength, fitted_center, snr, status, fwhm_km_s, delta_chi2_per_n. Returns empty list if file does not exist.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>csv_path</code></td><td><code>str</code></td><td>—</td><td>Path to <code>{idx}_lines.csv</code> file</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>rows</td><td><code>list[dict]</code></td><td>Parsed CSV rows; [] if file missing</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_line_table">
+  <h3>_build_line_table</h3>
+  <div class="sig"><code>_build_line_table(csv_rows: list[dict]) -> tuple[list[dict], list[str], list[str], float | None]</code></div>
+  <p>Build structured line data from raw CSV rows. Normalises line names via <code>normalize_line_name</code>, computes λ_obs and z_implied for each line, sorts by status (LIKELY→MARGINAL→ESTIMATED→NOT_FOUND→SPURIOUS), and computes z_scatter from LIKELY lines (std of z_implied).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>csv_rows</code></td><td><code>list[dict]</code></td><td>—</td><td>Raw CSV rows from <code>_read_csv_lines</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(table_rows, nf, sp, scatter)</td><td><code>tuple</code></td><td>Detected line rows, NOT_FOUND names, SPURIOUS names, z_scatter</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Summary Formatting</h2>
+
+<div class="func-block" id="format_structured_summary">
+  <h3>format_structured_summary</h3>
+  <div class="sig"><code>format_structured_summary(*, hypothesis_idx, z_tested, text_fields, table_rows, not_found_names, spurious_names, z_scatter, dn4000_lookup=None) -> str</code></div>
+  <p>Format CSV-derived line data and LLM-extracted text fields into a standardised Markdown block. Structure: header (verdict/classification/Dn4000) → systemic z + σ_z → line table (λ_obs, z_implied, S/N) → NOT_FOUND/SPURIOUS counts → key caveat. Keyword-only arguments.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>hypothesis_idx</code></td><td><code>int</code></td><td>—</td><td>Hypothesis index for the header label</td></tr>
+    <tr><td><code>z_tested</code></td><td><code>float</code></td><td>—</td><td>Redshift value under evaluation</td></tr>
+    <tr><td><code>text_fields</code></td><td><code>dict</code></td><td>—</td><td>LLM-extracted fields: verdict, classification, systemic_redshift, systemic_source, key_caveat</td></tr>
+    <tr><td><code>table_rows</code></td><td><code>list[dict]</code></td><td>—</td><td>Detected lines from <code>_build_line_table</code></td></tr>
+    <tr><td><code>not_found_names</code></td><td><code>list[str]</code></td><td>—</td><td>NOT_FOUND line names</td></tr>
+    <tr><td><code>spurious_names</code></td><td><code>list[str]</code></td><td>—</td><td>SPURIOUS line names</td></tr>
+    <tr><td><code>z_scatter</code></td><td><code>float | None</code></td><td>—</td><td>Std dev of z_implied for LIKELY lines</td></tr>
+    <tr><td><code>dn4000_lookup</code></td><td><code>dict | None</code></td><td><code>None</code></td><td>Dn4000 lookup dict for annotation</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>markdown</td><td><code>str</code></td><td>Standardised Markdown block for prompt consumption</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="extract_harness_summary">
+  <h3>extract_harness_summary</h3>
+  <div class="sig"><code>extract_harness_summary(harness_result: dict, dn4000_lookup=None, harness_dir=None) -> str</code></div>
+  <p>Format a single harness result. When <code>harness_dir</code> is given, reads the per-hypothesis CSV and builds a full line table (deterministic, 100% accurate). Falls back to LLM-only structured fields when CSV data is unavailable.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_result</code></td><td><code>dict</code></td><td>—</td><td>Single harness result with hypothesis_idx, redshift, report, structured_output</td></tr>
+    <tr><td><code>dn4000_lookup</code></td><td><code>dict | None</code></td><td><code>None</code></td><td>Dn4000 lookup dict for annotation</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Directory containing <code>single_hypothesis/{idx}_lines.csv</code> files</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>summary</td><td><code>str</code></td><td>Formatted Markdown summary for a single hypothesis</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="a_extract_harness_summaries">
+  <h3>a_extract_harness_summaries</h3>
+  <div class="sig"><code>async a_extract_harness_summaries(harness_results, dn4000_lookup, *, harness_dir=None, model, api_key, base_url, temperature=0.0, concurrency=5) -> list[str]</code></div>
+  <p>Async batch extraction for all harness results. Line data comes from per-hypothesis CSV files (deterministic). The LLM only extracts a few natural-language fields (verdict, classification, systemic redshift, caveats) from each report, respecting a Semaphore concurrency limit.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_results</code></td><td><code>list[dict]</code></td><td>—</td><td>All per-hypothesis harness results</td></tr>
+    <tr><td><code>dn4000_lookup</code></td><td><code>dict</code></td><td>—</td><td>Dn4000 lookup for annotation</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Directory with <code>single_hypothesis/</code> CSV files</td></tr>
+    <tr><td><code>model</code></td><td><code>str</code></td><td>—</td><td>LLM model name for text extraction</td></tr>
+    <tr><td><code>api_key</code></td><td><code>str</code></td><td>—</td><td>API key for LLM</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str</code></td><td>—</td><td>API base URL</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.0</code></td><td>LLM temperature for extraction</td></tr>
+    <tr><td><code>concurrency</code></td><td><code>int</code></td><td><code>5</code></td><td>Max concurrent LLM calls (Semaphore)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>summaries</td><td><code>list[str]</code></td><td>Formatted Markdown summaries for all hypotheses</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_parse_extraction_json">
+  <h3>_parse_extraction_json</h3>
+  <div class="sig"><code>_parse_extraction_json(text: str) -> dict | None</code></div>
+  <p>Parse JSON from an LLM extraction response. Tolerant of markdown code fences and surrounding text — searches for the first <code>{...}</code> block and attempts <code>json.loads</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>text</code></td><td><code>str</code></td><td>—</td><td>Raw LLM response text</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>data</td><td><code>dict | None</code></td><td>Parsed JSON dict, or None if unparseable</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Synthesis Verdict</h2>
+
+<div class="func-block" id="extract_verdict_summary">
+  <h3>extract_verdict_summary</h3>
+  <div class="sig"><code>extract_verdict_summary(rule_analysis: dict) -> dict</code></div>
+  <p>Extract a normalised summary from synthesis output for ground-truth comparison. Handles various shapes rule_analysis can take (parsed JSON, fallback dict, error dict).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>rule_analysis</code></td><td><code>dict</code></td><td>—</td><td>Synthesis output dict (may be nested or error dict)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>summary</td><td><code>dict</code></td><td>Flat dict: redshift, anchor_line, anchor_wavelength, wavelength_error, classification, confidence, best_hypothesis_idx</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','collect_redshift_hypotheses','compute_dn4000','build_dn4000_lookup','prepare_diagnostic_slices','_read_csv_lines','_build_line_table','format_structured_summary','extract_harness_summary','a_extract_harness_summaries','_parse_extraction_json','extract_verdict_summary'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>_utils.py — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#safe_to_bool" class="sidebar-link sidebar-sublink" data-label="safe_to_bool()">safe_to_bool</a>
+      <a href="#getenv_int" class="sidebar-link sidebar-sublink" data-label="getenv_int()">getenv_int</a>
+      <a href="#getenv_float" class="sidebar-link sidebar-sublink" data-label="getenv_float()">getenv_float</a>
+      <a href="#getenv_optional_float" class="sidebar-link sidebar-sublink" data-label="getenv_optional_float()">getenv_optional_float</a>
+      <a href="#getenv_int_list" class="sidebar-link sidebar-sublink" data-label="getenv_int_list()">getenv_int_list</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / <a href="overview.html">Config</a> / _utils
+</div>
+
+<h1><span class="section-label">Core · Config</span>_utils.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/core/config/_utils.py</code></p>
+  <p><strong>Role:</strong> Shared helper functions for parsing environment variables — boolean coercion, typed getenv with defaults, list parsing. Used by all other config modules to read env vars safely.</p>
+  <p><strong>Used by:</strong> <a href="model_config.html">ModelConfig</a> · <a href="params_config.html">ParamsConfig</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">config</span> <span class="tag">utils</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">_utils.py</span>
+      <ul>
+        <li class="file"><a href="#safe_to_bool">safe_to_bool(value)</a> <span class="comment">← str/bool → bool</span></li>
+        <li class="file"><a href="#getenv_int">getenv_int(name, default)</a> <span class="comment">← env → int</span></li>
+        <li class="file"><a href="#getenv_float">getenv_float(name, default)</a> <span class="comment">← env → float</span></li>
+        <li class="file"><a href="#getenv_optional_float">getenv_optional_float(name)</a> <span class="comment">← env → float | None</span></li>
+        <li class="file"><a href="#getenv_int_list">getenv_int_list(name, default)</a> <span class="comment">← env → list[int]</span></li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#safe_to_bool">safe_to_bool(value → bool)</a></li>
+  <li><a href="#getenv_int">getenv_int(name, default → int)</a></li>
+  <li><a href="#getenv_float">getenv_float(name, default → float)</a></li>
+  <li><a href="#getenv_optional_float">getenv_optional_float(name → Optional[float])</a></li>
+  <li><a href="#getenv_int_list">getenv_int_list(name, default → List[int])</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<div class="func-block" id="safe_to_bool">
+  <h3>safe_to_bool</h3>
+  <div class="sig"><code>safe_to_bool(value: Optional[str]) -> bool</code></div>
+  <p>Coerce a value to boolean safely. If already <code>bool</code>, pass through. If <code>str</code>, match against <code>{"true","1","t","yes","y"}</code> (case-insensitive). All other values (including <code>None</code>) return <code>False</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>value</code></td><td><code>Optional[str]</code></td><td>—</td><td>Value to coerce; <code>bool</code> passes through, <code>str</code> is matched</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>bool</code></td><td><code>True</code> only for recognised truthy strings or existing <code>True</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="getenv_int">
+  <h3>getenv_int</h3>
+  <div class="sig"><code>getenv_int(name: str, default: int) -> int</code></div>
+  <p>Read an environment variable and parse as <code>int</code>. On parse failure, prints a warning and returns <code>default</code>. On missing/empty env var, returns <code>default</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Environment variable name</td></tr>
+    <tr><td><code>default</code></td><td><code>int</code></td><td>—</td><td>Fallback value when env var is missing or unparseable</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>value</td><td><code>int</code></td><td>Parsed integer or default</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="getenv_float">
+  <h3>getenv_float</h3>
+  <div class="sig"><code>getenv_float(name: str, default: float) -> float</code></div>
+  <p>Read an environment variable and parse as <code>float</code>. On parse failure, prints a warning and returns <code>default</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Environment variable name</td></tr>
+    <tr><td><code>default</code></td><td><code>float</code></td><td>—</td><td>Fallback value when env var is missing or unparseable</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>value</td><td><code>float</code></td><td>Parsed float or default</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="getenv_optional_float">
+  <h3>getenv_optional_float</h3>
+  <div class="sig"><code>getenv_optional_float(name: str) -> Optional[float]</code></div>
+  <p>Read an environment variable and parse as <code>float</code>. Returns <code>None</code> (instead of a default) on parse failure or missing value. Used for optional numeric params where <code>None</code> has semantic meaning distinct from a fallback.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Environment variable name</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>value</td><td><code>Optional[float]</code></td><td>Parsed float, or <code>None</code> if missing or unparseable</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="getenv_int_list">
+  <h3>getenv_int_list</h3>
+  <div class="sig"><code>getenv_int_list(name: str, default: List[int]) -> List[int]</code></div>
+  <p>Read a comma-separated environment variable and parse as a list of <code>int</code>. On parse failure, prints a warning and returns <code>default</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Environment variable name</td></tr>
+    <tr><td><code>default</code></td><td><code>List[int]</code></td><td>—</td><td>Fallback list when env var is missing or unparseable</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>values</td><td><code>List[int]</code></td><td>Parsed integer list or default</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Why a separate utils module?</strong> The env-var parsing logic is shared across <code>ModelConfig</code>, <code>ParamsConfig</code>, and potentially other config models. Extracting these helpers avoids code duplication and centralizes error-handling conventions (warn on parse failure, return default).
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','safe_to_bool','getenv_int','getenv_float','getenv_optional_float','getenv_int_list'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

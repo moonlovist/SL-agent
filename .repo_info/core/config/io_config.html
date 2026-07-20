@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IOConfig — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#IOConfig" class="sidebar-link sidebar-sublink" data-label="IOConfig">IOConfig</a>
+      <a href="#validate_by_mode" class="sidebar-link sidebar-sublink" data-label="validate_by_mode()">validate_by_mode</a>
+      <a href="#from_env" class="sidebar-link sidebar-sublink" data-label="from_env()">from_env</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / <a href="overview.html">Config</a> / IOConfig
+</div>
+
+<h1><span class="section-label">Core · Config</span>IOConfig</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/core/config/io_config.py</code></p>
+  <p><strong>Class:</strong> <code>IOConfig(BaseModel)</code> — I/O path configuration. Defines input/output directories, file format, run mode (single or batch), and optional single-file name. Performs cross-field validation to ensure mode-specific required fields are present.</p>
+  <p><strong>Dependencies:</strong> Pydantic</p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">config</span> <span class="tag">io</span> <span class="tag">Pydantic</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">class IOConfig</span>
+      <ul>
+        <li class="file">input_dir, input_format, output_dir, run_mode, file_name <span class="comment">← Pydantic fields</span></li>
+        <li class="file"><a href="#validate_by_mode">validate_by_mode()</a> <span class="comment">← model_validator (mode='after')</span></li>
+        <li class="file"><a href="#from_env">from_env()</a> <span class="comment">← classmethod: load from env vars</span></li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#IOConfig">class IOConfig</a></li>
+  <li><a href="#validate_by_mode">validate_by_mode() — cross-field validation</a></li>
+  <li><a href="#from_env">from_env() — load from environment</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="IOConfig"><span class="class-badge">class</span> IOConfig</h2>
+<p class="desc">Pydantic model with five fields:</p>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-env"><col></colgroup>
+  <tr><th>Key</th><th>Type</th><th>Env Var</th><th>Description</th></tr>
+  <tr><td><code>input_dir</code></td><td><code>str</code></td><td><code>INPUT_DIR</code></td><td>directory containing input spectrum files</td></tr>
+  <tr><td><code>input_format</code></td><td><code>str</code></td><td><code>INPUT_FORMAT</code></td><td>file format tag (e.g. <code>"png"</code>, <code>"fits"</code>)</td></tr>
+  <tr><td><code>output_dir</code></td><td><code>str</code></td><td><code>OUTPUT_DIR</code></td><td>directory for result output</td></tr>
+  <tr><td><code>run_mode</code></td><td><code>str</code></td><td><code>RUN_MODE</code></td><td><code>'s'</code> for single-file, <code>'b'</code> for batch (default <code>"s"</code>)</td></tr>
+  <tr><td><code>file_name</code></td><td><code>Optional[str]</code></td><td><code>FILE_NAME</code></td><td>single-file name, required when <code>run_mode='s'</code> (default <code>""</code>)</td></tr>
+</table>
+
+<div class="func-block" id="validate_by_mode">
+  <h3>validate_by_mode</h3>
+  <div class="sig"><code>@model_validator(mode='after') validate_by_mode(self) -> IOConfig</code></div>
+  <p>Cross-field validation executed after all fields are populated. Checks that <code>input_dir</code>, <code>output_dir</code>, <code>run_mode</code> are non-empty; <code>run_mode</code> is <code>'s'</code> or <code>'b'</code>; and <code>file_name</code> is set when <code>run_mode='s'</code>.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>self</td><td><code>IOConfig</code></td><td>Validated instance; raises <code>ValueError</code> on invalid configuration</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="from_env">
+  <h3>from_env</h3>
+  <div class="sig"><code>@classmethod from_env() -> IOConfig</code></div>
+  <p>Construct from environment variables: <code>INPUT_DIR</code>, <code>INPUT_FORMAT</code>, <code>OUTPUT_DIR</code>, <code>RUN_MODE</code> (lowercased, default <code>"s"</code>), <code>FILE_NAME</code>. After construction, <code>validate_by_mode()</code> runs automatically to enforce mode-specific requirements.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>config</td><td><code>IOConfig</code></td><td>New validated instance with fields populated from env vars</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+  <script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','IOConfig','validate_by_mode','from_env'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+  <script src="../../common.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# FORMA — development overrides (auto-merged by docker compose)
+#
+# This file is committed — it only activates volume mounts when the
+# compose command is run from the project root (i.e. by a developer).
+#
+# Production users (who pull the image) are unaffected — they have no
+# source tree to mount, so the volumes silently become empty or are
+# skipped.
+
+services:
+  forma-cli:
+    volumes:
+      # Mount live source code for instant iteration
+      - ./src/FORMA:/app/src/FORMA
+      - ./scripts/main.py:/app/scripts/main.py
+
+  forma-web:
+    volumes:
+      - ./src/FORMA:/app/src/FORMA
+      - ./scripts/webui.py:/app/scripts/webui.py

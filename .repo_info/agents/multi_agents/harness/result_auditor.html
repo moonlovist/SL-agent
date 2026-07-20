@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>result_auditor — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_load_skill" class="sidebar-link sidebar-sublink" data-label="_load_skill()">_load_skill</a>
+      <a href="#_lookup_wavelength_errors" class="sidebar-link sidebar-sublink" data-label="_lookup_wavelength_errors()">_lookup_wavelength_errors</a>
+      <a href="#_format_confirmed_lines_with_errors" class="sidebar-link sidebar-sublink" data-label="_format_confirmed_lines_with_errors()">_format_confirmed_lines_with_errors</a>
+      <a href="#_build_user_message" class="sidebar-link sidebar-sublink" data-label="_build_user_message()">_build_user_message</a>
+      <a href="#_extract_json_from_text" class="sidebar-link sidebar-sublink" data-label="_extract_json_from_text()">_extract_json_from_text</a>
+      <a href="#arun" class="sidebar-link sidebar-sublink" data-label="arun()">arun</a>
+      <a href="#_write_stream" class="sidebar-link sidebar-sublink" data-label="_write_stream()">_write_stream</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#harness">Harness</a> / result_auditor
+</div>
+
+<h1><span class="section-label">Harness</span>result_auditor.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/harness/result_auditor.py</code></p>
+  <p>Report Writer — Final Report Writing Harness. Runs after the Result Auditor. Takes all upstream outputs (synthesis verdict, RA verdict, FA structured verdicts, continuum description, cleaned line tables) and produces a structured 6-section final report plus a JSON comprehensive assessment block. <code>arun</code> is the main async entry point.</p>
+  <div class="tag-row"><span class="tag">harness</span> <span class="tag">result-auditor</span> <span class="tag">LLM</span> <span class="tag">JSON-extraction</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_load_skill">_load_skill()</a></li>
+  <li><a href="#_lookup_wavelength_errors">_lookup_wavelength_errors(harness_dir, output_dir)</a></li>
+  <li><a href="#_format_confirmed_lines_with_errors">_format_confirmed_lines_with_errors(confirmed_lines, wavelength_errors)</a></li>
+  <li><a href="#_build_user_message">_build_user_message(state, harness_dir)</a></li>
+  <li><a href="#_extract_json_from_text">_extract_json_from_text(text)</a></li>
+  <li><a href="#arun">arun(...) — async</a></li>
+  <li><a href="#_write_stream">_write_stream(md, messages)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Skill &amp; Helpers</h2>
+
+<div class="func-block" id="_load_skill">
+  <h3>_load_skill</h3>
+  <div class="sig"><code>_load_skill() -> str</code></div>
+  <p>Load the Report Writer skill prompt from the skills directory. Reads <code>skills/ReportWriter/report_writer_skill.md</code> relative to the harness module location. Returns empty string if the file does not exist.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>skill</td><td><code>str</code></td><td>Raw markdown content of the report writer skill file, or empty string if not found</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_lookup_wavelength_errors">
+  <h3>_lookup_wavelength_errors</h3>
+  <div class="sig"><code>_lookup_wavelength_errors(harness_dir: str, output_dir: str) -> dict</code></div>
+  <p>Look up wavelength_error for each unique wavelength across all line CSVs. Reads <code>{idx}_lines.csv</code>, <code>{idx}_lines_cleaned.csv</code> from <code>harness_dir/single_hypothesis/</code>, and <code>visual_interpreter/{spectrum_id}_emission.csv</code> / <code>{spectrum_id}_absorption.csv</code> from output_dir. Builds a mapping from integer-rounded wavelength to wavelength_err. Only the first encountered error for each wavelength is kept.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Harness output directory containing <code>single_hypothesis/</code> subdirectory with per-hypothesis line CSVs</td></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory containing <code>visual_interpreter/</code> CSVs</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>errors</td><td><code>dict</code></td><td><code>{int(wavelength): wavelength_err}</code> mapping from integer-rounded observed wavelength to its measurement error</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_format_confirmed_lines_with_errors">
+  <h3>_format_confirmed_lines_with_errors</h3>
+  <div class="sig"><code>_format_confirmed_lines_with_errors(confirmed_lines: list, wavelength_errors: dict) -> str</code></div>
+  <p>Format the confirmed lines list with their associated wavelength errors into a markdown bullet list. Each entry shows line name, observed wavelength, and error (or "error unknown" if not found). Returns <code>*(no confirmed lines)*</code> for empty input.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>confirmed_lines</code></td><td><code>list</code></td><td>—</td><td>List of <code>[line_name, wavelength]</code> pairs from the Result Auditor verdict</td></tr>
+    <tr><td><code>wavelength_errors</code></td><td><code>dict</code></td><td>—</td><td><code>{int(wavelength): error}</code> from <code>_lookup_wavelength_errors</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>formatted</td><td><code>str</code></td><td>Markdown bullet list of confirmed lines with error annotations</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_extract_json_from_text">
+  <h3>_extract_json_from_text</h3>
+  <div class="sig"><code>_extract_json_from_text(text: str) -> Optional[dict]</code></div>
+  <p>Extract a JSON object from raw LLM output text. Tries three strategies in order: (1) a JSON fenced code block (<code>```json ... ```</code>), (2) any fenced code block, (3) a bare JSON object containing a <code>"type"</code> string key, (4) parsing the entire text as JSON. Returns <code>None</code> if all strategies fail.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>text</code></td><td><code>str</code></td><td>—</td><td>Raw LLM output text potentially containing embedded JSON</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict | None</code></td><td>Parsed JSON dict, or <code>None</code> if extraction fails</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_write_stream">
+  <h3>_write_stream</h3>
+  <div class="sig"><code>_write_stream(md: TextIOWrapper, messages: list) -> None</code></div>
+  <p>Write conversation messages to a streaming markdown file. Iterates through agent messages and writes LLM text responses, tool call arguments (as JSON), and tool results (truncated to 2000 chars) to the open file handle. Skips <code>human</code>-role messages (the initial user prompt was already written by the caller).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>md</code></td><td><code>TextIOWrapper</code></td><td>—</td><td>Open file handle to the stream markdown file</td></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>List of LangChain message objects with <code>type</code>, <code>content</code>, <code>tool_calls</code>, and <code>name</code> attributes</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Writes markdown content to the file handle in-place</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Core</h2>
+
+<div class="func-block" id="_build_user_message">
+  <h3>_build_user_message</h3>
+  <div class="sig"><code>_build_user_message(state: SpectroState, harness_dir: str) -> str</code></div>
+  <p>Build the user prompt for the Report Writer LLM. Assembles a structured markdown prompt containing: spectrum metadata (wavelength range, median SNR, blue/red edges), continuum description, synthesis verdict (best hypothesis, redshift, classification, confidence, anchor line, excluded hypotheses), Result Auditor verdict (calibrated confidence, spectrum quality, key issues), confirmed lines with wavelength errors, per-hypothesis line tables (post-FeatureAuditor), FA structured verdicts (composite profiles, doublets, [O II] morphology), and a final task description instructing the LLM to produce the 6-section report.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Shared pipeline state containing spectrum data, hypothesis analysis, auditor verdicts, continuum, and feature audit results</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Harness output directory for resolving CSV paths and the report save location</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>prompt</td><td><code>str</code></td><td>Structured markdown user prompt for the report-writing LLM</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="arun">
+  <h3>arun</h3>
+  <div class="sig"><code>async arun(state: SpectroState, harness_dir: str, *, model: str = "deepseek-v4-pro", api_key: Optional[str] = None, base_url: Optional[str] = None, temperature: float = 0.3, max_turns: int = 30, stream_md_path: Optional[str] = None) -> Tuple[str, Optional[dict]]</code></div>
+  <p>Run the Report Writer report-writing agent. Loads the skill prompt, builds the user prompt, configures the LLM (with thinking disabled via <code>_build_thinking_extra_body</code>), creates a LangChain agent with <code>compute_redshift_error</code> and <code>write_report</code> tools, invokes the agent asynchronously, optionally streams the full conversation to a markdown file, and extracts the final report text plus any comprehensive assessment JSON from the last AI message. Returns both artifacts for downstream use.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Shared pipeline state with spectrum data, synthesis results, auditor verdicts, feature audit outputs</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Harness output directory for CSVs, skill files, and report output</td></tr>
+    <tr><td><code>model</code></td><td><code>str</code></td><td><code>"deepseek-v4-pro"</code></td><td>LLM model identifier passed to the chat creation function</td></tr>
+    <tr><td><code>api_key</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API key for LLM authentication</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Custom API base URL; used for vendor detection and thinking configuration</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.3</code></td><td>LLM sampling temperature</td></tr>
+    <tr><td><code>max_turns</code></td><td><code>int</code></td><td><code>30</code></td><td>Maximum recursion / turn limit for the agent loop</td></tr>
+    <tr><td><code>stream_md_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>If set, writes the full conversation (system prompt, user prompt, tool calls, results, final output) to this markdown file</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>report_markdown</td><td><code>str</code></td><td>Final report as raw markdown text from the last AI message</td></tr>
+    <tr><td>comprehensive_assessment</td><td><code>dict | None</code></td><td>Extracted JSON comprehensive assessment block, or None if parsing fails</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-07-03</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_load_skill','_lookup_wavelength_errors','_format_confirmed_lines_with_errors','_build_user_message','_extract_json_from_text','arun','_write_stream'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

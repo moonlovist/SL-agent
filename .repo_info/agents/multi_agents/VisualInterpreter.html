@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisualInterpreter — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+<style>
+  .pipeline { margin: 24px 0; }
+  .pipeline-stage { margin-bottom: 14px; }
+  .pipeline-stage:last-child { margin-bottom: 0; }
+  .pipeline-stage-inner {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+  .pipeline-stage-inner .stage-head {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .pipeline-stage-inner .stage-label {
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 14px;
+  }
+  .pipeline-stage-inner .stage-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 1.15em;
+    font-weight: 600;
+    color: var(--amber);
+    letter-spacing: 0.01em;
+  }
+  .pipeline-stage-inner .stage-flow {
+    font-size: 0.82em;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .pipeline-stage-inner .stage-flow code {
+    font-size: 0.92em;
+  }
+  .pipeline-connector {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 1.2em;
+    margin: 2px 0;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#VisualInterpreter" class="sidebar-link sidebar-sublink" data-label="VisualInterpreter">VisualInterpreter</a>
+      <a href="#VisualInterpreter.__init__" class="sidebar-link sidebar-sublink" data-label="__init__">__init__</a>
+      <a href="#VisualInterpreter.load_spectrum_from_fits" class="sidebar-link sidebar-sublink" data-label="load_spectrum_from_fits">load_spectrum_from_fits</a>
+      <a href="#VisualInterpreter.run" class="sidebar-link sidebar-sublink" data-label="run">run</a>
+      <a href="#png-channel" class="sidebar-link sidebar-sublink" data-label="PNG channel">PNG channel</a>
+      <a href="#pipeline-steps" class="sidebar-link sidebar-sublink" data-label="Pipeline">Pipeline</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#agents">Agents</a> / VisualInterpreter
+</div>
+
+<h1><span class="section-label">Agent</span>VisualInterpreter</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/VisualInterpreter.py</code></p>
+  <p>Stage 1 of the pipeline. Loads FITS spectra, performs CWT-based feature detection (emission / absorption lines), continuum fitting with feature masking, and generates redshift hypotheses via brute-force line matching or the Redrock pipeline. Optionally supports PNG input via VLM + OCR, currently disabled.</p>
+  <p><strong>Classes:</strong> <code>VisualInterpreter(BaseAgent)</code></p>
+  <p><strong>Dependencies:</strong> <a href="utils/VI.html">VI</a> · <a href="utils/cwt_feature_finder.html">cwt_feature_finder</a> · <a href="utils/plot.html">plot</a> · <a href="harness/result_auditor.html">result_auditor</a></p>
+  <div class="tag-row"><span class="tag">agent</span> <span class="tag">VisualInterpreter</span> <span class="tag">Stage-1</span> <span class="tag">FITS</span> <span class="tag">CWT</span> <span class="tag">redrock</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#VisualInterpreter">Class VisualInterpreter</a></li>
+  <li><a href="#VisualInterpreter.__init__">VisualInterpreter.__init__(self, runtime)</a></li>
+  <li><a href="#VisualInterpreter.load_spectrum_from_fits">VisualInterpreter.load_spectrum_from_fits(self, state)</a></li>
+  <li><a href="#VisualInterpreter.run">VisualInterpreter.run(self, state, plot) — async</a></li>
+  <li><a href="#png-channel">PNG Channel (disabled)</a></li>
+  <li><a href="#pipeline-steps">Pipeline Steps</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="VisualInterpreter"><span class="class-badge">class</span> VisualInterpreter</h2>
+<p class="desc">Inherits: <code>BaseAgent</code></p>
+<p class="desc">Stage 1 Agent. Entry point of the FORMA pipeline. Accepts a FITS file path, extracts calibrated spectra per arm, runs CWT feature detection, fits the continuum with feature region masking, and generates ranked redshift hypotheses.</p>
+
+<div class="func-block" id="VisualInterpreter.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime: RuntimeContainer)</code></div>
+  <p>Initialize the VisualInterpreter agent. Stores the RuntimeContainer reference for accessing configuration parameters (model, I/O, batch, params). Agent name is set to <code>"VisualInterpreter"</code>. Skill prompts are loaded from <code>harness/skills/VisualInterpreter/</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>—</td><td>Runtime container providing configs (io, model, params, batch) and shared services.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Constructor, no return value.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="VisualInterpreter.load_spectrum_from_fits">
+  <h3>load_spectrum_from_fits</h3>
+  <div class="sig"><code>load_spectrum_from_fits(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Load spectrum data from a FITS file. Delegates to <code>_load_spectrum_from_fits()</code> from <code>utils/VI.py</code>. Uses <code>ARM_NAME</code> and <code>ARM_WAVELENGTH_RANGE</code> from the runtime params configuration (sourced from <code>.env</code>) to determine the arm bands and their wavelength coverage. Returns state with <code>state['spectrum']</code> populated as a dict with keys <code>wavelength</code>, <code>flux</code>, <code>snr</code>, and optionally <code>ivar</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state containing <code>file_path</code> (path to the input FITS file).</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Updated state with <code>state['spectrum']</code> set to the loaded spectrum dict.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="VisualInterpreter.run">
+  <h3>run</h3>
+  <div class="sig"><code>async run(self, state: SpectroState, plot: bool = True) -> SpectroState</code></div>
+  <p>Main entry point — executes the full Stage 1 pipeline. Checks <code>INPUT_FORMAT</code> from config; if <code>'fits'</code>, runs <code>load_spectrum_from_fits</code> (PNG branch is disabled). Then proceeds through overlap region computation, diagnostic plotting, NPZ persistence, CWT feature detection, continuum fitting with feature masking, and redshift hypothesis generation (brute-force line matching or Redrock pipeline depending on <code>params.redrock</code>).</p>
+  <p>The pipeline proceeds in these phases:</p>
+  <ul>
+    <li><strong>FITS loading</strong> — <code>_load_spectrum_from_fits()</code> extracts wavelength, flux, ivar per arm from the FITS file.</li>
+    <li><strong>Overlap / Plot / NPZ</strong> — Computes arm overlap regions, generates spec-extract and SNR plots, saves <code>{file_name}_spectrum.npz</code>.</li>
+    <li><strong>CWT feature detection</strong> — <code>run_cwt_feature_detection()</code> detects emission and absorption lines; stores <code>state['peaks']</code>, <code>state['troughs']</code>, <code>state['emission_records']</code>, <code>state['absorption_records']</code>.</li>
+    <li><strong>Continuum fitting</strong> — <code>run_continuum_fitting_masked()</code> fits a Chebyshev polynomial continuum with detected features masked; stores <code>state['continuum']</code> and <code>state['residual_spectrum']</code>.</li>
+    <li><strong>Feature plot</strong> — <code>plot_features()</code> renders detected emission / absorption lines on the spectrum.</li>
+    <li><strong>Redshift hypotheses</strong> — If <code>params.redrock</code> is true, runs <code>run_redrock_pipeline()</code>; otherwise runs <code>brute_force_line_matching()</code>. Stores <code>state['redshift_hypotheses']</code>.</li>
+    <li><strong>Output</strong> — <code>ResultWriter.write_redshift_hypotheses(state)</code> persists the hypotheses.</li>
+  </ul>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>file_path</code> and <code>output_dir</code> populated.</td></tr>
+    <tr><td><code>plot</code></td><td><code>bool</code></td><td><code>True</code></td><td>Whether to generate diagnostic plots (spec-extract, SNR, continuum, residual, features).</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>State populated with spectrum, peaks/troughs lists, emission/absorption records, continuum/residual arrays, and redshift_hypotheses. Also writes NPZ and plot files to <code>output_dir/visual_interpreter/</code>.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="png-channel">PNG Channel (disabled)</h2>
+
+<p class="desc">The PNG / VLM input channel was disabled on <strong>2026-06-30</strong> because PaddleOCR and Tesseract dependencies are cumbersome to install. During testing, only FITS input is supported. The following commented-out methods implement the PNG-only processing flow (Phases A through C). To restore, uncomment the corresponding imports and method bodies in <code>VisualInterpreter.py</code> and <code>utils/VI.py</code>.</p>
+
+<table>
+<colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+  <tr><th>Method</th><th>Description</th></tr>
+  <tr><td><i>* detect_axis_ticks</i></td><td>Call VLM (LLM with image) to detect axis tick marks from a spectrum plot image. Returns structured axis_info; raises if image is not a spectrum plot.</td></tr>
+  <tr><td><i>* detect_axis_ticks_OCR</i></td><td>Call OCR engine (PaddleOCR or Tesseract, selected via <code>params.ocr</code>) to detect tick labels from the image.</td></tr>
+  <tr><td><i>* combine_axis_mapping</i></td><td>Use LLM to merge VLM and OCR tick results into a single consistent pixel-to-value mapping. Checks monotonicity and resolves conflicts.</td></tr>
+  <tr><td><i>* revise_axis_mapping</i></td><td>Use LLM to check and correct the combined tick-pixel mapping for monotonicity violations.</td></tr>
+  <tr><td><i>* check_border</i></td><td>Call LLM to judge whether cropping has removed all four borders (top, right, bottom, left) cleanly. Returns a dict of boolean flags.</td></tr>
+  <tr><td><i>* border_detection_and_cropping</i></td><td>Iterative cropping loop: <code>_detect_chart_border</code> → <code>_crop_img</code> → <code>check_border</code>. Increases margin by 2px per dirty edge, stops when all edges are clean or margin reaches 30px.</td></tr>
+</table>
+
+<p class="desc">The disabled PNG channel also includes utility functions from <code>utils/VI.py</code> that remain available but unused: <code>_detect_chart_border</code>, <code>_crop_img</code>, <code>_remap_to_cropped_canvas</code>, <code>_pixel_tickvalue_fitting</code>, and <code>_convert_to_spectrum</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="pipeline-steps">Pipeline Steps</h2>
+
+<p class="desc">The <code>run()</code> method orchestrates the following pipeline. Each step is implemented by dedicated utility functions in <code>utils/</code>; results are written back to <code>SpectroState</code> at the agent layer.</p>
+
+<div class="pipeline">
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase A · Step 1</span>
+        <span class="stage-name">FITS Loading</span>
+      </div>
+      <div class="stage-flow">
+        <p>Checks <code>INPUT_FORMAT</code> from config. If <code>'fits'</code>, delegates to <code>_load_spectrum_from_fits()</code> which extracts wavelength, flux, ivar, and SNR arrays per arm from the FITS HDU structure. PNG branch raises <code>NotImplementedError</code> (channel disabled). Populates <code>state['spectrum']</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase A · Step 2</span>
+        <span class="stage-name">Overlap, Plot &amp; Persist</span>
+      </div>
+      <div class="stage-flow">
+        <p>Computes arm overlap regions via <code>find_overlap_regions()</code>. Generates spec-extract and SNR diagnostic plots. Saves the full spectrum as <code>{file_name}_spectrum.npz</code> for downstream harness agents.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase D · Step 3</span>
+        <span class="stage-name">CWT Feature Detection</span>
+      </div>
+      <div class="stage-flow">
+        <p>Calls <code>run_cwt_feature_detection()</code> — Ricker wavelet transform across configurable scales, ridge-line detection in scale-space, emission/absorption classification. Populates <code>state['peaks']</code>, <code>state['troughs']</code>, <code>state['emission_records']</code>, <code>state['absorption_records']</code>. Optionally renders <code>plot_features()</code> with wavelength annotations.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase E · Step 4</span>
+        <span class="stage-name">Continuum Fitting</span>
+      </div>
+      <div class="stage-flow">
+        <p>Iterative Chebyshev polynomial fit via <code>run_continuum_fitting_masked()</code>. Detected features are masked (centre ± 3σ), degree is auto-selected or config-driven, and outliers are rejected. Stores <code>state['continuum']</code> and <code>state['residual_spectrum']</code>. Generates continuum and residual plots.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase E · Step 5</span>
+        <span class="stage-name">Redshift Hypothesis Generation</span>
+      </div>
+      <div class="stage-flow">
+        <p>If <code>params.redrock</code> is enabled, runs <code>run_redrock_pipeline()</code> (external template-fitting engine). Otherwise runs <code>brute_force_line_matching()</code> — unified single-pass matching with Union-Find dedup, ranked by N_emission + N_absorption. Results stored in <code>state['redshift_hypotheses']</code> and persisted via <code>ResultWriter.write_redshift_hypotheses()</code>.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','VisualInterpreter','VisualInterpreter.__init__','VisualInterpreter.load_spectrum_from_fits','VisualInterpreter.run','png-channel','pipeline-steps'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

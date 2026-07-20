@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HypothesisAnalyst — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+<style>
+  .pipeline { margin: 24px 0; }
+  .pipeline-stage { margin-bottom: 14px; }
+  .pipeline-stage:last-child { margin-bottom: 0; }
+  .pipeline-stage-inner {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+  .pipeline-stage-inner .stage-head {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .pipeline-stage-inner .stage-label {
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 14px;
+  }
+  .pipeline-stage-inner .stage-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 1.15em;
+    font-weight: 600;
+    color: var(--amber);
+    letter-spacing: 0.01em;
+  }
+  .pipeline-stage-inner .stage-flow {
+    font-size: 0.82em;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .pipeline-stage-inner .stage-flow code {
+    font-size: 0.92em;
+  }
+  .pipeline-connector {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 1.2em;
+    margin: 2px 0;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#HypothesisAnalyst" class="sidebar-link sidebar-sublink" data-label="HypothesisAnalyst">HypothesisAnalyst</a>
+      <a href="#HypothesisAnalyst.__init__" class="sidebar-link sidebar-sublink" data-label="__init__">__init__</a>
+      <a href="#HypothesisAnalyst.run" class="sidebar-link sidebar-sublink" data-label="run">run</a>
+      <a href="#HypothesisAnalyst.run_hypothesis_synthesis" class="sidebar-link sidebar-sublink" data-label="run_hypothesis_synthesis">run_hypothesis_synthesis</a>
+      <a href="#HypothesisAnalyst._run_single_hypothesis_batch" class="sidebar-link sidebar-sublink" data-label="_run_single_hypothesis_batch">_run_single_hypothesis_batch</a>
+      <a href="#HypothesisAnalyst._plot_harness_candidates" class="sidebar-link sidebar-sublink" data-label="_plot_harness_candidates">_plot_harness_candidates</a>
+      <a href="#HypothesisAnalyst._run_hypothesis_synthesis" class="sidebar-link sidebar-sublink" data-label="_run_hypothesis_synthesis">_run_hypothesis_synthesis</a>
+      <a href="#pipeline-steps" class="sidebar-link sidebar-sublink" data-label="Pipeline">Pipeline</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#agents">Agents</a> / HypothesisAnalyst
+</div>
+
+<h1><span class="section-label">Agent</span>HypothesisAnalyst</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/HypothesisAnalyst.py</code></p>
+  <p>Stage 2 — Parallel hypothesis verification and synthesis. Collects redshift hypotheses from VisualInterpreter, launches an independent LLM harness per hypothesis for spectral feature analysis, then cross-compares all results via an LLM-driven synthesis step.</p>
+  <p><strong>Classes:</strong> <code>HypothesisAnalyst(BaseAgent)</code></p>
+  <p><strong>Dependencies:</strong> <a href="harness/single_hypothesis.html">single_hypothesis</a> · <a href="harness/hypothesis_synthesis.html">hypothesis_synthesis</a> · <a href="utils/HA.html">HA</a> · <a href="utils/plot.html">plot</a> · <a href="AnalysisAuditor.html">AnalysisAuditor</a></p>
+  <div class="tag-row"><span class="tag">agent</span> <span class="tag">HypothesisAnalyst</span> <span class="tag">Stage-2</span> <span class="tag">hypothesis</span> <span class="tag">verification</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#HypothesisAnalyst">Class HypothesisAnalyst</a></li>
+  <li><a href="#HypothesisAnalyst.__init__">HypothesisAnalyst.__init__(self, runtime)</a></li>
+  <li><a href="#HypothesisAnalyst.run">HypothesisAnalyst.run(self, state) — async</a></li>
+  <li><a href="#HypothesisAnalyst.run_hypothesis_synthesis">HypothesisAnalyst.run_hypothesis_synthesis(self, state) — async</a></li>
+  <li><a href="#HypothesisAnalyst._run_single_hypothesis_batch">HypothesisAnalyst._run_single_hypothesis_batch(self, state, hypotheses, mode) — async</a></li>
+  <li><a href="#HypothesisAnalyst._plot_harness_candidates">HypothesisAnalyst._plot_harness_candidates(self, state, harness_results)</a></li>
+  <li><a href="#HypothesisAnalyst._run_hypothesis_synthesis">HypothesisAnalyst._run_hypothesis_synthesis(self, state, hypothesis_results, mode) — async</a></li>
+  <li><a href="#pipeline-steps">Pipeline Steps</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="HypothesisAnalyst"><span class="class-badge">class</span> HypothesisAnalyst</h2>
+<p class="desc">Inherits: <code>BaseAgent</code></p>
+<p class="desc">Harness-based parallel redshift hypothesis verification and ranking. Implements two phases: Phase 1 (single-hypothesis search with bounded concurrency) and Phase 2 (LLM-driven cross-comparison synthesis after FeatureAuditor verification).</p>
+
+<div class="func-block" id="HypothesisAnalyst.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime: RuntimeContainer)</code></div>
+  <p>Initialize the HypothesisAnalyst agent. Stores the RuntimeContainer reference and instantiates a <code>ResultWriter</code> for persisting analysis outputs (hypothesis analysis reports). Agent name is set to <code>"HypothesisAnalyst"</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>—</td><td>Runtime container providing configs (io, model, params, batch) and shared services.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Constructor, no return value.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="HypothesisAnalyst.run">
+  <h3>run</h3>
+  <div class="sig"><code>async run(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Phase 1 entry point. Collects redshift hypotheses from <code>state['redshift_hypotheses']</code> via <code>collect_redshift_hypotheses()</code>. Determines analysis mode from config (<code>"redrock"</code> or <code>"nomad"</code>) and stashes it in <code>state['_hypothesis_mode']</code>. Runs the first hypothesis serially to warm the LLM KV cache, then fans out the remaining hypotheses with bounded concurrency governed by <code>params.harness_concurrency</code>. Saves per-hypothesis structured reports and line catalog CSVs. Generates diagnostic feature-overlay plots for each candidate via <code>_plot_harness_candidates()</code>. Sets <code>state['hypothesis_results']</code> and <code>state['harness_dir']</code>.</p>
+  <p>If no hypotheses are available, writes a fallback <code>'UNKNOWN'</code> verdict to <code>state['hypothesis_analysis']</code> and returns early.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>redshift_hypotheses</code> dict, <code>spectrum</code> dict, <code>output_dir</code>, and optional <code>peaks</code>/<code>troughs</code> lists.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Updated state with <code>hypothesis_results</code> (list of harness result dicts), <code>harness_dir</code> (output path), and <code>_hypothesis_mode</code> set. Diagnostic feature plots written to <code>output_dir/single_hypothesis/</code>.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="HypothesisAnalyst.run_hypothesis_synthesis">
+  <h3>run_hypothesis_synthesis</h3>
+  <div class="sig"><code>async run_hypothesis_synthesis(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Phase 2 entry point — runs after FeatureAuditor verification. Reads <code>state['hypothesis_results']</code> and <code>state['_hypothesis_mode']</code> set by <code>run()</code>. If FeatureAuditor was skipped or failed (<code>state["feature_audit_verdict"]["skipped"]</code> is true), writes a partial output and raises <code>FeatureAuditorFailed</code>. Otherwise delegates to <code>_run_hypothesis_synthesis()</code> for LLM-driven cross-comparison, then persists the final analysis via <code>ResultWriter.write_hypothesis_analysis()</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>hypothesis_results</code>, <code>_hypothesis_mode</code>, <code>feature_audit_verdict</code>, and <code>output_dir</code>.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Updated state with <code>hypothesis_analysis</code> verdict dict containing redshift, classification, confidence, best hypothesis index, primary evidence, excluded hypotheses, and caveats.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="HypothesisAnalyst._run_single_hypothesis_batch">
+  <h3>_run_single_hypothesis_batch</h3>
+  <div class="sig"><code>async _run_single_hypothesis_batch(self, state: SpectroState, hypotheses: list, *, mode: str = "nomad") -> list</code></div>
+  <p>Execute the single-hypothesis harness across all candidate redshifts. Runs the first hypothesis serially to warm the LLM KV cache (skill prompt + tool definitions), then fans out the remaining hypotheses with bounded concurrency governed by <code>params.harness_concurrency</code> (using <code>asyncio.Semaphore</code>). Each hypothesis invokes <code>single_hypothesis_arun</code> with spectrum data, redshift window (<code>z_half</code> = 0.1 for redrock, 0.005 for nomad), and file output paths. Failed hypotheses are caught and returned as error dicts with an <code>"error"</code> field rather than crashing the batch.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>spectrum</code> (wavelength, flux, snr, overlap_regions), <code>file_path</code>, <code>spectrum_npz_path</code>, and optional <code>peaks</code>/<code>troughs</code>.</td></tr>
+    <tr><td><code>hypotheses</code></td><td><code>list</code></td><td>—</td><td>List of hypothesis dicts, each with at least <code>"z"</code> (redshift value).</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Analysis mode — <code>"nomad"</code> or <code>"redrock"</code>; controls the search window half-width around each hypothesis redshift.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>results</td><td><code>list</code></td><td>Ordered list of harness result dicts, one per hypothesis. Each contains <code>hypothesis_idx</code>, <code>redshift</code>, <code>report</code>, <code>structured_output</code>, <code>feature_catalog</code>, and <code>hypothesis_meta</code>. Failed entries include an <code>"error"</code> key.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="HypothesisAnalyst._plot_harness_candidates">
+  <h3>_plot_harness_candidates</h3>
+  <div class="sig"><code>_plot_harness_candidates(self, state: SpectroState, harness_results: list) -> None</code></div>
+  <p>Generate diagnostic line-feature plots for each completed harness candidate. Reads the per-hypothesis <code>{idx}_lines.csv</code> catalog written by the single-hypothesis harness and overlays the adopted rest-frame lines (shifted back to observed frame) on the spectrum flux with continuum. Outputs <code>{idx}_features.png</code> images to the <code>single_hypothesis/</code> subdirectory. Uses <code>utils.plot.plot_harness_candidate</code> for each result; failed plots are logged as warnings and skipped.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>spectrum</code> (wavelength, flux) and optional <code>continuum</code> dict.</td></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>—</td><td>Ordered harness result dicts; each must have <code>hypothesis_idx</code> and <code>redshift</code> keys for file naming and plot annotation.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="HypothesisAnalyst._run_hypothesis_synthesis">
+  <h3>_run_hypothesis_synthesis</h3>
+  <div class="sig"><code>async _run_hypothesis_synthesis(self, state: SpectroState, hypothesis_results: list, *, mode: str = "nomad") -> None</code></div>
+  <p>LLM-driven cross-comparison synthesis. Builds a Dn4000-break diagnostic lookup table via <code>build_dn4000_lookup()</code>, extracts structured summaries from each harness result via <code>a_extract_harness_summaries()</code> (LLM middleware that parses free-text reports into structured verdicts), then delegates to <code>harness.hypothesis_synthesis_arun()</code> for the final combined verdict. Stores the analysis result dict in <code>state['hypothesis_analysis']</code>, which includes redshift, classification, confidence, best hypothesis index, primary evidence, excluded hypotheses, and caveats.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state with <code>spectrum</code> arrays (wavelength, flux, snr), <code>feature_audit_verdict</code>, and <code>output_dir</code> for report/csv paths.</td></tr>
+    <tr><td><code>hypothesis_results</code></td><td><code>list</code></td><td>—</td><td>Ordered harness results from <code>_run_single_hypothesis_batch</code> (list of result dicts).</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Analysis mode forwarded to the synthesis harness.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pipeline-steps">Pipeline Steps</h2>
+
+<p class="desc">The HypothesisAnalyst operates in two phases orchestrated by the workflow orchestrator: Phase 1 (<code>run()</code>) executes before FeatureAuditor, and Phase 2 (<code>run_hypothesis_synthesis()</code>) executes after FeatureAuditor has verified the line catalogs.</p>
+
+<div class="pipeline">
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase 1 · Step 1</span>
+        <span class="stage-name">Single-Hypothesis Search</span>
+      </div>
+      <div class="stage-flow">
+        <p>Collects redshift hypotheses from <code>state['redshift_hypotheses']</code> (produced by VisualInterpreter). Runs the first hypothesis serially to warm the LLM KV cache, then fans out the remaining candidates with bounded concurrency (<code>params.harness_concurrency</code>). Each hypothesis is processed by the single-hypothesis harness which produces a structured report and line catalog CSV. After all runs complete, diagnostic feature-overlay plots are generated per candidate.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+  <div class="pipeline-connector" style="font-size:0.72em;color:var(--text-faint);margin:-4px 0 2px;">FeatureAuditor verifies line catalogs</div>
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Phase 2 · Step 2</span>
+        <span class="stage-name">LLM Synthesis</span>
+      </div>
+      <div class="stage-flow">
+        <p>Runs the LLM-driven cross-comparison synthesis. First builds a Dn4000-break diagnostic lookup, then extracts structured summaries from each harness result (parsing free-text reports into machine-readable verdicts). Finally delegates to the synthesis harness for a combined verdict: best redshift, classification, confidence level, primary evidence, and excluded hypotheses. The result is persisted via <code>ResultWriter.write_hypothesis_analysis()</code>. If FeatureAuditor failed or was skipped, raises <code>FeatureAuditorFailed</code> with partial outputs.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','HypothesisAnalyst','HypothesisAnalyst.__init__','HypothesisAnalyst.run','HypothesisAnalyst.run_hypothesis_synthesis','HypothesisAnalyst._run_single_hypothesis_batch','HypothesisAnalyst._plot_harness_candidates','HypothesisAnalyst._run_hypothesis_synthesis','pipeline-steps'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

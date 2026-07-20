@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VI — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_load_spectrum_from_fits" class="sidebar-link sidebar-sublink" data-label="_load_spectrum_from_fits()">_load_spectrum_from_fits</a>
+      <a href="#select_chebyshev_degree" class="sidebar-link sidebar-sublink" data-label="select_chebyshev_degree()">select_chebyshev_degree</a>
+      <a href="#run_continuum_fitting_masked" class="sidebar-link sidebar-sublink" data-label="run_continuum_fitting_masked()">run_continuum_fitting_masked</a>
+      <a href="#generate_continuum_description" class="sidebar-link sidebar-sublink" data-label="generate_continuum_description()">generate_continuum_description</a>
+      <a href="#brute_force_line_matching" class="sidebar-link sidebar-sublink" data-label="brute_force_line_matching()">brute_force_line_matching</a>
+      <a href="#run_redshift_scoring_v3" class="sidebar-link sidebar-sublink" data-label="run_redshift_scoring_v3()">run_redshift_scoring_v3</a>
+      <a href="#run_redrock_pipeline" class="sidebar-link sidebar-sublink" data-label="run_redrock_pipeline()">run_redrock_pipeline</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../../index.html">Home</a> / <a href="../../../../index.html#utils">Utils</a> / VI
+</div>
+
+<h1><span class="section-label">Utils</span>VI.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/utils/VI.py</code></p>
+  <p>Core CV/numerical toolbox (~2100 lines). FITS spectrum loading, Chebyshev continuum fitting, unified brute-force line matching with Union-Find dedup, redshift scoring, and Redrock pipeline integration. PNG/VLM channel functions exist in source but are currently disabled.</p>
+  <div class="tag-row"><span class="tag">utils</span> <span class="tag">VI</span> <span class="tag">FITS</span> <span class="tag">CV</span> <span class="tag">spectroscopy</span> <span class="tag">redrock</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_load_spectrum_from_fits">_load_spectrum_from_fits()</a></li>
+  <li><a href="#select_chebyshev_degree">select_chebyshev_degree()</a></li>
+  <li><a href="#run_continuum_fitting_masked">run_continuum_fitting_masked()</a></li>
+  <li><a href="#generate_continuum_description">generate_continuum_description()</a></li>
+  <li><a href="#brute_force_line_matching">brute_force_line_matching()</a></li>
+  <li><a href="#run_redshift_scoring_v3">run_redshift_scoring_v3()</a></li>
+  <li><a href="#run_redrock_pipeline">run_redrock_pipeline()</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Spectrum I/O</h2>
+
+<div class="func-block" id="_load_spectrum_from_fits">
+  <h3>_load_spectrum_from_fits</h3>
+  <div class="sig"><code>_load_spectrum_from_fits(fits_path, arm_name=None, arm_wavelength_range=None) -> (ndarray, ndarray, ndarray)</code></div>
+  <p>Load and reconstruct a multi-band spectrum from a DESI-format FITS file. Merges arms (B, R, Z) into a single wavelength/flux/ivar array.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>fits_path</code></td><td><code>str</code></td><td>—</td><td>Path to input FITS file</td></tr>
+    <tr><td><code>arm_name</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Arm names (e.g. <code>["B","R","Z"]</code>); auto-detected if None</td></tr>
+    <tr><td><code>arm_wavelength_range</code></td><td><code>list[[f,f]] | None</code></td><td><code>None</code></td><td>Wavelength range per arm</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(wave, flux, ivar)</td><td><code>(ndarray, ndarray, ndarray)</code></td><td>Merged wavelength, flux, and inverse variance arrays</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Continuum Fitting</h2>
+
+<div class="func-block" id="select_chebyshev_degree">
+  <h3>select_chebyshev_degree</h3>
+  <div class="sig"><code>select_chebyshev_degree(sp, min_degree=1, max_degree=10, verbose=False) -> int</code></div>
+  <p>Auto-select the optimal Chebyshev polynomial degree for continuum fitting. Iterates through candidate degrees and evaluates fit quality to avoid over/under-fitting.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>sp</code></td><td><code>ndarray</code></td><td>—</td><td>Input spectrum data</td></tr>
+    <tr><td><code>min_degree</code></td><td><code>int</code></td><td><code>1</code></td><td>Minimum polynomial degree to try</td></tr>
+    <tr><td><code>max_degree</code></td><td><code>int</code></td><td><code>10</code></td><td>Maximum polynomial degree to try</td></tr>
+    <tr><td><code>verbose</code></td><td><code>bool</code></td><td><code>False</code></td><td>Print per-degree fit diagnostics</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>degree</td><td><code>int</code></td><td>Optimal Chebyshev polynomial degree</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_continuum_fitting_masked">
+  <h3>run_continuum_fitting_masked</h3>
+  <div class="sig"><code>run_continuum_fitting_masked(wavelength, flux, ivar=None, degree=None, n_iter=5, sigma_clip=3.0) -> (ndarray, dict)</code></div>
+  <p>Iterative Chebyshev continuum fitting with outlier masking. Masks features → fits continuum → re-evaluates mask → iterates to convergence. Supports auto degree selection.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wavelength</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>flux</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values</td></tr>
+    <tr><td><code>ivar</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>Inverse variance for weighted fitting</td></tr>
+    <tr><td><code>degree</code></td><td><code>int | None</code></td><td><code>None</code></td><td>Chebyshev degree; auto-selected if None</td></tr>
+    <tr><td><code>n_iter</code></td><td><code>int</code></td><td><code>5</code></td><td>Maximum masking iterations</td></tr>
+    <tr><td><code>sigma_clip</code></td><td><code>float</code></td><td><code>3.0</code></td><td>Sigma threshold for outlier rejection</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(continuum, info)</td><td><code>(ndarray, dict)</code></td><td>Fitted continuum array and fitting diagnostics (degree, n_iter, mask)</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="generate_continuum_description">
+  <h3>generate_continuum_description</h3>
+  <div class="sig"><code>generate_continuum_description(wavelength, flux, continuum, ...) -> str</code></div>
+  <p>Generate a natural-language description of the continuum for LLM consumption. Describes overall shape, slope, and notable features in the continuum fit.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wavelength</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>flux</code></td><td><code>ndarray</code></td><td>—</td><td>Original flux</td></tr>
+    <tr><td><code>continuum</code></td><td><code>ndarray</code></td><td>—</td><td>Fitted continuum values</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>description</td><td><code>str</code></td><td>Natural-language continuum description for LLM prompts</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Line Matching &amp; Redshift Scoring</h2>
+
+<div class="func-block" id="brute_force_line_matching">
+  <h3>brute_force_line_matching</h3>
+  <div class="sig"><code>brute_force_line_matching(state: SpectroState, tol_wavelength=None) -> SpectroState</code></div>
+  <p>Unified single-pass brute-force line matching. Uses all detected CWT peaks and troughs as anchors, computes a redshift for each, matches all emission and absorption lines within tolerance. Applies Union-Find dedup and ranks by N_emission + N_absorption. Stores results in <code>state["redshift_hypotheses"]</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Workflow state with detected CWT features</td></tr>
+    <tr><td><code>tol_wavelength</code></td><td><code>int | None</code></td><td><code>None</code></td><td>Matching tolerance in Å; falls back to <code>params_config.tol_wavelength</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>State with <code>redshift_hypotheses</code> populated</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_redshift_scoring_v3">
+  <h3>run_redshift_scoring_v3</h3>
+  <div class="sig"><code>run_redshift_scoring_v3(wavelength, flux, continuum_flux, snr, features_df, redshift_hypotheses, ...) -> dict</code></div>
+  <p>Score redshift hypotheses by cross-matching predicted line positions against CWT-detected features. Uses Δχ²-like scoring with Gaussian fitting and iterative outlier rejection. Produces ranked low-z and high-z candidate lists. Current scoring version.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>scoring</td><td><code>dict</code></td><td>Ranked results with <code>low_z</code>, <code>high_z</code> candidate lists and per-line diagnostics</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Redrock Pipeline</h2>
+
+<div class="func-block" id="run_redrock_pipeline">
+  <h3>run_redrock_pipeline</h3>
+  <div class="sig"><code>run_redrock_pipeline(state: SpectroState, input_dir: str, ...) -> SpectroState</code></div>
+  <p>Run the Redrock redshift engine as an external subprocess. Generates template-matched redshift candidates, parses rrdetails H5 output, converts results into the standard hypothesis format. Used as an optional fallback to brute-force line matching.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Workflow state with spectrum data</td></tr>
+    <tr><td><code>input_dir</code></td><td><code>str</code></td><td>—</td><td>Directory containing input files for Redrock</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>State with Redrock redshift hypotheses populated</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Internal Helpers (Active)</h2>
+
+<div class="func-block" id="_score_one_redshift">
+  <h3>_score_one_redshift</h3>
+  <div class="sig"><code>_score_one_redshift(z, wave, flux_norm, snr, half=20.0, min_wavelength=0.0) -> dict</code></div>
+  <p>Score a single redshift hypothesis by comparing predicted emission/absorption line positions against the observed spectrum within a ±half-Å window. Returns per-line scores and aggregate metrics.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>z</code></td><td><code>float</code></td><td>—</td><td>Redshift to evaluate</td></tr>
+    <tr><td><code>wave</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>flux_norm</code></td><td><code>ndarray</code></td><td>—</td><td>Continuum-normalised flux</td></tr>
+    <tr><td><code>snr</code></td><td><code>float</code></td><td>—</td><td>Spectrum SNR estimate</td></tr>
+    <tr><td><code>half</code></td><td><code>float</code></td><td><code>20.0</code></td><td>Half-window in Å for line matching</td></tr>
+    <tr><td><code>min_wavelength</code></td><td><code>float</code></td><td><code>0.0</code></td><td>Minimum observed wavelength cutoff</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>score</td><td><code>dict</code></td><td>Per-line scores, aggregate score, and matched line details</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_score_one_redshift_cwt">
+  <h3>_score_one_redshift_cwt</h3>
+  <div class="sig"><code>_score_one_redshift_cwt(z, wave, peaks, troughs, half=20.0, min_wavelength=0.0) -> dict</code></div>
+  <p>Score a redshift using pre-detected CWT peaks and troughs instead of scanning the full spectrum. Faster than <code>_score_one_redshift</code> when feature positions are already known.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>z</code></td><td><code>float</code></td><td>—</td><td>Redshift to evaluate</td></tr>
+    <tr><td><code>wave</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>peaks</code></td><td><code>ndarray</code></td><td>—</td><td>Detected emission peak wavelengths</td></tr>
+    <tr><td><code>troughs</code></td><td><code>ndarray</code></td><td>—</td><td>Detected absorption trough wavelengths</td></tr>
+    <tr><td><code>half</code></td><td><code>float</code></td><td><code>20.0</code></td><td>Half-window in Å for line matching</td></tr>
+    <tr><td><code>min_wavelength</code></td><td><code>float</code></td><td><code>0.0</code></td><td>Minimum observed wavelength cutoff</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>score</td><td><code>dict</code></td><td>Per-line scores with CWT feature cross-match results</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_extract_primary_wavelength">
+  <h3>_extract_primary_wavelength</h3>
+  <div class="sig"><code>_extract_primary_wavelength(hypothesis: str) -> float | None</code></div>
+  <p>Extract the primary anchor wavelength from a hypothesis string (e.g. <code>"[O II] 3727"</code> → 3727.0). Used for dedup key generation.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>hypothesis</code></td><td><code>str</code></td><td>—</td><td>Hypothesis string containing line name and wavelength</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>wl</td><td><code>float | None</code></td><td>Primary wavelength in Å, or None if unparseable</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_dedup_by_primary_peak">
+  <h3>_dedup_by_primary_peak</h3>
+  <div class="sig"><code>_dedup_by_primary_peak(candidates: list, peak_tol=30.0) -> list</code></div>
+  <p>Deduplicate redshift candidates by primary peak proximity. If two candidates share an anchor line within <code>peak_tol</code> Å, the one with more matched lines is kept.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>candidates</code></td><td><code>list[dict]</code></td><td>—</td><td>List of redshift candidate dicts</td></tr>
+    <tr><td><code>peak_tol</code></td><td><code>float</code></td><td><code>30.0</code></td><td>Tolerance in Å for considering two anchors the same</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>deduped</td><td><code>list[dict]</code></td><td>Deduplicated candidate list, sorted by N_lines descending</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_run_redrock_subprocess">
+  <h3>_run_redrock_subprocess</h3>
+  <div class="sig"><code>_run_redrock_subprocess(input_path, output_dir, template_dir, ...) -> str</code></div>
+  <p>Execute the Redrock redshift engine as an external subprocess with the given template and archetype directories.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>input_path</code></td><td><code>str</code></td><td>—</td><td>Path to input spectrum file for Redrock</td></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Directory for Redrock output</td></tr>
+    <tr><td><code>template_dir</code></td><td><code>str</code></td><td>—</td><td>Path to Redrock template directory</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>details_h5</td><td><code>str</code></td><td>Path to the rrdetails HDF5 output file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_parse_rrdetails_h5">
+  <h3>_parse_rrdetails_h5</h3>
+  <div class="sig"><code>_parse_rrdetails_h5(details_h5: str) -> list[dict]</code></div>
+  <p>Parse the Redrock rrdetails HDF5 file into a list of structured redshift result dicts. Extracts z, zerr, zwarn, type, and subclass for each candidate.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>details_h5</code></td><td><code>str</code></td><td>—</td><td>Path to the rrdetails H5 file</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>results</td><td><code>list[dict]</code></td><td>Parsed Redrock results with z, zerr, zwarn, type, subclass</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_redrock_to_hypotheses">
+  <h3>_redrock_to_hypotheses</h3>
+  <div class="sig"><code>_redrock_to_hypotheses(redrock_results: list) -> dict</code></div>
+  <p>Convert parsed Redrock results into the standard hypothesis format with z, zmedian, and hypotheses list.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>redrock_results</code></td><td><code>list[dict]</code></td><td>—</td><td>Parsed Redrock result list</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>hypotheses</td><td><code>dict</code></td><td>Standard format: <code>{"z": [...], "zmedian": ..., "hypotheses": [...]}</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_redshift_scoring_v2">
+  <h3>run_redshift_scoring_v2</h3>
+  <div class="sig"><code>run_redshift_scoring_v2(wavelength, flux, continuum_flux, snr, features_df, redshift_hypotheses, ...) -> dict</code></div>
+  <p>Previous scoring version. Superseded by v3 but kept for compatibility.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>scoring</td><td><code>dict</code></td><td>Ranked redshift scoring results (v2 format)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>PNG/VLM Channel Functions <span style="font-size:0.6em;color:var(--text-faint);font-weight:400;">— currently disabled</span></h2>
+
+<p class="desc">PNG channel disabled (2026-06-30). The following functions exist in source but are not currently called by the active pipeline.</p>
+
+<table class="table-output">
+  <colgroup><col class="col-name"><col></colgroup>
+  <tr><th>Method</th><th>Description</th></tr>
+  <tr><td><em><code>* _detect_chart_border(image_path, margin)</code></em></td><td>Detect spectral chart border in PNG images via OpenCV contour analysis</td></tr>
+  <tr><td><em><code>* _crop_img(image_path, border_info, save_path)</code></em></td><td>Crop image to chart region based on detected border coordinates</td></tr>
+  <tr><td><em><code>* _remap_to_cropped_canvas(old_info, chart_border)</code></em></td><td>Remap axis tick coordinates from original to cropped image space</td></tr>
+  <tr><td><em><code>* _linear_func(x, a, b)</code></em></td><td>Linear function helper for pixel-to-wavelength fitting</td></tr>
+  <tr><td><em><code>* _pixel_tickvalue_fitting(arr)</code></em></td><td>Fit pixel-to-tick-value mapping from detected axis ticks via curve_fit</td></tr>
+  <tr><td><em><code>* _process_and_extract_curve_points(input_path)</code></em></td><td>Extract spectrum curve pixel coordinates from digitised PNG chart</td></tr>
+  <tr><td><em><code>* _convert_to_spectrum(crop_path, axis_info, ...)</code></em></td><td>Convert extracted curve points to wavelength/flux arrays using axis mapping</td></tr>
+</table>
+
+<div class="note">
+  <strong>* Annotation:</strong> functions marked with <code>*</code> in italic belong to the PNG/VLM channel and are not currently called by the main FITS pipeline. The code is retained in source; re-enabling the PNG input channel requires uncommenting the corresponding imports and call sites.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','_load_spectrum_from_fits','select_chebyshev_degree','run_continuum_fitting_masked','generate_continuum_description','brute_force_line_matching','run_redshift_scoring_v3','run_redrock_pipeline'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

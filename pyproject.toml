@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "FORMA"
+version = "0.1.0"
+description = "FORMA — LLM-driven agent for human-like analysis of 1D astronomical spectra"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "FORMA Team"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "aistudio-sdk>=0.3.8",
+    "astropy>=7.2.0",
+    "Authlib>=1.6.5",
+    "bce-python-sdk>=0.9.56",
+    "beautifulsoup4>=4.13.5",
+    "click>=8.3.0",
+    "colorlog>=6.10.1",
+    "cryptography>=45.0.7",
+    "cyclopts>=4.1.0",
+    "dashscope>=1.24.5",
+    "dataclasses-json>=0.6.7",
+    "docopt>=0.6.2",
+    "dotenv>=0.9.9",
+    "einops>=0.8.1",
+    "filetype>=1.2.0",
+    "ftfy>=6.3.1",
+    "future>=1.0.0",
+    "google-ai-generativelanguage>=0.7.0",
+    "httpx>=0.28.1",
+    "huggingface_hub>=1.2.3",
+    "ipython>=8.12.3",
+    "jupyter>=1.1.1",
+    "langchain>=1.2.0",
+    "langgraph>=1.0.3,<1.1.0",
+    "langchain-community>=0.3.29",
+    "langchain-core>=1.2.2",
+    "langchain-google-genai>=2.1.12",
+    "langchain-openai>=1.1.4",
+    "langchain-text-splitters>=0.3.11",
+    "lightgbm>=4.6.0",
+    "matplotlib>=3.10.6",
+    "modelscope>=1.33.0",
+    "numpy>=2.2.6",
+    "openai>=2.8.0",
+    "opencv-contrib-python>=4.10.0.84",
+    "opencv-python>=4.12.0.88",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.2",
+    "pigar>=2.2.0",
+    "premailer>=3.10.0",
+    "pycryptodome>=3.23.0",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "pyperclip>=1.11.0",
+    "python-docx>=1.2.0",
+    "python-dotenv>=1.1.1",
+    "PyWavelets>=1.9.0",
+    "requests>=2.32.5",
+    "rich>=14.2.0",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.3",
+    "sentencepiece>=0.2.1",
+    "specutils>=2.3.0",
+    "SQLAlchemy>=2.0.43",
+    "typer-slim>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "debugpy>=1.8.16",
+    "ipython>=8.12.3",
+    "ipykernel>=6.30.1",
+    "notebook>=7.4.5",
+    "jupyterlab>=4.4.7",
+]
+web = [
+    "gradio>=5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/FORMA"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

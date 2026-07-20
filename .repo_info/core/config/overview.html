@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Config Overview — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#AllConfig" class="sidebar-link" data-label="AllConfig">All</a>
+  <a href="#BatchConfig" class="sidebar-link" data-label="BatchConfig">Batch</a>
+  <a href="#IOConfig" class="sidebar-link" data-label="IOConfig">IO</a>
+  <a href="#ModelConfig" class="sidebar-link" data-label="ModelConfig">Model</a>
+  <a href="#ParamsConfig" class="sidebar-link" data-label="ParamsConfig">Params</a>
+  <a href="#utils" class="sidebar-link" data-label="_utils">utils</a>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / Config Overview
+</div>
+
+<h1><span class="section-label">Core</span>Config Overview</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/core/config/ (6 files, 5 Pydantic models + _utils)</code></p>
+  <p>Configuration system — aggregates all runtime parameters via Pydantic models loaded from environment variables. Each model has a <code>from_env()</code> classmethod factory with field-level and cross-field validation.</p>
+  <p><strong>Classes:</strong> <a href="all_config.html">AllConfig</a> · <a href="batch_config.html">BatchConfig</a> · <a href="io_config.html">IOConfig</a> · <a href="model_config.html">ModelConfig</a> · <a href="params_config.html">ParamsConfig</a> · <a href="_utils.html">_utils</a> (helpers)</p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">config</span> <span class="tag">Pydantic</span></div>
+</div>
+
+<h2>Contents</h2>
+<ol class="toc">
+  <li><a href="all_config.html">AllConfig</a> — top-level aggregator</li>
+  <li><a href="batch_config.html">BatchConfig</a> — batch range &amp; file ID generation</li>
+  <li><a href="io_config.html">IOConfig</a> — I/O paths &amp; run mode validation</li>
+  <li><a href="model_config.html">ModelConfig</a> — LLM + VLM client parameters</li>
+  <li><a href="params_config.html">ParamsConfig</a> — science &amp; pipeline parameters</li>
+  <li><a href="_utils.html">_utils</a> — env-var parsing helpers</li>
+</ol>
+
+<h2 id="AllConfig"><span class="class-badge">class</span> AllConfig</h2>
+<p class="desc">Inherits: <code>BaseModel</code></p>
+<p class="desc">Top-level config aggregation. Composes <code>BatchConfig</code>, <code>IOConfig</code>, <code>ModelConfig</code>, <code>ParamsConfig</code> plus <code>retry_delay</code> and <code>max_tries</code>. The single <code>from_env()</code> factory chains all sub-factories. <a href="all_config.html">→ Full details</a></p>
+
+<h2 id="BatchConfig"><span class="class-badge">class</span> BatchConfig</h2>
+<p class="desc">Inherits: <code>BaseModel</code></p>
+<p class="desc">Batch processing config: header prefix, numeric start/end range with field validation, <code>is_batch_mode()</code> detection, <code>generate_ids()</code> file list generation. <a href="batch_config.html">→ Full details</a></p>
+
+<h2 id="IOConfig"><span class="class-badge">class</span> IOConfig</h2>
+<p class="desc">Inherits: <code>BaseModel</code></p>
+<p class="desc">I/O path config: input_dir, input_format, output_dir, run_mode (s/b), file_name. Cross-field validation ensures mode-specific required fields are present. <a href="io_config.html">→ Full details</a></p>
+
+<h2 id="ModelConfig"><span class="class-badge">class</span> ModelConfig</h2>
+<p class="desc">Inherits: <code>BaseModel</code></p>
+<p class="desc">LLM/VLM client configuration: two dicts (llm, vlm) each with api_key, base_url, model, temperature, max_tokens, thinking mode, and streaming flag. <a href="model_config.html">→ Full details</a></p>
+
+<h2 id="ParamsConfig"><span class="class-badge">class</span> ParamsConfig</h2>
+<p class="desc">Inherits: <code>BaseModel</code></p>
+<p class="desc">Science &amp; pipeline parameters: spectral arms, CWT feature detection thresholds, Redrock redshift engine config, harness concurrency, SelfEvolve flags. 24 fields in 3 groups. <a href="params_config.html">→ Full details</a></p>
+
+<h2 id="utils"><span class="class-badge" style="background:var(--badge-done-bg);color:var(--green-accent);">module</span> _utils</h2>
+<p class="desc">Shared env-var parsing helpers: <code>safe_to_bool</code>, <code>getenv_int</code>, <code>getenv_float</code>, <code>getenv_optional_float</code>, <code>getenv_int_list</code>. Used by ModelConfig and ParamsConfig. <a href="_utils.html">→ Full details</a></p>
+
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top');
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e});});
+var tick=false;function upd(){var a=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

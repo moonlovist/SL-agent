@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>main.py — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#main" class="sidebar-link sidebar-sublink" data-label="main()">main</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../index.html">Home</a> / <a href="../index.html#entry">Entry</a> / main.py
+</div>
+
+<h1><span class="section-label">Entry</span>main.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>scripts/main.py</code></p>
+  <p>CLI entry point — loads config, resolves input files (single or batch), runs the orchestrator pipeline for each spectrum, writes incremental CSV results, and triggers batch failure analysis when SelfEvolve is enabled.</p>
+  <p><strong>Dependencies:</strong>
+    <a href="workflow_orchestrator.html">WorkflowOrchestrator</a> ·
+    <a href="../core/config/overview.html">AllConfig</a> ·
+    <a href="../agents/common/state.html">SpectroStateFactory</a> ·
+    <a href="../agents/common/result_writer.html">ResultWriter</a>
+  </p>
+  <div class="tag-row"><span class="tag">entry</span> <span class="tag">CLI</span> <span class="tag">async</span> <span class="tag">batch</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">scripts/main.py</span>
+      <ul>
+        <li>
+          <details open>
+            <summary>main()</summary>
+            <ul>
+              <li class="file">load_dotenv() + AllConfig.from_env() <span class="comment">← config bootstrap</span></li>
+              <li class="file">SpectroStateFactory + ResultWriter <span class="comment">← init factories (ResultWriter, not ReportWriter)</span></li>
+              <li class="file">resolve file_ids <span class="comment">← single or batch mode</span></li>
+              <li class="file">WorkflowOrchestrator(configs) <span class="comment">← build agent pipeline</span></li>
+              <li class="file">CSV header init <span class="comment">← in_brief.csv columns</span></li>
+              <li>
+                <details open>
+                  <summary>[processing loop]</summary>
+                  <ul>
+                    <li class="file">factory.create(file_name, …) <span class="comment">← build SpectroState</span></li>
+                    <li class="file">orchestrator.run_analysis_single(state) <span class="comment">← invoke pipeline</span></li>
+                    <li class="file">writer.write(result) <span class="comment">← persist to disk</span></li>
+                    <li class="file">CSV row append <span class="comment">← incremental write</span></li>
+                    <li class="file">SelfEvolve batch analysis <span class="comment">← when failure threshold reached</span></li>
+                  </ul>
+                </details>
+              </li>
+              <li class="file">SelfEvolve final flush <span class="comment">← process remaining pending failures</span></li>
+            </ul>
+          </details>
+        </li>
+        <li class="file">safe_str(x) <span class="comment">← nested: str conversion, None/NaN/Inf → "N/A"</span></li>
+        <li class="file">if __name__ == "__main__" <span class="comment">← logging + asyncio.run(main())</span></li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#main">main()</a> — async entry, full processing pipeline</li>
+</ol>
+
+<!-- ============================================================ -->
+<div class="func-block" id="main">
+  <h3>main</h3>
+  <div class="sig"><code>async main() -> None</code></div>
+  <p>Top-level async entry point. Orchestrates the full processing lifecycle:</p>
+  <ul>
+    <li><strong>Config bootstrap</strong> — <code>load_dotenv()</code> + <code>AllConfig.from_env()</code> loads all Pydantic config models from environment variables</li>
+    <li><strong>Factories</strong> — creates <code>SpectroStateFactory</code> (builds initial state per spectrum) and <code>ResultWriter</code> (disk persistence)</li>
+    <li><strong>Input resolution</strong> — in batch mode (<code>run_mode='b'</code>) calls <code>batch_config.generate_ids()</code>; in single mode uses <code>io_config.file_name</code></li>
+    <li><strong>Orchestrator init</strong> — instantiates <code>WorkflowOrchestrator(configs)</code>, which initializes all 6 agents and compiles the LangGraph StateGraph</li>
+    <li><strong>CSV bootstrap</strong> — writes header row to <code>in_brief.csv</code> (8 columns: file_name, type, signal_clarity, redshift, redshift_rms, lines, confidence, human_review)</li>
+    <li><strong>Processing loop</strong> — for each file_id: build SpectroState → run pipeline → write results → append CSV row → optionally trigger batch failure analysis when SelfEvolve accumulates enough pending failures</li>
+    <li><strong>Final flush</strong> — if SelfEvolve is enabled, processes any remaining pending failures that didn't reach batch_size</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Batch failure analysis</strong> (SelfEvolve): When <code>params.self_evolve</code> is enabled and a pipeline run records a failure, the pending failure count is checked against <code>params.failure_batch_size</code>. Once the threshold is met, <code>analyze_failure_batch()</code> from <code>utils/HA.py</code> is invoked asynchronously to perform root-cause analysis across the failure batch.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../common.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var sidebar = document.getElementById('sidebar');
+  var toggle = document.getElementById('sidebar-toggle');
+  var overlay = document.getElementById('sidebar-overlay');
+  var links = sidebar.querySelectorAll('.sidebar-link');
+  var topLink = document.getElementById('sidebar-link-top');
+  var sublistContents = document.getElementById('sidebar-sublist-contents');
+  var contentsSubIds = ['contents', 'main'];
+
+  /* ---- scroll-spy ---- */
+  var sections = [];
+  links.forEach(function (link) {
+    var href = link.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    var target = document.getElementById(href.slice(1));
+    if (target) sections.push({ link: link, target: target });
+  });
+
+  var ticking = false;
+  function updateActiveHeading() {
+    var activeLink = null;
+    var activeId = null;
+    var atBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 10;
+    for (var i = sections.length - 1; i >= 0; i--) {
+      var top = sections[i].target.getBoundingClientRect().top;
+      if (top <= 120 || (atBottom && top < window.innerHeight)) {
+        activeLink = sections[i].link;
+        activeId = sections[i].target.id;
+        break;
+      }
+    }
+    if (!activeLink) activeLink = topLink;
+    links.forEach(function (l) { l.classList.remove('active'); });
+    if (activeLink) activeLink.classList.add('active');
+
+    /* expand Contents sublist when inside its sub-sections */
+    if (activeId && contentsSubIds.indexOf(activeId) !== -1) {
+      sublistContents.classList.add('expanded');
+    } else {
+      sublistContents.classList.remove('expanded');
+    }
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      requestAnimationFrame(function () {
+        updateActiveHeading();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
+
+  updateActiveHeading();
+
+  /* ---- mobile toggle ---- */
+  function openSidebar() {
+    links.forEach(function (link) {
+      var full = link.getAttribute('data-label');
+      if (full && !link._short) link._short = link.textContent;
+      if (full) link.textContent = full;
+    });
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    links.forEach(function (link) {
+      if (link._short) link.textContent = link._short;
+    });
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  links.forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (window.innerWidth <= 768) closeSidebar();
+      setTimeout(updateActiveHeading, 120);
+      setTimeout(updateActiveHeading, 400);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  });
+
+  /* ---- expand Contents on toggle click ---- */
+  var contentsToggle = sidebar.querySelector('.sidebar-section-toggle');
+  if (contentsToggle) {
+    contentsToggle.addEventListener('click', function () {
+      sublistContents.classList.add('expanded');
+    });
+  }
+
+  /* ---- external links → new tab ---- */
+  document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function (a) {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+})();
+</script>
+</body>
+</html>

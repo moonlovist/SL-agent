@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkflowOrchestrator — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+  .pipeline { margin: 24px 0; }
+  .pipeline-stage { margin-bottom: 14px; }
+  .pipeline-stage:last-child { margin-bottom: 0; }
+  .pipeline-stage-inner {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 16px 20px;
+  }
+  .pipeline-stage-inner .stage-head {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .pipeline-stage-inner .stage-label {
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 14px;
+  }
+  .pipeline-stage-inner .stage-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 1.15em;
+    font-weight: 600;
+    color: var(--amber);
+    letter-spacing: 0.01em;
+  }
+  .pipeline-stage-inner .stage-name a {
+    color: var(--amber);
+    text-decoration: none;
+  }
+  .pipeline-stage-inner .stage-name a:hover { color: var(--emission); }
+  .pipeline-stage-inner .stage-flow {
+    font-size: 0.82em;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .pipeline-stage-inner .stage-flow code { font-size: 0.92em; }
+  .pipeline-connector {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 1.2em;
+    margin: 2px 0;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#WorkflowOrchestrator" class="sidebar-link sidebar-sublink" data-label="WorkflowOrchestrator">WorkflowOrchestrator</a>
+      <a href="#WorkflowOrchestrator.__init__" class="sidebar-link sidebar-sublink" data-label="__init__">__init__</a>
+      <a href="#WorkflowOrchestrator.run_analysis_single" class="sidebar-link sidebar-sublink" data-label="run_analysis_single">run_analysis_single</a>
+      <a href="#WorkflowOrchestrator._create_workflow" class="sidebar-link sidebar-sublink" data-label="_create_workflow">_create_workflow</a>
+      <a href="#pipeline-topology" class="sidebar-link sidebar-sublink" data-label="Pipeline">Pipeline</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="index.html">Home</a> / <a href="index.html#entry">Entry</a> / WorkflowOrchestrator
+</div>
+
+<h1><span class="section-label">Entry</span>WorkflowOrchestrator</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/workflow_orchestrator.py</code></p>
+  <p>LangGraph StateGraph builder. Initialises all 6 agents, registers 7 nodes, wires the conditional pipeline topology (Stage 1→2→3→4→5→6), and manages retry loops with connection/timeout recovery. Also handles the early-exit path when no spectral features are detected.</p>
+  <p><strong>Classes:</strong> <code>WorkflowOrchestrator</code></p>
+  <p><strong>Dependencies:</strong> <a href="agents/multi_agents/VisualInterpreter.html">VisualInterpreter</a> · <a href="agents/multi_agents/HypothesisAnalyst.html">HypothesisAnalyst</a> · <a href="agents/multi_agents/AnalysisAuditor.html">AnalysisAuditor</a> · <a href="agents/multi_agents/ReportWriter.html">ReportWriter</a> · <a href="agents/multi_agents/SelfEvolve.html">SelfEvolve</a> · <a href="core/runtime/runtime_container.html">RuntimeContainer</a> · LangGraph</p>
+  <div class="tag-row"><span class="tag">entry</span> <span class="tag">LangGraph</span> <span class="tag">orchestration</span> <span class="tag">StateGraph</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#WorkflowOrchestrator">Class WorkflowOrchestrator</a></li>
+  <li><a href="#WorkflowOrchestrator.__init__">__init__(configs)</a></li>
+  <li><a href="#WorkflowOrchestrator.run_analysis_single">run_analysis_single(state, cancel_checker=None) — async</a></li>
+  <li><a href="#WorkflowOrchestrator._create_workflow">_create_workflow()</a></li>
+  <li><a href="#pipeline-topology">Pipeline Topology</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="WorkflowOrchestrator"><span class="class-badge">class</span> WorkflowOrchestrator</h2>
+<p class="desc">Central workflow orchestrator. Initialises all spectro agents via RuntimeContainer, builds a LangGraph StateGraph with conditional routing, and exposes <code>run_analysis_single</code> with retry logic. The SelfEvolve node is wired but conditionally skipped unless ground truth is available.</p>
+
+<div class="func-block" id="WorkflowOrchestrator.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, configs: AllConfig)</code></div>
+  <p>Initialise the orchestrator. Creates a <code>RuntimeContainer</code> from configs, instantiates all 6 agents (<code>_initialize_agents</code>), and compiles the LangGraph StateGraph (<code>_create_workflow</code>).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-source"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>configs</code></td><td><code>AllConfig</code></td><td>Injected</td><td>Top-level configuration for runtime, agents, and pipeline parameters</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="WorkflowOrchestrator._create_workflow">
+  <h3>_create_workflow</h3>
+  <div class="sig"><code>_create_workflow(self) -> StateGraph</code></div>
+  <p>Build and compile the LangGraph StateGraph. Registers 7 nodes, sets the entry point to <code>visual_interpreter</code>, adds a conditional edge for early exit (no features → placeholder report → END), and wires the sequential pipeline: VI → HA search → Feature Auditor → HA synthesis → Analysis Auditor → Report Writer → END.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>workflow</td><td><code>CompiledStateGraph</code></td><td>Compiled LangGraph workflow ready for <code>ainvoke</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="WorkflowOrchestrator.run_analysis_single">
+  <h3>run_analysis_single</h3>
+  <div class="sig"><code>async run_analysis_single(self, state: SpectroState, cancel_checker=None) -> SpectroState</code></div>
+  <p>Execute the full analysis pipeline with retry logic. Stores a cancel checker for cooperative cancellation, deep-copies the initial state for clean retry on connection/timeout errors, runs the compiled workflow via <code>ainvoke</code>. On connection or timeout errors, waits <code>retry_delay</code> seconds and restarts from the clean initial state. Non-retryable errors are raised immediately.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Initial pipeline state with file_path, output_dir, and configs</td></tr>
+    <tr><td><code>cancel_checker</code></td><td><code>Callable | None</code></td><td><code>None</code></td><td>Optional callable returning True to abort the pipeline</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Completed state with all pipeline stages populated; or partial state on failure</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Internal Nodes</h2>
+
+<div class="func-block" id="WorkflowOrchestrator._initialize_agents">
+  <h3>_initialize_agents</h3>
+  <div class="sig"><code>_initialize_agents(self) -> Dict[str, Any]</code></div>
+  <p>Instantiate all 6 agents via their class references in <code>AGENT_CLASSES</code>, passing the shared <code>RuntimeContainer</code>. Agents are stored in a dict keyed by internal name (e.g. <code>"_Visual_Interpreter"</code>).</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>agents</td><td><code>dict[str, BaseAgent]</code></td><td>Mapping of internal names to agent instances</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="WorkflowOrchestrator._check_cancel">
+  <h3>_check_cancel</h3>
+  <div class="sig"><code>_check_cancel(self) -> None</code></div>
+  <p>Check the cancel flag. Raises <code>CancelledError</code> if the checker returns True. Called before each pipeline stage to support cooperative cancellation.</p>
+</div>
+
+<div class="func-block" id="WorkflowOrchestrator._has_features">
+  <h3>_has_features</h3>
+  <div class="sig"><code>_has_features(self, state: SpectroState) -> str</code></div>
+  <p>Conditional routing function. Returns <code>"no_features"</code> if the VI node set <code>_no_features</code> (zero CWT peaks and troughs), otherwise <code>"continue"</code>. Used by <code>add_conditional_edges</code> to skip all downstream agents when no signal is detected.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>State after VI node execution</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>route</td><td><code>str</code></td><td><code>"no_features"</code> or <code>"continue"</code></td></tr>
+  </table>
+</div>
+
+<h3>Agent Node Methods</h3>
+<table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+  <tr><th>Method</th><th>Agent</th><th>Description</th></tr>
+  <tr><td><code>_visual_interpreter_node(state)</code></td><td>VisualInterpreter</td><td>Stage 1: FITS loading, CWT feature detection, continuum fitting, redshift hypotheses. Sets <code>_no_features</code> flag.</td></tr>
+  <tr><td><code>_no_features_node(state)</code></td><td>— (internal)</td><td>Stage 1b: writes placeholder report and JSON when no features detected, marks state accordingly.</td></tr>
+  <tr><td><code>_hypothesis_analyst_search_node(state)</code></td><td>HypothesisAnalyst</td><td>Stage 2: parallel single-hypothesis evaluation with semaphore-controlled concurrency.</td></tr>
+  <tr><td><code>_feature_auditor_node(state)</code></td><td>FeatureAuditor</td><td>Stage 3: cross-hypothesis feature verification via contradiction matrix.</td></tr>
+  <tr><td><code>_hypothesis_analyst_synthesize_node(state)</code></td><td>HypothesisAnalyst</td><td>Stage 4: cross-hypothesis comparison and synthesis verdict.</td></tr>
+  <tr><td><code>_analysis_auditor_node(state)</code></td><td>AnalysisAuditor</td><td>Stage 5: adversarial second review of synthesis conclusion.</td></tr>
+  <tr><td><code>_report_writer_node(state)</code></td><td>ReportWriter</td><td>Stage 6: structured 6-section report generation.</td></tr>
+  <tr><td><code>_self_evolve_node(state)</code></td><td>SelfEvolve</td><td>Stage 2b (conditional): ground-truth comparison and failure root-cause analysis.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="pipeline-topology">Pipeline Topology</h2>
+
+<p class="desc">The compiled StateGraph topology. The <code>no_features</code> early-exit path bypasses all downstream agents when CWT finds zero features.</p>
+
+<div class="pipeline">
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 1</span>
+        <span class="stage-name"><a href="agents/multi_agents/VisualInterpreter.html">Visual Interpreter</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>FITS loading → CWT feature detection → continuum fitting → redshift hypotheses (brute-force or Redrock). Sets <code>_no_features</code> flag if zero peaks and zero troughs detected.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Conditional</span>
+        <span class="stage-name">_has_features</span>
+      </div>
+      <div class="stage-flow">
+        <p>If <code>_no_features</code> → <strong>early exit</strong>: writes placeholder report + JSON via <code>_no_features_node</code>, then terminates. Otherwise → continues to Stage 2.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 2</span>
+        <span class="stage-name"><a href="agents/multi_agents/HypothesisAnalyst.html">HA — Single-Hypothesis Search</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>Collects redshift hypotheses from VI, runs first serially (KV-cache warm), then remainder concurrently (Semaphore). Saves per-hypothesis CSVs and diagnostic plots.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 3</span>
+        <span class="stage-name"><a href="agents/multi_agents/AnalysisAuditor.html">Feature Auditor</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>Builds cross-hypothesis contradiction matrix. LLM verifies each feature against the raw spectrum (<code>read_spectrum_region</code>) and votes is_real/is_noise/is_uncertain. Detects doublet morphology. Writes cleaned CSVs with per-feature verdicts.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 4</span>
+        <span class="stage-name"><a href="agents/multi_agents/HypothesisAnalyst.html">HA — Synthesis</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>Cross-hypothesis comparison. Builds Dn4000 diagnostic slices, formats structured summaries from CSV line data, runs LLM synthesis with the verified feature matrix. Produces a synthesis verdict (CONFIRM/REJECT/UNCERTAIN).</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 5</span>
+        <span class="stage-name"><a href="agents/multi_agents/AnalysisAuditor.html">Analysis Auditor</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>Adversarial second review of the synthesis conclusion. Builds CWT catalog for all-feature querying, runs independent LLM audit with <code>query_cwt_catalog</code> tool. Outputs calibrated confidence (HIGH/MEDIUM/LOW) and revision suggestions.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline-connector">&darr;</div>
+
+  <div class="pipeline-stage">
+    <div class="pipeline-stage-inner">
+      <div class="stage-head">
+        <span class="stage-label">Stage 6</span>
+        <span class="stage-name"><a href="agents/multi_agents/ReportWriter.html">Report Writer</a></span>
+      </div>
+      <div class="stage-flow">
+        <p>Generates structured 6-section Markdown report: classification, redshift, confidence, line evidence, uncertainties, recommendations. Writes to disk via ResultWriter.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  <strong>Error resilience:</strong> On connection or timeout errors, <code>run_analysis_single</code> deep-copies the original <code>SpectroState</code> and restarts the entire pipeline from scratch — preventing dirty intermediate state (especially List-append fields) from corrupting the retry. Non-retryable errors (auth failure, invalid request) are raised immediately.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','WorkflowOrchestrator','WorkflowOrchestrator.__init__','WorkflowOrchestrator.run_analysis_single','WorkflowOrchestrator._create_workflow','pipeline-topology'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

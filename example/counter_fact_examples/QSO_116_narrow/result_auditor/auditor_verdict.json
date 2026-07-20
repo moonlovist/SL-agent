@@ -1,0 +1,42 @@
+{
+  "verdict": "NEEDS_REVISION",
+  "calibrated_confidence": "LOW",
+  "spectrum_quality": "marginal",
+  "has_real_peak": true,
+  "confirmed_lines": [
+    [
+      "Lyα",
+      4767.2
+    ],
+    [
+      "C IV",
+      6072.8
+    ]
+  ],
+  "line_revisions": [
+    {
+      "line": "Lyα",
+      "action": "FLAG",
+      "reason": "FWHM=1065 km/s is narrow — fatal for Type 1 QSO classification. Real emission peak but width inconsistent with QSO broad-line region. Could be Lyα from a star-forming galaxy at z≈2.92 rather than a QSO."
+    },
+    {
+      "line": "C IV",
+      "action": "FLAG",
+      "reason": "FWHM=1012 km/s is narrow — fatal for Type 1 QSO. Real emission peak but width inconsistent with QSO BLR. Could be a different line (e.g., He II 1640 at z≈2.70) or nebular emission."
+    },
+    {
+      "line": "C III]",
+      "action": "FLAG",
+      "reason": "FWHM=561 km/s is very narrow. Real emission complex but width and irregular morphology inconsistent with QSO C III]. Could be a different line at a different redshift."
+    }
+  ],
+  "spectrum_issues": [
+    "Fatal classification problem: All three LIKELY lines have FWHM < 1500 km/s (narrow), which is fatal for Type 1 QSO. [Ne V] is NOT_FOUND, which is fatal for Type 2 QSO. The QSO classification is physically unsupported.",
+    "Winner explains only 3/8 verified features (38%). Four unexplained verified features (3932.8 Å absorption, 4266.4 Å emission, 4280.0 Å absorption, 7714.4 Å emission) are visually confirmed as real spectral signals that H6 cannot explain.",
+    "The unexplained features at 4266.4/4280.0 form a spike-valley-spike pattern consistent with a lower-redshift system (z≈0.54 or z≈-0.0006). The spectrum may contain superimposed objects at different redshifts.",
+    "He II NOT_FOUND entry has FWHM=11885 km/s — clearly a CWT artifact. Spectrum read shows only gentle continuum undulations at 6480 Å.",
+    "Median SNR is only 4.5. Much of the spectrum outside the three bright features is noise-dominated."
+  ],
+  "reobserve": true,
+  "reobserve_reason": "Spectrum shows real emission features but the winning hypothesis explains only 38% of verified features and has a fatal classification inconsistency (narrow lines claimed as QSO broad lines). Four unexplained real features suggest a second redshift system is present. Higher SNR observation needed to resolve the ambiguity and confirm line identifications."
+}

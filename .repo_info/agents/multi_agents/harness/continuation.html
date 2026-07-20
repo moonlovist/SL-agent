@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>continuation — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_find_last_ai_message" class="sidebar-link sidebar-sublink" data-label="_find_last_ai_message()">_find_last_ai_message</a>
+      <a href="#_find_last_content_ai_message" class="sidebar-link sidebar-sublink" data-label="_find_last_content_ai_message()">_find_last_content_ai_message</a>
+      <a href="#_is_truncated" class="sidebar-link sidebar-sublink" data-label="_is_truncated()">_is_truncated</a>
+      <a href="#_format_tool_call" class="sidebar-link sidebar-sublink" data-label="_format_tool_call()">_format_tool_call</a>
+      <a href="#_format_tool_result" class="sidebar-link sidebar-sublink" data-label="_format_tool_result()">_format_tool_result</a>
+      <a href="#run_continuation_streaming" class="sidebar-link sidebar-sublink" data-label="run_continuation_streaming()">run_continuation_streaming</a>
+      <a href="#run_continuation_ainvoke" class="sidebar-link sidebar-sublink" data-label="run_continuation_ainvoke()">run_continuation_ainvoke</a>
+      <a href="#run_continuation_invoke" class="sidebar-link sidebar-sublink" data-label="run_continuation_invoke()">run_continuation_invoke</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#harness">Harness</a> / continuation
+</div>
+
+<h1><span class="section-label">Harness</span>continuation</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/harness/continuation.py</code></p>
+  <p>Shared truncation-detection and continuation-loop logic used by <code>single_hypothesis</code>, <code>hypothesis_synthesis</code>, and <code>AnalysisAuditor</code> to handle LLM output truncation (finish_reason=length). Supports both streaming (<code>agent.astream</code>) and non-streaming (<code>agent.ainvoke</code> / <code>agent.invoke</code>) paths, with automatic retry when the continuation itself is truncated.</p>
+  <div class="tag-row"><span class="tag">harness</span> <span class="tag">continuation</span> <span class="tag">LLM</span> <span class="tag">streaming</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_find_last_ai_message">_find_last_ai_message(messages) -> Message | None</a></li>
+  <li><a href="#_find_last_content_ai_message">_find_last_content_ai_message(messages) -> Message | None</a></li>
+  <li><a href="#_is_truncated">_is_truncated(messages, *, since=0) -> bool</a></li>
+  <li><a href="#_format_tool_call">_format_tool_call(tc) -> str</a></li>
+  <li><a href="#_format_tool_result">_format_tool_result(msg) -> str</a></li>
+  <li><a href="#run_continuation_streaming">run_continuation_streaming(...) — async</a></li>
+  <li><a href="#run_continuation_ainvoke">run_continuation_ainvoke(...) — async</a></li>
+  <li><a href="#run_continuation_invoke">run_continuation_invoke(...)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Shared Helpers</h2>
+
+<div class="func-block" id="_find_last_ai_message">
+  <h3>_find_last_ai_message</h3>
+  <div class="sig"><code>_find_last_ai_message(messages: list) -> Message | None</code></div>
+  <p>Return the last AI message from a message list, skipping tool and other message types. Iterates the list in reverse order.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Message history to search</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>msg</td><td><code>Message | None</code></td><td>Last AI message, or None if no AI message found</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_find_last_content_ai_message">
+  <h3>_find_last_content_ai_message</h3>
+  <div class="sig"><code>_find_last_content_ai_message(messages: list) -> Message | None</code></div>
+  <p>Return the last AI message that has non-empty text content. When the agent makes tool calls, the final AI message may be a tool-call-only message with empty <code>content</code>. This helper skips those and returns the last AI message that actually contains text (e.g., the truncated JSON output that needs continuation).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Message history to search</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>msg</td><td><code>Message | None</code></td><td>Last AI message with text content, or None if none found</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_is_truncated">
+  <h3>_is_truncated</h3>
+  <div class="sig"><code>_is_truncated(messages: list, *, since: int = 0) -> bool</code></div>
+  <p>Check whether any AI message was truncated by max_tokens (finish_reason == "length"). Scans ALL AI messages (not just the last one) because in multi-turn tool-calling agents, truncation may happen in an intermediate turn while the final turn completes normally (e.g., a tool-only final message with finish_reason=stop).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Message history to inspect</td></tr>
+    <tr><td><code>since</code></td><td><code>int</code></td><td><code>0</code></td><td>Only check messages from this index onward; used by continuation loops to avoid re-detecting truncation markers from the original (already-handled) run</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>truncated</td><td><code>bool</code></td><td>True if any AI message has finish_reason == "length"</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_format_tool_call">
+  <h3>_format_tool_call</h3>
+  <div class="sig"><code>_format_tool_call(tc) -> str</code></div>
+  <p>Format a single tool call as readable markdown. Extracts the tool name and JSON-serializes the arguments with indentation.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>tc</code></td><td><code>dict</code></td><td>—</td><td>Tool call dict with <code>name</code> and <code>args</code> keys</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>markdown</td><td><code>str</code></td><td>Formatted markdown string with tool name header and JSON args block</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_format_tool_result">
+  <h3>_format_tool_result</h3>
+  <div class="sig"><code>_format_tool_result(msg) -> str</code></div>
+  <p>Format a tool result message as readable markdown. Attempts to JSON-parse the content for pretty-printing; falls back to raw string representation on parse failure.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>msg</code></td><td><code>Message</code></td><td>—</td><td>Tool result message</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>markdown</td><td><code>str</code></td><td>Formatted markdown string with JSON block or raw content</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Continuation Loops</h2>
+
+<div class="func-block" id="run_continuation_streaming">
+  <h3>run_continuation_streaming</h3>
+  <div class="sig"><code>async run_continuation_streaming(agent, accumulated_messages: list, *, config: dict, stream_md_path: Optional[str] = None, continuation_prompt: str = "", max_attempts: int = 3, log_prefix: str = "") -> list</code></div>
+  <p>Primary async entry point. Run the truncation-continuation loop using <code>agent.astream</code>. Appends all continuation messages (AI + tool) to <code>accumulated_messages</code> in-place. When <code>stream_md_path</code> is set, writes turn-by-turn markdown including tool calls and results.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>agent</code></td><td><code>langchain agent</code></td><td>—</td><td>LangChain agent instance</td></tr>
+    <tr><td><code>accumulated_messages</code></td><td><code>list</code></td><td>—</td><td>Live message list from the original streaming run (mutated in-place)</td></tr>
+    <tr><td><code>config</code></td><td><code>dict</code></td><td>—</td><td>Agent config (recursion_limit, etc.)</td></tr>
+    <tr><td><code>stream_md_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>If set, append continuation output to this file</td></tr>
+    <tr><td><code>continuation_prompt</code></td><td><code>str</code></td><td><code>""</code></td><td>Prompt for the first continuation attempt. On 2nd+ attempts a terse retry prompt is used automatically</td></tr>
+    <tr><td><code>max_attempts</code></td><td><code>int</code></td><td><code>3</code></td><td>Maximum number of continuation attempts</td></tr>
+    <tr><td><code>log_prefix</code></td><td><code>str</code></td><td><code>""</code></td><td>Prefix for log messages (e.g. "FeatureAuditor")</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>messages</td><td><code>list</code></td><td>The mutated <code>accumulated_messages</code> (same object)</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_continuation_ainvoke">
+  <h3>run_continuation_ainvoke</h3>
+  <div class="sig"><code>async run_continuation_ainvoke(agent, messages: list, *, config: dict, continuation_prompt: str = "", max_attempts: int = 3, log_prefix: str = "") -> list</code></div>
+  <p>Run the truncation-continuation loop using <code>agent.ainvoke</code> (async non-streaming). Appends all continuation messages to <code>messages</code> in-place. Only appends new messages (not the full history) to avoid duplication and spurious truncation re-detection.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>agent</code></td><td><code>langchain agent</code></td><td>—</td><td>LangChain agent instance</td></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Message list from the original <code>ainvoke</code> run (mutated in-place)</td></tr>
+    <tr><td><code>config</code></td><td><code>dict</code></td><td>—</td><td>Agent config</td></tr>
+    <tr><td><code>continuation_prompt</code></td><td><code>str</code></td><td><code>""</code></td><td>Prompt for the first continuation attempt</td></tr>
+    <tr><td><code>max_attempts</code></td><td><code>int</code></td><td><code>3</code></td><td>Maximum number of continuation attempts</td></tr>
+    <tr><td><code>log_prefix</code></td><td><code>str</code></td><td><code>""</code></td><td>Prefix for log messages</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>messages</td><td><code>list</code></td><td>The mutated <code>messages</code> (same object)</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_continuation_invoke">
+  <h3>run_continuation_invoke</h3>
+  <div class="sig"><code>run_continuation_invoke(agent, messages: list, *, config: dict, continuation_prompt: str = "", max_attempts: int = 3, log_prefix: str = "") -> list</code></div>
+  <p>Run the truncation-continuation loop using <code>agent.invoke</code> (synchronous). Appends all continuation messages to <code>messages</code> in-place. Only appends new messages (not the full history) to avoid duplication and spurious truncation re-detection.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>agent</code></td><td><code>langchain agent</code></td><td>—</td><td>LangChain agent instance</td></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Message list from the original <code>invoke</code> run (mutated in-place)</td></tr>
+    <tr><td><code>config</code></td><td><code>dict</code></td><td>—</td><td>Agent config</td></tr>
+    <tr><td><code>continuation_prompt</code></td><td><code>str</code></td><td><code>""</code></td><td>Prompt for the first continuation attempt</td></tr>
+    <tr><td><code>max_attempts</code></td><td><code>int</code></td><td><code>3</code></td><td>Maximum number of continuation attempts</td></tr>
+    <tr><td><code>log_prefix</code></td><td><code>str</code></td><td><code>""</code></td><td>Prefix for log messages</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>messages</td><td><code>list</code></td><td>The mutated <code>messages</code> (same object)</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_find_last_ai_message','_find_last_content_ai_message','_is_truncated','_format_tool_call','_format_tool_result','run_continuation_streaming','run_continuation_ainvoke','run_continuation_invoke'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

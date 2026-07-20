@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AllConfig — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#AllConfig" class="sidebar-link sidebar-sublink" data-label="AllConfig">AllConfig</a>
+      <a href="#from_env" class="sidebar-link sidebar-sublink" data-label="from_env()">from_env</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / <a href="overview.html">Config</a> / AllConfig
+</div>
+
+<h1><span class="section-label">Core · Config</span>AllConfig</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/core/config/all_config.py</code></p>
+  <p><strong>Class:</strong> <code>AllConfig(BaseModel)</code> — top-level configuration aggregator. Composes all sub-config models (BatchConfig, IOConfig, ModelConfig, ParamsConfig) plus retry parameters. The single <code>from_env()</code> factory chains all sub-config factories and is the primary entry point for configuration throughout the system.</p>
+  <p><strong>Dependencies:</strong> <a href="batch_config.html">BatchConfig</a> · <a href="io_config.html">IOConfig</a> · <a href="model_config.html">ModelConfig</a> · <a href="params_config.html">ParamsConfig</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">config</span> <span class="tag">aggregation</span> <span class="tag">Pydantic</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">class AllConfig</span>
+      <ul>
+        <li class="file">batch: <a href="batch_config.html">BatchConfig</a> <span class="comment">← batch mode &amp; file ID generation</span></li>
+        <li class="file">io: <a href="io_config.html">IOConfig</a> <span class="comment">← input/output paths &amp; run mode</span></li>
+        <li class="file">model: <a href="model_config.html">ModelConfig</a> <span class="comment">← LLM + VLM client parameters</span></li>
+        <li class="file">params: <a href="params_config.html">ParamsConfig</a> <span class="comment">← science &amp; pipeline parameters</span></li>
+        <li class="file">retry_delay: int <span class="comment">← seconds between retries (default 180)</span></li>
+        <li class="file">max_tries: int <span class="comment">← max connection/timeout retries (default 3)</span></li>
+        <li class="file"><a href="#from_env">from_env()</a> <span class="comment">← classmethod: chain all sub-config factories</span></li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#AllConfig">class AllConfig</a></li>
+  <li><a href="#from_env">from_env() — aggregate all config from env</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="AllConfig"><span class="class-badge">class</span> AllConfig</h2>
+<p class="desc">Top-level Pydantic model with six fields:</p>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-env"><col></colgroup>
+  <tr><th>Key</th><th>Type</th><th>Env Var</th><th>Description</th></tr>
+  <tr><td><code>batch</code></td><td><code>BatchConfig</code></td><td>—</td><td>batch range &amp; file ID generation</td></tr>
+  <tr><td><code>io</code></td><td><code>IOConfig</code></td><td>—</td><td>input/output directories, run mode (<code>s</code> / <code>b</code>), file name</td></tr>
+  <tr><td><code>model</code></td><td><code>ModelConfig</code></td><td>—</td><td>LLM and VLM API parameters</td></tr>
+  <tr><td><code>params</code></td><td><code>ParamsConfig</code></td><td>—</td><td>science parameters (spectral arms, CWT, Redrock, etc.)</td></tr>
+  <tr><td><code>retry_delay</code></td><td><code>int</code></td><td><code>RETRY_DELAY</code></td><td>seconds between retries (default <code>180</code>)</td></tr>
+  <tr><td><code>max_tries</code></td><td><code>int</code></td><td><code>MAX_TRIES</code></td><td>max connection/timeout retries (default <code>3</code>)</td></tr>
+</table>
+
+<div class="func-block" id="from_env">
+  <h3>from_env</h3>
+  <div class="sig"><code>@classmethod from_env() -> AllConfig</code></div>
+  <p>The single entry point for configuration. Chains all sub-config factories:</p>
+  <p>
+    1. <code>BatchConfig.from_env()</code> → <code>batch</code><br>
+    2. <code>IOConfig.from_env()</code> → <code>io</code><br>
+    3. <code>ModelConfig.from_env()</code> → <code>model</code><br>
+    4. <code>ParamsConfig.from_env()</code> → <code>params</code><br>
+    5. <code>RETRY_DELAY</code> env var (default <code>180</code>) → <code>retry_delay</code><br>
+    6. <code>MAX_TRIES</code> env var (default <code>3</code>) → <code>max_tries</code>
+  </p>
+  <p>Each sub-config factory performs its own validation (field-level + cross-field). Any validation error propagates up to prevent the system from starting with invalid configuration.</p>
+  <div class="return-type">→ AllConfig instance (fully validated)</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Why aggregate into one class?</strong> The entire configuration tree is a single object passed through the system. <code>scripts/main.py</code> calls <code>AllConfig.from_env()</code> once, then passes it to <code>RuntimeContainer</code>, <code>WorkflowOrchestrator</code>, and every agent. This ensures all components share a consistent, validated configuration without scattered env-var reads.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','AllConfig','from_env'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

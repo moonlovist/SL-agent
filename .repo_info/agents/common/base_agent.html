@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BaseAgent — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_is_connection_error" class="sidebar-link sidebar-sublink" data-label="_is_connection_error()">_is_connection_error</a>
+      <a href="#_is_timeout_error" class="sidebar-link sidebar-sublink" data-label="_is_timeout_error()">_is_timeout_error</a>
+      <a href="#_is_retryable_error" class="sidebar-link sidebar-sublink" data-label="_is_retryable_error()">_is_retryable_error</a>
+      <a href="#BaseAgent" class="sidebar-link sidebar-sublink" data-label="BaseAgent">BaseAgent</a>
+      <a href="#BaseAgent.__init__" class="sidebar-link sidebar-sublink" data-label="__init__()">__init__</a>
+      <a href="#BaseAgent._skill_path" class="sidebar-link sidebar-sublink" data-label="_skill_path()">_skill_path</a>
+      <a href="#BaseAgent._load_skill" class="sidebar-link sidebar-sublink" data-label="_load_skill()">_load_skill</a>
+      <a href="#BaseAgent._apply_thinking" class="sidebar-link sidebar-sublink" data-label="_apply_thinking()">_apply_thinking</a>
+      <a href="#BaseAgent._stream_invoke" class="sidebar-link sidebar-sublink" data-label="_stream_invoke()">_stream_invoke</a>
+      <a href="#BaseAgent.call_llm_with_context" class="sidebar-link sidebar-sublink" data-label="call_llm_with_context()">call_llm_with_context</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / BaseAgent
+</div>
+
+<h1><span class="section-label">Core</span>BaseAgent</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/common/base_agent.py</code></p>
+  <p>Abstract agent base class — LLM/VLM call abstraction, auto-retry, error classification, thinking mode management, skill loading.</p>
+  <p><strong>Classes:</strong> <code>BaseAgent</code></p>
+  <p><strong>Module-level:</strong> <code>_is_connection_error</code>, <code>_is_timeout_error</code>, <code>_is_retryable_error</code></p>
+  <p><strong>Dependencies:</strong> <a href="../../core/llm.html">LLM Wrapper</a> · <a href="../../core/config/overview.html">Config</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">base class</span> <span class="tag">LLM</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">base_agent.py</span>
+      <ul>
+        <li>
+          <details open>
+            <summary>Constants — error keyword groups</summary>
+            <ul>
+              <li class="file"><a href="#_CONNECTION_ERROR_KEYWORDS">_CONNECTION_ERROR_KEYWORDS</a> <span class="comment">← tuple: connection reset, broken pipe, ssl, ...</span></li>
+              <li class="file"><a href="#_TIMEOUT_KEYWORDS">_TIMEOUT_KEYWORDS</a> <span class="comment">← tuple: timeout, timed out, readtimeout, ...</span></li>
+              <li class="file"><a href="#_RATE_LIMIT_KEYWORDS">_RATE_LIMIT_KEYWORDS</a> <span class="comment">← tuple: rate limit, insufficient_quota, ...</span></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details open>
+            <summary>Helper Functions</summary>
+            <ul>
+              <li class="file"><a href="#_is_connection_error">_is_connection_error(error_msg)</a> <span class="comment">→ bool</span></li>
+              <li class="file"><a href="#_is_timeout_error">_is_timeout_error(error_msg)</a> <span class="comment">→ bool</span></li>
+              <li class="file"><a href="#_is_retryable_error">_is_retryable_error(error_msg)</a> <span class="comment">→ bool</span></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details open>
+            <summary>class BaseAgent</summary>
+            <ul>
+              <li class="file"><a href="#BaseAgent">agent_name</a> <span class="comment">← class var: "BaseAgent"</span></li>
+              <li class="file"><a href="#BaseAgent">_SKILL_DIR</a> <span class="comment">← class var: Path | None</span></li>
+              <li class="file"><a href="#BaseAgent.__init__">__init__(runtime)</a> <span class="comment">← init text/VLM models, vendor detect, thinking config</span></li>
+              <li class="file"><a href="#BaseAgent._skill_path">_skill_path(name) → Path</a> <span class="comment">← resolve skill file</span></li>
+              <li class="file"><a href="#BaseAgent._load_skill">_load_skill(name) → str</a> <span class="comment">← load skill markdown</span></li>
+              <li class="file"><a href="#BaseAgent._apply_thinking">_apply_thinking(model, thinking_cfg, vendor, want_tools)</a> <span class="comment">← bind extra_body</span></li>
+              <li class="file"><a href="#BaseAgent._stream_invoke">_stream_invoke(model, messages) → str</a> <span class="comment">← stream tokens</span></li>
+              <li class="file"><a href="#BaseAgent.call_llm_with_context">call_llm_with_context(system_prompt, user_prompt, ...)</a> <span class="comment">← main LLM call with retry</span></li>
+            </ul>
+          </details>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_CONNECTION_ERROR_KEYWORDS">_CONNECTION_ERROR_KEYWORDS</a></li>
+  <li><a href="#_TIMEOUT_KEYWORDS">_TIMEOUT_KEYWORDS</a></li>
+  <li><a href="#_RATE_LIMIT_KEYWORDS">_RATE_LIMIT_KEYWORDS</a></li>
+  <li><a href="#_is_connection_error">_is_connection_error(error_msg → bool)</a></li>
+  <li><a href="#_is_timeout_error">_is_timeout_error(error_msg → bool)</a></li>
+  <li><a href="#_is_retryable_error">_is_retryable_error(error_msg → bool)</a></li>
+  <li><a href="#BaseAgent">BaseAgent</a></li>
+  <li><a href="#BaseAgent.__init__">BaseAgent.__init__(self, runtime)</a></li>
+  <li><a href="#BaseAgent._skill_path">BaseAgent._skill_path(self, name → Path)</a></li>
+  <li><a href="#BaseAgent._load_skill">BaseAgent._load_skill(self, name → str)</a></li>
+  <li><a href="#BaseAgent._apply_thinking">BaseAgent._apply_thinking(self, model, thinking_cfg, vendor, want_tools)</a></li>
+  <li><a href="#BaseAgent._stream_invoke">BaseAgent._stream_invoke(self, model, messages)</a></li>
+  <li><a href="#BaseAgent.call_llm_with_context">BaseAgent.call_llm_with_context(self, system_prompt, user_prompt, ...)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Constants — Error Keyword Groups</h2>
+
+<div class="func-block" id="_CONNECTION_ERROR_KEYWORDS">
+  <h3>_CONNECTION_ERROR_KEYWORDS</h3>
+  <div class="sig"><code>_CONNECTION_ERROR_KEYWORDS = ( "connection reset", "connection refused", "remotedisconnected", "clientconnectorerror", "apiconnectionerror", "connect error", "network", "broken pipe", "eof occurred", "ssl" )</code></div>
+  <p>Connection-layer error keywords. Matches used by <code>_is_connection_error</code> to detect network-level failures that should trigger connection reset + retry.</p>
+</div>
+
+<div class="func-block" id="_TIMEOUT_KEYWORDS">
+  <h3>_TIMEOUT_KEYWORDS</h3>
+  <div class="sig"><code>_TIMEOUT_KEYWORDS = ( "connectionerror", "connecttimeout", "timed out", "timeout", "readtimeout", "read timeout" )</code></div>
+  <p>Timeout error keywords. Matches used by <code>_is_timeout_error</code> to detect timeout conditions that should trigger wait + retry.</p>
+</div>
+
+<div class="func-block" id="_RATE_LIMIT_KEYWORDS">
+  <h3>_RATE_LIMIT_KEYWORDS</h3>
+  <div class="sig"><code>_RATE_LIMIT_KEYWORDS = ( "rate limit", "insufficient_quota", "invalid_parameter_error", "function.arguments" )</code></div>
+  <p>API rate-limit / quota error keywords. Matches used by <code>_is_retryable_error</code> to detect throttling conditions.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Module-Level Functions</h2>
+
+<div class="func-block" id="_is_connection_error">
+  <h3>_is_connection_error</h3>
+  <div class="sig"><code>_is_connection_error(error_msg: str) -> bool</code></div>
+  <p>Check if an error message indicates a connection-layer failure (network drop, connection refused, SSL error, etc.). Triggers connection reset before retry.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>error_msg</code></td><td><code>str</code></td><td>—</td><td>Lowercased error message string to inspect</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>is_conn</td><td><code>bool</code></td><td><code>True</code> if any keyword in <code>_CONNECTION_ERROR_KEYWORDS</code> matches</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_is_timeout_error">
+  <h3>_is_timeout_error</h3>
+  <div class="sig"><code>_is_timeout_error(error_msg: str) -> bool</code></div>
+  <p>Check if an error message indicates a timeout condition. On timeout the retry loop waits and retries without resetting the connection.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>error_msg</code></td><td><code>str</code></td><td>—</td><td>Lowercased error message string to inspect</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>is_timeout</td><td><code>bool</code></td><td><code>True</code> if any keyword in <code>_TIMEOUT_KEYWORDS</code> matches</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_is_retryable_error">
+  <h3>_is_retryable_error</h3>
+  <div class="sig"><code>_is_retryable_error(error_msg: str) -> bool</code></div>
+  <p>Check if an error message is retryable — i.e., it is a connection error, a timeout, or a rate-limit/quota error. Used as the single gate in the retry loop in <code>call_llm_with_context</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>error_msg</code></td><td><code>str</code></td><td>—</td><td>Lowercased error message string to inspect</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>retryable</td><td><code>bool</code></td><td><code>True</code> if connection, timeout, or rate-limit keyword matches</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Classes</h2>
+
+<h2 id="BaseAgent"><span class="class-badge">class</span> BaseAgent</h2>
+<p class="desc">Abstract base class for all agents. Encapsulates LLM/VLM calls, auto-retry, error classification, thinking mode, skill loading with Jinja2 rendering.</p>
+
+<p><strong>Class variables:</strong></p>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+  <tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>agent_name</code></td><td><code>str</code></td><td><code>"BaseAgent"</code></td><td>Agent identifier for logging and dispatch.</td></tr>
+  <tr><td><code>_SKILL_DIR</code></td><td><code>Path | None</code></td><td><code>None</code></td><td>Directory for skill markdown files. Subclasses must set this.</td></tr>
+</table>
+
+<div class="func-block" id="BaseAgent.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime)</code></div>
+  <p>Initialize BaseAgent with a RuntimeContainer. Reads text and VLM model configs, detects vendors, sets thinking mode configuration.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-source"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>Injected</td><td>DI container providing <code>get_model()</code> and <code>configs</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="BaseAgent._skill_path">
+  <h3>_skill_path</h3>
+  <div class="sig"><code>_skill_path(self, name: str) -> Path</code></div>
+  <p>Resolve a skill file path relative to <code>_SKILL_DIR</code>. If <code>name</code> has no extension, <code>.md</code> is appended automatically. Subclasses must set <code>_SKILL_DIR</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Skill file name, <code>.md</code> appended if no extension</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>path</td><td><code>Path</code></td><td>Resolved path to the skill markdown file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="BaseAgent._load_skill">
+  <h3>_load_skill</h3>
+  <div class="sig"><code>_load_skill(self, name: str) -> str</code></div>
+  <p>Load a skill prompt template from file using <code>_skill_path(name).read_text(encoding="utf-8")</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>name</code></td><td><code>str</code></td><td>—</td><td>Skill file name, passed to <code>_skill_path</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>content</td><td><code>str</code></td><td>Raw markdown string content of the skill file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="BaseAgent._apply_thinking">
+  <h3>_apply_thinking</h3>
+  <div class="sig"><code>_apply_thinking(self, model, thinking_cfg: str, vendor: str, want_tools: bool)</code></div>
+  <p>Return a model with appropriate thinking <code>extra_body</code> bound. When thinking is <code>'none'</code> or vendor is <code>'unknown'</code>, returns the model unchanged. When <code>want_tools=True</code> and thinking is <code>'enabled'</code>, forces to <code>'disabled'</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>model</code></td><td><code>ChatOpenAI</code></td><td>—</td><td>Base ChatOpenAI instance with thinking config baked in</td></tr>
+    <tr><td><code>thinking_cfg</code></td><td><code>str</code></td><td>—</td><td><code>'enabled'</code> | <code>'disabled'</code> | <code>'none'</code></td></tr>
+    <tr><td><code>vendor</code></td><td><code>str</code></td><td>—</td><td><code>'deepseek'</code> | <code>'qwen'</code> | <code>'unknown'</code></td></tr>
+    <tr><td><code>want_tools</code></td><td><code>bool</code></td><td>—</td><td>Whether tools are requested; <code>True</code> disables thinking</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>model</td><td><code>ChatOpenAI</code></td><td>Model instance, possibly with overridden <code>extra_body</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="BaseAgent._stream_invoke">
+  <h3>_stream_invoke</h3>
+  <div class="sig"><code>_stream_invoke(self, model, messages) -> str</code></div>
+  <p>Stream model output token-by-token via <code>model.astream(messages)</code>, printing each chunk and accumulating the full content into a string.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>model</code></td><td><code>ChatOpenAI</code></td><td>—</td><td>LLM/VLM model instance to invoke</td></tr>
+    <tr><td><code>messages</code></td><td><code>List</code></td><td>—</td><td>LangChain message list to send</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>content</td><td><code>str</code></td><td>Full accumulated response content</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="BaseAgent.call_llm_with_context">
+  <h3>call_llm_with_context</h3>
+  <div class="sig"><code>call_llm_with_context(self, system_prompt, user_prompt, image_path=None, parse_json=True, description="LLM output")</code></div>
+  <p>Core LLM call method. Assembles messages, selects text/VLM model, retries on retryable errors. JSON parsing: strips markdown fences → <code>json.loads</code> → <code>ast.literal_eval</code> fallback → raw string.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>system_prompt</code></td><td><code>str</code></td><td>—</td><td>System prompt for the LLM</td></tr>
+    <tr><td><code>user_prompt</code></td><td><code>str</code></td><td>—</td><td>User prompt for the LLM</td></tr>
+    <tr><td><code>image_path</code></td><td><code>Optional[str]</code></td><td><code>None</code></td><td>Path to image file; if set, uses VLM instead of LLM</td></tr>
+    <tr><td><code>parse_json</code></td><td><code>bool</code></td><td><code>True</code></td><td>Whether to parse the response as JSON</td></tr>
+    <tr><td><code>description</code></td><td><code>str</code></td><td><code>"LLM output"</code></td><td>Human-readable label for logging and error messages</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict | list | str</code></td><td>Parsed JSON (dict/list) or raw string if <code>parse_json=False</code></td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Thinking-mode safety:</strong> When <code>want_tools=True</code> and thinking is enabled, <code>_apply_thinking</code> forces thinking to <code>'disabled'</code>. This prevents the <code>reasoning_content</code> passback issue in LangGraph multi-turn tool calls, where the reasoning token block from a previous turn would be misinterpreted as the current turn's response.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var sidebar = document.getElementById('sidebar');
+  var toggle = document.getElementById('sidebar-toggle');
+  var overlay = document.getElementById('sidebar-overlay');
+  var links = sidebar.querySelectorAll('.sidebar-link');
+  var topLink = document.getElementById('sidebar-link-top');
+  var sublistContents = document.getElementById('sidebar-sublist-contents');
+  var contentsSubIds = ['contents', '_is_connection_error', '_is_timeout_error', '_is_retryable_error', 'BaseAgent', 'BaseAgent.__init__', 'BaseAgent._skill_path', 'BaseAgent._load_skill', 'BaseAgent._apply_thinking', 'BaseAgent._stream_invoke', 'BaseAgent.call_llm_with_context'];
+
+  /* ---- scroll-spy ---- */
+  var sections = [];
+  links.forEach(function (link) {
+    var href = link.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    var target = document.getElementById(href.slice(1));
+    if (target) sections.push({ link: link, target: target });
+  });
+
+  var ticking = false;
+  function updateActiveHeading() {
+    var activeLink = null;
+    var activeId = null;
+    var atBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 10;
+    for (var i = sections.length - 1; i >= 0; i--) {
+      var top = sections[i].target.getBoundingClientRect().top;
+      // normal threshold, but at bottom accept any heading still on screen
+      if (top <= 120 || (atBottom && top < window.innerHeight)) {
+        activeLink = sections[i].link;
+        activeId = sections[i].target.id;
+        break;
+      }
+    }
+    if (!activeLink) activeLink = topLink;
+    links.forEach(function (l) { l.classList.remove('active'); });
+    if (activeLink) activeLink.classList.add('active');
+
+    if (activeId && contentsSubIds.indexOf(activeId) !== -1) {
+      sublistContents.classList.add('expanded');
+    } else {
+      sublistContents.classList.remove('expanded');
+    }
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      requestAnimationFrame(function () {
+        updateActiveHeading();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
+
+  updateActiveHeading();
+
+  /* ---- mobile toggle ---- */
+  function openSidebar() {
+    links.forEach(function (link) {
+      var full = link.getAttribute('data-label');
+      if (full && !link._short) link._short = link.textContent;
+      if (full) link.textContent = full;
+    });
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    links.forEach(function (link) {
+      if (link._short) link.textContent = link._short;
+    });
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  toggle.addEventListener('click', function () {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  links.forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (window.innerWidth <= 768) closeSidebar();
+      setTimeout(updateActiveHeading, 120);
+      setTimeout(updateActiveHeading, 400);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  });
+
+  /* ---- expand Contents on toggle click ---- */
+  var contentsToggle = sidebar.querySelector('.sidebar-section-toggle');
+  if (contentsToggle) {
+    contentsToggle.addEventListener('click', function () {
+      sublistContents.classList.add('expanded');
+    });
+  }
+
+  /* ---- external links → new tab ---- */
+  document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function (a) {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+})();
+</script>
+</body>
+</html>

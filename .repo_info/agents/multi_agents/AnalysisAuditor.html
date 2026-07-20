@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnalysisAuditor — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#DOUBLET_DEFS" class="sidebar-link sidebar-sublink" data-label="DOUBLET_DEFS">DOUBLET_DEFS</a>
+      <a href="#JSON_continuation" class="sidebar-link sidebar-sublink" data-label="JSON &amp; Continuation Helpers">JSON &amp; Continuation Helpers</a>
+      <a href="#_resolve_max_tokens" class="sidebar-link sidebar-sublink" data-label="_resolve_max_tokens">_resolve_max_tokens</a>
+      <a href="#_build_continuation_prompt" class="sidebar-link sidebar-sublink" data-label="_build_continuation_prompt">_build_continuation_prompt</a>
+      <a href="#_extract_json_block" class="sidebar-link sidebar-sublink" data-label="_extract_json_block">_extract_json_block</a>
+      <a href="#_clean_rec" class="sidebar-link sidebar-sublink" data-label="_clean_rec">_clean_rec</a>
+      <a href="#contradiction_matrix" class="sidebar-link sidebar-sublink" data-label="Contradiction Matrix Builder">Contradiction Matrix Builder</a>
+      <a href="#build_contradiction_matrix" class="sidebar-link sidebar-sublink" data-label="build_contradiction_matrix">build_contradiction_matrix</a>
+      <a href="#_detect_doublets" class="sidebar-link sidebar-sublink" data-label="_detect_doublets">_detect_doublets</a>
+      <a href="#emission_absorption" class="sidebar-link sidebar-sublink" data-label="Emission-Absorption Pair Detection">Emission-Absorption Pair Detection</a>
+      <a href="#_detect_emission_absorption_pairs" class="sidebar-link sidebar-sublink" data-label="_detect_emission_absorption_pairs">_detect_emission_absorption_pairs</a>
+      <a href="#_group_features_by_hypothesis" class="sidebar-link sidebar-sublink" data-label="_group_features_by_hypothesis">_group_features_by_hypothesis</a>
+      <a href="#_build_emission_absorption_pairs_section" class="sidebar-link sidebar-sublink" data-label="_build_emission_absorption_pairs_section">_build_emission_absorption_pairs_section</a>
+      <a href="#message_builders" class="sidebar-link sidebar-sublink" data-label="User Message Builders">User Message Builders</a>
+      <a href="#_build_feature_audit_user_message" class="sidebar-link sidebar-sublink" data-label="_build_feature_audit_user_message">_build_feature_audit_user_message</a>
+      <a href="#_build_synthesis_audit_user_message" class="sidebar-link sidebar-sublink" data-label="_build_synthesis_audit_user_message">_build_synthesis_audit_user_message</a>
+      <a href="#output_helpers" class="sidebar-link sidebar-sublink" data-label="Output &amp; CSV Helpers">Output &amp; CSV Helpers</a>
+      <a href="#_build_merged_verified_features" class="sidebar-link sidebar-sublink" data-label="_build_merged_verified_features">_build_merged_verified_features</a>
+      <a href="#_build_cwt_catalog" class="sidebar-link sidebar-sublink" data-label="_build_cwt_catalog">_build_cwt_catalog</a>
+      <a href="#_format_synthesis_csv" class="sidebar-link sidebar-sublink" data-label="_format_synthesis_csv">_format_synthesis_csv</a>
+      <a href="#_write_cleaned_csvs" class="sidebar-link sidebar-sublink" data-label="_write_cleaned_csvs">_write_cleaned_csvs</a>
+      <a href="#llm_runner" class="sidebar-link sidebar-sublink" data-label="LLM Agent Runner">LLM Agent Runner</a>
+      <a href="#_run_llm_agent" class="sidebar-link sidebar-sublink" data-label="_run_llm_agent">_run_llm_agent</a>
+      <a href="#FeatureAuditorFailed" class="sidebar-link sidebar-sublink" data-label="FeatureAuditorFailed">FeatureAuditorFailed</a>
+      <a href="#FeatureAuditor" class="sidebar-link sidebar-sublink" data-label="FeatureAuditor">FeatureAuditor</a>
+      <a href="#FeatureAuditor.__init__" class="sidebar-link sidebar-sublink" data-label="FeatureAuditor.__init__">FeatureAuditor.__init__</a>
+      <a href="#FeatureAuditor.run" class="sidebar-link sidebar-sublink" data-label="FeatureAuditor.run">FeatureAuditor.run</a>
+      <a href="#AnalysisAuditor" class="sidebar-link sidebar-sublink" data-label="AnalysisAuditor">AnalysisAuditor</a>
+      <a href="#AnalysisAuditor.__init__" class="sidebar-link sidebar-sublink" data-label="AnalysisAuditor.__init__">AnalysisAuditor.__init__</a>
+      <a href="#AnalysisAuditor.run" class="sidebar-link sidebar-sublink" data-label="AnalysisAuditor.run">AnalysisAuditor.run</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#agents">Agents</a> / AnalysisAuditor
+</div>
+
+<h1><span class="section-label">Agent</span>AnalysisAuditor</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/AnalysisAuditor.py</code></p>
+  <p>Stage 3 — Two-stage adversarial review (FeatureAuditor + AnalysisAuditor). Stage A performs cross-hypothesis feature verification before synthesis: builds a Feature Contradiction Matrix, then spawns an LLM with spectrum-reading tools to independently verify each claimed feature. Stage B performs an adversarial second review of the synthesis verdict, stress-testing the winning hypothesis by reading the raw spectrum. The largest agent file with 16 module-level functions and 2 classes.</p>
+  <p><strong>Classes:</strong> <code>FeatureAuditorFailed</code>, <code>FeatureAuditor</code>, <code>AnalysisAuditor</code></p>
+  <p><strong>Dependencies:</strong> <a href="harness/tools.html">tools</a> &#183; <a href="harness/hypothesis_synthesis.html">hypothesis_synthesis</a> &#183; <a href="harness/continuation.html">continuation</a></p>
+  <div class="tag-row"><span class="tag">agent</span> <span class="tag">AnalysisAuditor</span> <span class="tag">Stage-3</span> <span class="tag">adversarial-review</span> <span class="tag">feature-audit</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#DOUBLET_DEFS">DOUBLET_DEFS</a></li>
+  <li><a href="#JSON_continuation">JSON &amp; Continuation Helpers</a></li>
+  <li><a href="#contradiction_matrix">Contradiction Matrix Builder</a></li>
+  <li><a href="#emission_absorption">Emission–Absorption Pair Detection</a></li>
+  <li><a href="#message_builders">User Message Builders</a></li>
+  <li><a href="#output_helpers">Output &amp; CSV Helpers</a></li>
+  <li><a href="#llm_runner">LLM Agent Runner</a></li>
+  <li><a href="#FeatureAuditorFailed">Class FeatureAuditorFailed</a></li>
+  <li><a href="#FeatureAuditor">Class FeatureAuditor</a></li>
+  <li><a href="#AnalysisAuditor">Class AnalysisAuditor</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="DOUBLET_DEFS"><span class="class-badge">const</span> DOUBLET_DEFS</h2>
+<p class="desc">Module-level constant defining the four canonical astrophysical doublet pairs used by the contradiction matrix builder for cross-hypothesis feature verification. Each entry encodes the expected rest wavelengths, separation, and amplitude ratio check.</p>
+
+<div class="func-block" id="DOUBLET_DEFS">
+  <h3>DOUBLET_DEFS</h3>
+  <div class="sig"><code>DOUBLET_DEFS : list[dict]</code></div>
+  <p>Four known doublet pairs:</p>
+  <ul>
+    <li><strong>Ca K/H</strong> — 3934.8 / 3969.6 A, sep 34.8 A, K deeper than H (K/H &gt; 1)</li>
+    <li><strong>[O III] a/b</strong> — 4960.3 / 5008.2 A, sep 47.9 A, b:a approx 3:1</li>
+    <li><strong>[N II] a/b</strong> — 6549.8 / 6585.3 A, sep 35.5 A, a:b approx 1:3</li>
+    <li><strong>[S II] a/b</strong> — 6718.3 / 6732.7 A, sep 14.4 A, a approx b (ratio ~1.0)</li>
+  </ul>
+  <p>Each entry has <code>name_a</code>, <code>rest_a</code>, <code>name_b</code>, <code>rest_b</code>, <code>sep_rest</code>, <code>ratio_desc</code>, and a <code>check</code> lambda that returns <code>(ratio_ab, is_expected, note)</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="JSON_continuation">JSON &amp; Continuation Helpers</h2>
+<p class="desc">Shared utilities for LLM response handling: max-token resolution, smart continuation prompts for truncated responses, JSON extraction from raw text, and recommendation string normalisation.</p>
+
+<div class="func-block" id="_resolve_max_tokens">
+  <h3>_resolve_max_tokens</h3>
+  <div class="sig"><code>_resolve_max_tokens() -> int | None</code></div>
+  <p>Resolve the max_tokens parameter for LLM calls. Reads <code>LLM_MAX_TOKENS</code> env var first; falls back to 65536 for DeepSeek models (detected via <code>LLM_BASE_URL</code> containing <code>"deepseek"</code>); returns None for all other vendors (using LLM default).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><em>none</em></td><td>—</td><td>—</td><td>Reads from environment variables only.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>int | None</code></td><td>Max tokens value, or None for default.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_continuation_prompt">
+  <h3>_build_continuation_prompt</h3>
+  <div class="sig"><code>_build_continuation_prompt(messages: list, json_keys: list[str] | None = None) -> str</code></div>
+  <p>Build a smart continuation prompt for the LLM when its previous response was truncated. Analyses the accumulated LangChain messages to determine where the LLM stopped. Uses <code>_find_last_content_ai_message</code> to skip pure tool-call messages and find the last AI message with text output. Behaviour depends on <code>json_keys</code>:</p>
+  <ul>
+    <li><code>["feature_verdicts"]</code> — FeatureAuditor schema: counts complete <code>wl_obs</code> entries via brace-depth parsing and detects broken entries cut off mid-output.</li>
+    <li><code>["verdict"]</code> — ResultAuditor schema: scans already-written top-level keys (<code>verdict</code>, <code>calibrated_confidence</code>, <code>spectrum_quality</code>, <code>key_issues</code>, etc.) and instructs the LLM to continue with remaining fields.</li>
+    <li>Otherwise — generic instruction: do not repeat, output only remaining content.</li>
+  </ul>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>messages</code></td><td><code>list</code></td><td>—</td><td>Accumulated LangChain message objects from the streaming session.</td></tr>
+    <tr><td><code>json_keys</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Expected output schema keys for schema-aware continuation behaviour.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>str</code></td><td>Continuation prompt string instructing the LLM where to resume.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_extract_json_block">
+  <h3>_extract_json_block</h3>
+  <div class="sig"><code>_extract_json_block(text: str, keys: list[str] | None = None) -> dict | None</code></div>
+  <p>Extract a JSON block from an LLM response string. Tries <code>```json ... ```</code> fences first, then falls back to scanning for bare <code>{...}</code> blocks that contain any of the specified <em>keys</em>. If <em>keys</em> is None, matches any <code>{...}</code> block at the end of <em>text</em>. Returns the parsed dict, or None if no valid JSON is found.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>text</code></td><td><code>str</code></td><td>—</td><td>Raw LLM response text.</td></tr>
+    <tr><td><code>keys</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Keys that must appear in the JSON block. If None, matches any <code>{...}</code> block.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>dict | None</code></td><td>Parsed JSON dict, or None if no valid block found.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_clean_rec">
+  <h3>_clean_rec</h3>
+  <div class="sig"><code>_clean_rec(rec: str) -> str</code></div>
+  <p>Normalise an LLM-generated recommendation string. Strips stray quotes (<code>"</code>, <code>'</code>, <code>`</code>), leading/trailing whitespace, and uppercases the result so that <code>startswith("KEEP" / "FLAG" / "REMOVE")</code> works robustly even when the model wraps the value in punctuation.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>rec</code></td><td><code>str</code></td><td>—</td><td>Raw recommendation string from LLM verdict.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>str</code></td><td>Cleaned, uppercased recommendation string.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contradiction_matrix">Contradiction Matrix Builder</h2>
+<p class="desc">Stage A core: reads all per-hypothesis line catalogs (<code>{idx}_lines.csv</code>), detects doublets, and builds the Feature Contradiction Matrix used by the FeatureAuditor LLM as its primary data structure.</p>
+
+<div class="func-block" id="build_contradiction_matrix">
+  <h3>build_contradiction_matrix</h3>
+  <div class="sig"><code>build_contradiction_matrix(hypothesis_results: list[dict], hypothesis_dir: str, wl_min: float, wl_max: float) -> tuple[list[dict], list[dict], dict]</code></div>
+  <p>Build the Feature Contradiction Matrix from all hypotheses' <code>lines.csv</code> files. Reads every <code>{idx}_lines.csv</code> in <code>hypothesis_dir/single_hypothesis/</code>, filters to LIKELY and MARGINAL status features, groups them by <code>(int(wl_obs), amp_sign)</code> to align features at nearly identical wavelengths. Produces:</p>
+  <ul>
+    <li><strong>matrix_rows</strong> — one row per unique wavelength group with cross-hypothesis presence/absence cells, edge zone flags, and feature properties (type, amplitude, width class).</li>
+    <li><strong>doublet_annotations</strong> — known doublet pairs (complete pairs and orphans) detected via <code>_detect_doublets</code>.</li>
+    <li><strong>stats</strong> — summary statistics: <code>n_rows</code>, <code>n_total_features</code>, <code>median_amplitude</code>, <code>top_quartile_amplitude</code>, edge counts, hypothesis indices.</li>
+  </ul>
+  <p>Edge detection: features at &lt; 4000 A are flagged <code>is_edge_blue</code>, features at &gt; 7800 A are flagged <code>is_edge_red</code>. Width classification: broad &gt; 2000 km/s, narrow &lt; 2000 km/s.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>hypothesis_results</code></td><td><code>list[dict]</code></td><td>—</td><td>List of hypothesis result dicts, each containing <code>hypothesis_idx</code> and <code>redshift</code>.</td></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Root directory containing <code>single_hypothesis/</code> subdirectory with per-hypothesis CSVs.</td></tr>
+    <tr><td><code>wl_min</code></td><td><code>float</code></td><td>—</td><td>Blue edge of spectrum (first wavelength value).</td></tr>
+    <tr><td><code>wl_max</code></td><td><code>float</code></td><td>—</td><td>Red edge of spectrum (last wavelength value).</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>matrix_rows</code></td><td><code>list[dict]</code></td><td>Matrix rows: each dict has <code>wl_obs</code>, <code>group_key</code>, <code>cells</code> (hypothesis-index-to-feature map), <code>n_hypotheses</code>, <code>is_edge_blue</code>, <code>is_edge_red</code>, <code>row_type</code>, <code>row_amp</code>, <code>row_width</code>.</td></tr>
+    <tr><td><code>doublet_annotations</code></td><td><code>list[dict]</code></td><td>Doublet annotations from <code>_detect_doublets</code>.</td></tr>
+    <tr><td><code>stats</code></td><td><code>dict</code></td><td>Summary statistics: <code>n_rows</code>, <code>n_total_features</code>, <code>n_edge_blue</code>, <code>n_edge_red</code>, <code>median_amplitude</code>, <code>top_quartile_amplitude</code>, <code>hypothesis_indices</code>.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_detect_doublets">
+  <h3>_detect_doublets</h3>
+  <div class="sig"><code>_detect_doublets(features_by_hyp: dict[int, list[dict]], redshift_by_hyp: dict[int, float]) -> list[dict]</code></div>
+  <p>Detect known doublet pairs (and orphans) within each hypothesis using <code>DOUBLET_DEFS</code>. For each hypothesis and each doublet definition, reports:</p>
+  <ul>
+    <li><strong>Complete pairs</strong> — both components claimed. Separation and amplitude ratio are pre-computed; mismatches between the observed and expected ratios are strong evidence against the identification.</li>
+    <li><strong>Orphans</strong> — only one component claimed. The missing component's expected lambda_obs is computed from the hypothesis redshift; the LLM should check whether a real feature exists at that position.</li>
+  </ul>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>features_by_hyp</code></td><td><code>dict[int, list[dict]]</code></td><td>—</td><td>Features grouped by hypothesis index, each with <code>name</code>, <code>wl_obs</code>, <code>amplitude</code>.</td></tr>
+    <tr><td><code>redshift_by_hyp</code></td><td><code>dict[int, float]</code></td><td>—</td><td>Redshift per hypothesis index for computing expected separations.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>list[dict]</code></td><td>Annotations: each dict has <code>hypothesis_idx</code>, <code>complete</code>, component names/wavelengths/amplitudes, <code>ratio</code>, <code>note</code>, expected and actual separations (for complete pairs); or <code>claimed</code>, <code>missing</code>, <code>wl_missing</code> (for orphans).</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="emission_absorption">Emission–Absorption Pair Detection</h2>
+<p class="desc">Helpers that detect when the same species is claimed as both emission and absorption within a hypothesis, requiring a composite profile check during the feature audit. The species checked are Mg II, H-alpha, and H-beta.</p>
+
+<table>
+<colgroup><col class="col-name"><col></colgroup>
+  <tr><th>Method</th><th>Description</th></tr>
+  <tr>
+    <td><code>_detect_emission_absorption_pairs</code></td>
+    <td><code>(matrix_rows: list[dict], hypothesis_results: list[dict]) -> list[dict]</code>. Detect emission-absorption pairs of the same species within each hypothesis. Returns list of dicts with <code>hypothesis_idx</code>, <code>species</code>, <code>wl_em</code>, <code>wl_abs</code>, <code>status_em</code>, <code>status_abs</code>.</td>
+  </tr>
+  <tr>
+    <td><code>_group_features_by_hypothesis</code></td>
+    <td><code>(matrix_rows: list[dict]) -> dict</code>. Group matrix row cells by hypothesis index, flattening into feature dicts with <code>name</code>, <code>wl_obs</code>, <code>status</code>.</td>
+  </tr>
+  <tr>
+    <td><code>_build_emission_absorption_pairs_section</code></td>
+    <td><code>(matrix_rows: list[dict], hypothesis_results: list[dict]) -> str</code>. Build the "Emission-Absorption Pairs" markdown section for the FeatureAuditor user prompt. Calls <code>_detect_emission_absorption_pairs</code> and formats a table if pairs exist, or returns a "none detected" message.</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="message_builders">User Message Builders</h2>
+<p class="desc">Construct the large, detailed user prompts for both audit stages. These are the primary interfaces between the pipeline and the LLM agents, providing spectrum metadata, contradiction matrices, doublet annotations, and structured task instructions.</p>
+
+<div class="func-block" id="_build_feature_audit_user_message">
+  <h3>_build_feature_audit_user_message</h3>
+  <div class="sig"><code>_build_feature_audit_user_message(state: SpectroState, hypothesis_dir: str, matrix_rows: list[dict], doublet_annotations: list[dict], stats: dict) -> str</code></div>
+  <p>Build the user prompt for Stage A — cross-hypothesis feature verification (FeatureAuditor). The prompt contains:</p>
+  <ul>
+    <li><strong>Spectrum metadata</strong> — wavelength range, blue/red edge zones</li>
+    <li><strong>Feature statistics</strong> — total features, unique rows, edge counts, median/top-quartile amplitude</li>
+    <li><strong>Hypothesis summary</strong> — redshifts per hypothesis</li>
+    <li><strong>Feature Contradiction Matrix</strong> — formatted markdown table with one row per unique observed wavelength, showing which hypothesis claims each feature with type/amplitude/width annotations</li>
+    <li><strong>Doublet Pairs &amp; Orphans</strong> — structured list of complete pairs and orphans from <code>_detect_doublets</code></li>
+    <li><strong>Emission-Absorption Pairs section</strong> — from <code>_build_emission_absorption_pairs_section</code></li>
+    <li><strong>Task instructions</strong> — 8-step methodology, batch reading requirements, Three-Question Test, composite profile check mandate</li>
+  </ul>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Full pipeline state containing spectrum arrays and hypothesis results.</td></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Harness output directory.</td></tr>
+    <tr><td><code>matrix_rows</code></td><td><code>list[dict]</code></td><td>—</td><td>Rows from <code>build_contradiction_matrix</code>.</td></tr>
+    <tr><td><code>doublet_annotations</code></td><td><code>list[dict]</code></td><td>—</td><td>Doublet annotations from <code>_detect_doublets</code>.</td></tr>
+    <tr><td><code>stats</code></td><td><code>dict</code></td><td>—</td><td>Feature statistics from <code>build_contradiction_matrix</code>.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>str</code></td><td>Complete markdown user prompt for the FeatureAuditor LLM.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_synthesis_audit_user_message">
+  <h3>_build_synthesis_audit_user_message</h3>
+  <div class="sig"><code>_build_synthesis_audit_user_message(state: SpectroState, hypothesis_dir: str) -> str</code></div>
+  <p>Build the user prompt for Stage B — synthesis verdict audit (AnalysisAuditor). This comprehensive prompt includes:</p>
+  <ul>
+    <li><strong>Spectrum metadata</strong> — wavelength range, median SNR, edge zones</li>
+    <li><strong>Hypothesis Synthesis Verdict</strong> — JSON dump of <code>state['hypothesis_analysis']</code></li>
+    <li><strong>Line Inventory</strong> — formatted markdown table from <code>hypothesis_synthesis/catalog.csv</code> via <code>_format_synthesis_csv</code></li>
+    <li><strong>Per-hypothesis cleaned line tables</strong> — post-FeatureAuditor cleaned CSVs showing KEEP/FLAG/REMOVED annotations</li>
+    <li><strong>Merged verified features</strong> — all KEEP features across all hypotheses, deduplicated by wavelength, with winner-explained/unexplained annotations</li>
+    <li><strong>Continuum description</strong> — from the VisualInterpreter pipeline</li>
+    <li><strong>FA notes</strong> — spectrum quality assessment, global issues, structured verdicts (composite profiles, doublets, O II morphology, Ly-alpha forest)</li>
+    <li><strong>Task instructions</strong> — Layer 1 physical sanity screening, completeness check (mandatory), Layer 2 targeted verification, null-result fallback for spectral classification</li>
+  </ul>
+  <p>Contains the local function <code>_filter_by_hypotheses(verdicts, key="hypothesis_idx")</code> for filtering verdict dicts to only the audited hypotheses (used internally to scope FA structured verdicts to winning + excluded hypotheses).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Full pipeline state with synthesis verdict, FA verdict, and spectrum data.</td></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Harness output directory containing synthesis CSVs and line tables.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>str</code></td><td>Complete markdown user prompt for the AnalysisAuditor LLM.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="output_helpers">Output &amp; CSV Helpers</h2>
+<p class="desc">Functions that read, write, and format the various CSV catalog files produced and consumed by the audit pipeline: merged verified features tables, CWT catalogs, synthesis catalog formatting, and cleaned CSV persistence.</p>
+
+<div class="func-block" id="_build_merged_verified_features">
+  <h3>_build_merged_verified_features</h3>
+  <div class="sig"><code>_build_merged_verified_features(hypothesis_dir: str, best_idx: int | None = None) -> str</code></div>
+  <p>Build a unified markdown table of all KEEP features across all hypotheses. Reads every <code>{idx}_lines_cleaned.csv</code> (falling back to <code>{idx}_lines.csv</code>), collects KEEP features, deduplicates by observed wavelength (within 2 A), and shows which hypotheses claim each feature with winner-explained/unexplained annotations. The auditor uses this to answer which real features the winning hypothesis does NOT explain.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Root directory containing <code>single_hypothesis/</code> with cleaned CSVs.</td></tr>
+    <tr><td><code>best_idx</code></td><td><code>int | None</code></td><td><code>None</code></td><td>Winning hypothesis index for winner/unexplained annotation (optional).</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>str</code></td><td>Markdown table with completeness statistics.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_write_cleaned_csvs">
+  <h3>_write_cleaned_csvs</h3>
+  <div class="sig"><code>_write_cleaned_csvs(hypothesis_dir: str, hypothesis_results: list[dict], feature_verdicts: list[dict]) -> None</code></div>
+  <p>Write <code>{idx}_lines_cleaned.csv</code> files with noise features annotated. Matches CSV rows to FeatureAuditor verdicts by <code>(int(fitted_center), amp_sign)</code> where amp_sign is derived from the verdict's <code>feature_type</code> field. Adds <code>feature_audit</code> and <code>feature_audit_flag</code> columns with KEEP/FLAG/REMOVED annotations based on <code>_clean_rec</code>-normalised recommendation values.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Root directory with <code>single_hypothesis/</code> subdirectory.</td></tr>
+    <tr><td><code>hypothesis_results</code></td><td><code>list[dict]</code></td><td>—</td><td>Hypothesis results with <code>hypothesis_idx</code> keys.</td></tr>
+    <tr><td><code>feature_verdicts</code></td><td><code>list[dict]</code></td><td>—</td><td>LLM verdicts with <code>wl_obs</code>, <code>feature_type</code>, <code>recommendation</code>, <code>issues</code>.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Writes cleaned CSV files to disk.</td></tr>
+  </table>
+</div>
+
+<table>
+<colgroup><col class="col-name"><col></colgroup>
+  <tr><th>Method</th><th>Description</th></tr>
+  <tr>
+    <td><code>_build_cwt_catalog</code></td>
+    <td><code>(hypothesis_dir: str) -> list[dict]</code>. Build a unified CWT feature catalog from redrock emission/absorption CSVs. Reads <code>{spectrum_id}_emission.csv</code> and <code>{spectrum_id}_absorption.csv</code> from the <code>visual_interpreter/</code> subdirectory. Returns list of dicts with <code>wavelength</code>, <code>amplitude</code>, <code>fwhm_km_s</code>, <code>ridge_length</code>, <code>snr</code>, <code>width_class</code>, <code>feature_type</code>.</td>
+  </tr>
+  <tr>
+    <td><code>_format_synthesis_csv</code></td>
+    <td><code>(csv_path: str) -> str</code>. Read hypothesis synthesis catalog CSV and format as a compact markdown table with columns: Line, Status, lambda_fit, Amp, FWHM, z_implied, Anchor.</td>
+  </tr>
+  <tr>
+    <td><code>_filter_by_hypotheses</code></td>
+    <td><code>(verdicts: list[dict], key: str = "hypothesis_idx") -> list[dict]</code> (local). Filter a list of verdict dicts to only those matching the audited hypotheses. Used by <code>_build_synthesis_audit_user_message</code> to scope FA structured verdicts to the winning + excluded hypotheses.</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="llm_runner">LLM Agent Runner</h2>
+<p class="desc">The shared async runner that manages the LLM agent lifecycle for both audit stages, including streaming, truncation detection, continuation, and non-streaming fallback.</p>
+
+<div class="func-block" id="_run_llm_agent">
+  <h3>_run_llm_agent</h3>
+  <div class="sig"><code>async _run_llm_agent(system_prompt: str, user_prompt: str, tools: list, hypothesis_dir: str, stream_filename: str, stream_title: str, json_keys: list[str], log_prefix: str = "") -> dict | None</code></div>
+  <p>Run an LLM agent with streaming, truncation detection, continuation, and non-streaming fallback. Creates a ChatOpenAI client from env config, builds a LangChain agent with provided tools and system prompt, runs streaming with markdown output, detects truncation via <code>run_continuation_streaming</code> + <code>_build_continuation_prompt</code>, concatenates AI message content, and parses JSON via <code>_extract_json_block</code>. Falls back to non-streaming <code>agent.ainvoke</code> with continuation if streaming fails.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>system_prompt</code></td><td><code>str</code></td><td>—</td><td>System prompt loaded from skill markdown file.</td></tr>
+    <tr><td><code>user_prompt</code></td><td><code>str</code></td><td>—</td><td>User prompt built by one of the message builder functions.</td></tr>
+    <tr><td><code>tools</code></td><td><code>list</code></td><td>—</td><td>LangChain tool definitions for the agent.</td></tr>
+    <tr><td><code>hypothesis_dir</code></td><td><code>str</code></td><td>—</td><td>Root directory where stream files are written.</td></tr>
+    <tr><td><code>stream_filename</code></td><td><code>str</code></td><td>—</td><td>Relative path for the streaming markdown log (e.g. <code>feature_auditor/stream.md</code>).</td></tr>
+    <tr><td><code>stream_title</code></td><td><code>str</code></td><td>—</td><td>Title for the stream markdown document.</td></tr>
+    <tr><td><code>json_keys</code></td><td><code>list[str]</code></td><td>—</td><td>Expected JSON keys for <code>_extract_json_block</code> and schema-aware continuation.</td></tr>
+    <tr><td><code>log_prefix</code></td><td><code>str</code></td><td><code>""</code></td><td>Prefix for warning log messages.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>dict | None</code></td><td>Parsed JSON dict from the LLM response, or None on failure.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="FeatureAuditorFailed"><span class="class-badge">exception</span> FeatureAuditorFailed</h2>
+<p class="desc">Inherits: <code>Exception</code></p>
+<p class="desc">Raised when the FeatureAuditor exhausts all retries without producing a valid JSON verdict.</p>
+
+<!-- ============================================================ -->
+<h2 id="FeatureAuditor"><span class="class-badge">class</span> FeatureAuditor</h2>
+<p class="desc">Inherits: <code>BaseAgent</code></p>
+<p class="desc">Stage 3A — Cross-hypothesis feature verification before synthesis. Reads all per-hypothesis line catalogs, builds a contradiction matrix, spawns an LLM with spectrum-reading tools to independently verify whether each claimed feature is real or noise. Writes <code>feature_audit_verdict.json</code> and cleaned <code>{idx}_lines_cleaned.csv</code> files for each hypothesis. Agent name set to <code>"FeatureAuditor"</code>. Skills loaded from <code>harness/skills/AnalysisAuditor/</code>.</p>
+
+<div class="func-block" id="FeatureAuditor.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime: RuntimeContainer)</code></div>
+  <p>Initialize the FeatureAuditor agent. Calls <code>super().__init__(runtime)</code> to set up the base agent infrastructure including skill directory resolution.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>required</td><td>Runtime container for LLM configuration and I/O paths.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Constructor, no return value.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="FeatureAuditor.run">
+  <h3>run</h3>
+  <div class="sig"><code>async run(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Main entry point for Stage A feature audit. Resolves <code>harness_dir</code>, calls <code>build_contradiction_matrix</code> to read hypothesis line catalogs. If no LIKELY/MARGINAL features found, sets <code>feature_audit_verdict.skipped=true</code> and returns early. Otherwise builds user prompt via <code>_build_feature_audit_user_message</code>, loads system prompt from <code>feature_audit_skill.md</code>, creates closure <code>@tool</code> functions (<code>read_spectrum_region</code>, <code>detect_oii_slope_change</code>) plus <code>grep_kb</code>, runs <code>_run_llm_agent</code> with up to 3 retries on JSON parse failure, writes cleaned CSVs via <code>_write_cleaned_csvs</code>, and logs the verdict summary.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state containing spectrum, hypothesis results, and output paths.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Updated state with <code>feature_audit_verdict</code> populated (verdict dict with <code>feature_verdicts</code>, <code>spectrum_quality</code>, <code>doublet_verdicts</code>, etc.).</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="AnalysisAuditor"><span class="class-badge">class</span> AnalysisAuditor</h2>
+<p class="desc">Inherits: <code>BaseAgent</code></p>
+<p class="desc">Stage 3B — Adversarial second reviewer for the synthesis verdict. Takes the synthesis output (<code>rule_analysis</code> + <code>hypothesis_results</code>) and independently stress-tests the winning hypothesis by reading the raw spectrum. Outputs a calibrated verdict: <code>CONFIRM</code> / <code>DOWNGRADE</code> / <code>REJECT</code> / <code>UNCERTAIN</code>. Agent name set to <code>"AnalysisAuditor"</code>. Skills loaded from <code>harness/skills/AnalysisAuditor/</code>.</p>
+
+<div class="func-block" id="AnalysisAuditor.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime: RuntimeContainer)</code></div>
+  <p>Initialize the AnalysisAuditor agent. Calls <code>super().__init__(runtime)</code> to set up the base agent infrastructure including skill directory resolution.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>required</td><td>Runtime container for LLM configuration and I/O paths.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Constructor, no return value.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="AnalysisAuditor.run">
+  <h3>run</h3>
+  <div class="sig"><code>async run(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Main entry point for Stage B synthesis audit. Guards: if no valid synthesis verdict (redshift is None), sets verdict to SKIPPED/UNCERTAIN and returns early. Otherwise resolves <code>harness_dir</code>, builds user prompt via <code>_build_synthesis_audit_user_message</code>, loads system prompt from <code>result_auditor_skill.md</code>, builds CWT catalog, creates closure <code>@tool</code> functions (<code>read_spectrum_region</code>, <code>detect_oii_slope_change</code>, <code>query_cwt_catalog</code>), runs <code>_run_llm_agent</code>, stores result in <code>state['auditor_verdict_json']</code> and <code>state['auditor_verdict']</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state containing synthesis verdict (in <code>hypothesis_analysis</code>), FA verdict, and spectrum data.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Updated state with <code>auditor_verdict</code> (string) and <code>auditor_verdict_json</code> (dict with <code>verdict</code>, <code>calibrated_confidence</code>, <code>line_revisions</code>, <code>spectrum_issues</code>, etc.) populated.</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="ReportWriter.html">Next &rarr;</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-07-03</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','DOUBLET_DEFS','JSON_continuation','_resolve_max_tokens','_build_continuation_prompt','_extract_json_block','_clean_rec','contradiction_matrix','build_contradiction_matrix','_detect_doublets','emission_absorption','_detect_emission_absorption_pairs','_group_features_by_hypothesis','_build_emission_absorption_pairs_section','message_builders','_build_feature_audit_user_message','_build_synthesis_audit_user_message','output_helpers','_build_merged_verified_features','_build_cwt_catalog','_format_synthesis_csv','_write_cleaned_csvs','llm_runner','_run_llm_agent','FeatureAuditorFailed','FeatureAuditor','FeatureAuditor.__init__','FeatureAuditor.run','AnalysisAuditor','AnalysisAuditor.__init__','AnalysisAuditor.run'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

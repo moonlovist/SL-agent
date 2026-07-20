@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpectroState — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#SpectroState" class="sidebar-link sidebar-sublink" data-label="SpectroState">SpectroState</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / SpectroState
+</div>
+
+<h1><span class="section-label">Core</span>SpectroState</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/common/state.py</code></p>
+  <p>LangGraph state definition — 60+ fields organised by pipeline stage: input paths, axis mappings, spectrum data, CWT features, brute-force hypotheses, LLM results, audit verdicts, output.</p>
+  <p><strong>Classes:</strong> <code>SpectroState(MessagesState)</code></p>
+  <p><strong>Related:</strong> <a href="state_factory.html">SpectroStateFactory</a> · <a href="message_utils.html">message_utils</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">state</span> <span class="tag">LangGraph</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#SpectroState">Class SpectroState</a></li>
+  <li><a href="#SpectroStateFactory">Class SpectroStateFactory</a></li>
+  <li><a href="#SpectroStateFactory.__init__">SpectroStateFactory.__init__(self, configs: AllConfig)</a></li>
+  <li><a href="#SpectroStateFactory.create">SpectroStateFactory.create(self, ... -> SpectroState)</a></li>
+</ol>
+
+<h2 id="SpectroState"><span class="class-badge">class</span> SpectroState</h2>
+<p class="desc">Inherits: <code>MessagesState</code>. Core LangGraph state — 60+ fields organised in five groups. Fields marked <em>*</em> are PNG/VLM-channel only (currently disabled).</p>
+
+<h3>Input/Output</h3>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup><tr><th>Key</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>file_path</code></td><td><code>Optional[str]</code></td><td>full path to input spectrum file</td></tr>
+<tr><td><code>file_name</code></td><td><code>Optional[str]</code></td><td>base file name (no extension)</td></tr>
+<tr><td><code>output_dir</code></td><td><code>Optional[str]</code></td><td>per-spectrum output directory</td></tr>
+<tr><td><em>* <code>crop_path</code></em></td><td><code>Optional[str]</code></td><td>cropped image path (PNG only)</td></tr>
+<tr><td><em>* <code>spec_extract_path</code></em></td><td><code>Optional[str]</code></td><td>spectrum extraction visualisation (PNG only)</td></tr>
+<tr><td><em>* <code>continuum_path</code></em></td><td><code>Optional[str]</code></td><td>continuum fit visualisation (PNG only)</td></tr>
+</table>
+
+<h3>Image Recognition &amp; Pixel Mapping <em>(PNG only)</em></h3>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup><tr><th>Key</th><th>Type</th><th>Description</th></tr>
+<tr><td><em>* <code>axis_info</code></em></td><td><code>Optional[dict]</code></td><td>axis labels and units</td></tr>
+<tr><td><em>* <code>OCR_detected_ticks</code></em></td><td><code>Optional[List[...]]</code></td><td>OCR-detected tick marks</td></tr>
+<tr><td><em>* <code>tick_pixel_raw</code></em></td><td><code>Optional[List[...]]</code></td><td>raw tick pixel positions</td></tr>
+<tr><td><em>* <code>chart_border</code></em></td><td><code>Optional[dict]</code></td><td>detected chart border coordinates</td></tr>
+<tr><td><em>* <code>tick_pixel_remap</code></em></td><td><code>Optional[List[...]]</code></td><td>remapped tick positions</td></tr>
+<tr><td><em>* <code>pixel_to_value</code></em></td><td><code>Optional[dict]</code></td><td>pixel-to-wavelength/flux mapping</td></tr>
+</table>
+
+<h3>Spectrum &amp; Features</h3>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup><tr><th>Key</th><th>Type</th><th>Description</th></tr>
+<tr><td><em>* <code>curve_points</code></em></td><td><code>Optional[List[...]]</code></td><td>extracted curve pixel coordinates (PNG only)</td></tr>
+<tr><td><em>* <code>curve_gray_values</code></em></td><td><code>Optional[...]</code></td><td>gray values along curve (PNG only)</td></tr>
+<tr><td><code>spectrum</code></td><td><code>Optional[Dict]</code></td><td>reconstructed wavelength/flux spectrum</td></tr>
+<tr><td><code>continuum</code></td><td><code>Optional[Dict]</code></td><td>Chebyshev continuum fit</td></tr>
+<tr><td><code>residual_spectrum</code></td><td><code>Optional[Dict]</code></td><td>continuum-subtracted residual</td></tr>
+<tr><td><code>peaks</code></td><td><code>Optional[List[...]]</code></td><td>detected emission peaks</td></tr>
+<tr><td><code>troughs</code></td><td><code>Optional[List[...]]</code></td><td>detected absorption troughs</td></tr>
+<tr><td><code>redshift_hypotheses</code></td><td><code>Optional[List[...]]</code></td><td>initial redshift hypotheses (Redrock or BFM)</td></tr>
+<tr><td><code>absorption_records</code></td><td><code>Optional[List[...]]</code></td><td>matched absorption line records</td></tr>
+<tr><td><code>emission_records</code></td><td><code>Optional[List[...]]</code></td><td>matched emission line records</td></tr>
+<tr><td><code>overlap_regions</code></td><td><code>Optional[Dict]</code></td><td>inter-arm overlap wavelength regions</td></tr>
+<tr><td><code>redshift_scoring</code></td><td><code>Optional[Dict]</code></td><td>low-z / high-z hypothesis lists</td></tr>
+<tr><td><code>hypothesis_results</code></td><td><code>Optional[List[...]]</code></td><td>per-hypothesis harness output</td></tr>
+<tr><td><code>spectrum_npz_path</code></td><td><code>Optional[str]</code></td><td>path to saved .npz for harness use</td></tr>
+</table>
+
+<h3>Visualisation</h3>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup><tr><th>Key</th><th>Type</th><th>Description</th></tr>
+<tr><td><em>* <code>spectrum_fig</code></em></td><td><code>Optional[Figure]</code></td><td>matplotlib spectrum figure (PNG/VLM only)</td></tr>
+<tr><td><em>* <code>features_fig</code></em></td><td><code>Optional[Figure]</code></td><td>matplotlib features figure (PNG/VLM only)</td></tr>
+</table>
+
+<h3>LLM Analysis History</h3>
+<table class="table-keys">
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup><tr><th>Key</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>qualitative_analysis</code></td><td><code>Optional[Dict]</code></td><td>qualitative line assessment</td></tr>
+<tr><td><code>preliminary_classification</code></td><td><code>Optional[str]</code></td><td>initial classification</td></tr>
+<tr><td><code>verdict</code></td><td><code>Optional[str]</code></td><td>auditing verdict</td></tr>
+<tr><td><code>final_report</code></td><td><code>Optional[str]</code></td><td>ReportWriter final output</td></tr>
+<tr><td><code>hypothesis_analysis</code></td><td><code>Optional[Dict]</code></td><td>synthesis comparison</td></tr>
+<tr><td><code>feature_audit_verdict</code></td><td><code>Optional[Dict]</code></td><td>FeatureAuditor output</td></tr>
+<tr><td><code>harness_dir</code></td><td><code>Optional[str]</code></td><td>per-spectrum harness output dir</td></tr>
+<tr><td><code>auditor_verdict</code></td><td><code>Optional[str]</code></td><td>Stage B verdict string</td></tr>
+<tr><td><code>auditor_verdict_json</code></td><td><code>Optional[Dict]</code></td><td>Stage B full verdict JSON</td></tr>
+<tr><td><code>in_brief</code></td><td><code>Optional[Dict]</code></td><td>structured JSON summary</td></tr>
+<tr><td><code>_no_features</code></td><td><code>Optional[bool]</code></td><td>zero-features flag</td></tr>
+<tr><td><code>margin</code></td><td><code>Optional[Dict]</code></td><td>VI crop margins</td></tr>
+<tr><td><code>_failure_recorded</code></td><td><code>Optional[bool]</code></td><td>SelfEvolve failure tracking</td></tr>
+</table>
+
+<div class="note">
+  <strong>* = PNG / VLM channel only.</strong> The PNG input pipeline and VLM (vision-language model) are currently disabled (2026-06-30). Fields marked with <em>*</em> are only populated when running in PNG mode with VLM enabled. In FITS-only mode (current default), these fields remain <code>None</code>.
+</div>
+
+<div class="note">
+  <strong>See also:</strong> <a href="state_factory.html">SpectroStateFactory</a> for initial state construction, <a href="message_utils.html">message_utils</a> for LangChain message helpers.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','SpectroState'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

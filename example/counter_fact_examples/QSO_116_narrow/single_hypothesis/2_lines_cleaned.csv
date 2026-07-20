@@ -1,0 +1,26 @@
+name,rest_wavelength,predicted_obs,fitted_center,fitted_center_err,amplitude,amplitude_err,fitted_sigma,fwhm_km_s,ridge_length,cwt_snr,status,feature_audit,feature_audit_flag
+[O II],3727.0,3724.9,3708.0,0.8,0.6,,4.08,773.0,10,7.5,LIKELY,FLAGGED,"🔵 Blue edge zone — non-Gaussian noise, throughput collapse; Genuine narrow emission peak at 3707.2 (1.133), with 3708.0 on the declining side. Feature is visually coherent but in the blue edge noise zone."
+Ca K_abs,3934.8,3932.6,3932.8,0.8,-0.5,,15.41,2767.0,8,7.3,LIKELY,KEEP,
+Ca H_abs,3969.6,3967.4,3961.6,0.8,-0.3,,48.33,8615.0,4,17.4,MARGINAL,REMOVED,🔵 Blue edge zone; No absorption trough — flux is rising through this region (3960.0=0.7608 → 3961.6=0.9545 → 3962.4=0.9842). CWT appears to have detected the rising continuum slope as 'absorption'. The actual trough is near 3955.
+Hε,3970.1,3967.9,,,,,,,,,NOT_FOUND,,
+Hε_abs,3970.1,3967.9,,,,,,,,,NOT_FOUND,,
+Hδ,4102.9,4100.6,4055.2,0.8,0.4,,18.64,3246.0,14,12.1,MARGINAL,REMOVED,Red wing of the bright emission complex peaking at 4047.2 (1.6786). Not a distinct feature — just the declining wing of a larger emission structure. CWT over-fitted the wing as a separate broad feature.
+Hδ_abs,4102.9,4100.6,,,,,,,,,NOT_FOUND,,
+G-band_abs,4305.6,4303.2,4280.0,0.8,-0.5,,8.71,1435.0,10,11.0,MARGINAL,KEEP,
+Hγ,4341.7,4339.3,4266.4,0.8,0.4,,6.5,1077.0,7,8.1,MARGINAL,KEEP,
+Hγ_abs,4341.7,4339.3,4348.8,0.8,-0.2,,15.41,2502.0,4,6.1,MARGINAL,FLAGGED,"Real absorption trough but minimum is at 4351.2 (0.0177), not 4348.8. CWT picked the declining shoulder. Trough is part of a broader absorption complex spanning 4340-4360."
+Hβ,4862.7,4860.0,4857.6,0.8,0.5,,12.74,1851.0,6,8.4,LIKELY,REMOVED,On the declining side of a broad emission hump peaking at 4855.2 (2.0087). Not a distinct narrow peak — just part of a broader structure. CWT picked a point on the declining shoulder.
+Hβ_abs,4862.7,4860.0,4824.0,0.8,-0.3,,18.64,2729.0,6,17.3,MARGINAL,REMOVED,Gentle continuum decline from the bright emission complex. Flux is still high (1.721). No absorption trough — just the broad declining slope. CWT over-fitted the continuum.
+[O III]a,4960.3,4957.5,4947.2,0.8,0.0,,4.08,580.0,12,13.4,LIKELY,,
+[O III]b,5008.2,5005.4,,,,,,,,,NOT_FOUND,,
+Mg I_abs,5176.7,5173.8,5176.8,0.8,-0.0,,39.92,5449.0,4,10.8,MARGINAL,REMOVED,Flux is rising through this region (5176.0=0.5749 → 5176.8=0.5976 → 5177.6=0.6129). No absorption. Amplitude is 0.000. Pure CWT phantom.
+Na D_abs,5895.6,5892.3,,,,,,,,,MASKED,,
+[N II]a,6549.8,6546.1,6532.0,0.8,0.1,,27.26,2950.0,8,8.8,MARGINAL,REMOVED,Gentle broad hump on a rising slope. Amplitude only 0.1. Neighborhood (6480-6600) shows many similar undulations. Noise forest: 5+ peaks of comparable amplitude within ±100 Å. Target/mean ≈ 1.1×.
+Hα,6564.6,6560.9,6532.0,0.8,0.1,,27.26,2950.0,8,8.8,MARGINAL,REMOVED,Gentle broad hump on a rising slope. Amplitude only 0.1. Neighborhood (6480-6600) shows many similar undulations. Noise forest: 5+ peaks of comparable amplitude within ±100 Å. Target/mean ≈ 1.1×.
+Hα_abs,6564.6,6560.9,6574.4,0.8,-0.1,,5.95,638.0,6,6.8,MARGINAL,REMOVED,Essentially flat. Flux is constant at ~0.451-0.454 across 6573-6576. No absorption trough. Amplitude -0.100 is within the noise.
+[N II]b,6585.3,6581.6,,,,,,,,,NOT_FOUND,,
+[S II]a,6718.3,6714.5,,,,,,,,,NOT_FOUND,,
+[S II]b,6732.7,6728.9,,,,,,,,,NOT_FOUND,,
+CaT1_abs,8498.0,8493.2,8468.0,0.8,-0.3,,7.18,600.0,18,10.4,MARGINAL,FLAGGED,"🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.; Deep, dramatic absorption trough. Flux drops from ~0.33 at 8464 to 0.054 at 8468.0. One of the deepest absorption features in the spectrum. Visually striking but in the OH zone."
+CaT2_abs,8542.0,8537.2,8616.0,0.8,-0.0,,48.33,3961.0,4,6.8,MARGINAL,REMOVED,🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.; Gentle decline. Amplitude is 0.000. No distinct absorption trough. Pure CWT phantom.
+CaT3_abs,8662.0,8657.1,8645.6,0.8,-0.1,,4.93,401.0,4,5.8,MARGINAL,FLAGGED,🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.; Genuine narrow absorption trough. Flux drops from 0.243 to 0.221. Visually coherent but shallow. In the OH zone.

@@ -1,0 +1,1622 @@
+{
+  "num_runs": 100,
+  "total_time_s": 12539,
+  "verdict_counts": {
+    "NEEDS_REVISION": 99,
+    "CONFIRM": 1
+  },
+  "confidence_counts": {
+    "LOW": 77,
+    "MEDIUM": 23
+  },
+  "total_line_revisions_narrow": {
+    "lyα": 78,
+    "c_iv": 78,
+    "c_iii": 91,
+    "mg_ii": 0
+  },
+  "total_spectrum_issues_narrow": 90,
+  "n_narrow_flagged": 99,
+  "results": [
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 3,
+      "run": 1,
+      "elapsed_s": 120
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 2,
+      "elapsed_s": 95
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 3,
+      "elapsed_s": 104
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 4,
+      "elapsed_s": 134
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 5,
+      "elapsed_s": 159
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 6,
+      "elapsed_s": 119
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 7,
+      "elapsed_s": 138
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 2,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 8,
+      "elapsed_s": 114
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 9,
+      "elapsed_s": 119
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 10,
+      "elapsed_s": 167
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 11,
+      "elapsed_s": 138
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 5,
+      "run": 12,
+      "elapsed_s": 131
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 13,
+      "elapsed_s": 92
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 14,
+      "elapsed_s": 88
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 5,
+      "run": 15,
+      "elapsed_s": 118
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 16,
+      "elapsed_s": 108
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 17,
+      "elapsed_s": 114
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 18,
+      "elapsed_s": 87
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 19,
+      "elapsed_s": 107
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 20,
+      "elapsed_s": 109
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 3,
+      "run": 21,
+      "elapsed_s": 122
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 22,
+      "elapsed_s": 140
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 23,
+      "elapsed_s": 110
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 24,
+      "elapsed_s": 90
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 25,
+      "elapsed_s": 142
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 26,
+      "elapsed_s": 149
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 27,
+      "elapsed_s": 128
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 28,
+      "elapsed_s": 166
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 29,
+      "elapsed_s": 104
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 30,
+      "elapsed_s": 142
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 31,
+      "elapsed_s": 157
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 5,
+      "run": 32,
+      "elapsed_s": 142
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 33,
+      "elapsed_s": 134
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 3,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 34,
+      "elapsed_s": 128
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 2,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 2,
+      "n_spectrum_issues_total": 4,
+      "run": 35,
+      "elapsed_s": 152
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 36,
+      "elapsed_s": 120
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 37,
+      "elapsed_s": 158
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 38,
+      "elapsed_s": 105
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 39,
+      "elapsed_s": 120
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 40,
+      "elapsed_s": 91
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 41,
+      "elapsed_s": 137
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 42,
+      "elapsed_s": 144
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 43,
+      "elapsed_s": 112
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 44,
+      "elapsed_s": 115
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 45,
+      "elapsed_s": 140
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 0,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 46,
+      "elapsed_s": 123
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 47,
+      "elapsed_s": 165
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 48,
+      "elapsed_s": 133
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 3,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 49,
+      "elapsed_s": 115
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 50,
+      "elapsed_s": 125
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 2,
+      "n_spectrum_issues_total": 4,
+      "run": 51,
+      "elapsed_s": 161
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 52,
+      "elapsed_s": 157
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 53,
+      "elapsed_s": 130
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 54,
+      "elapsed_s": 106
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 0,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 55,
+      "elapsed_s": 147
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 56,
+      "elapsed_s": 175
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 2,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 2,
+      "n_spectrum_issues_total": 3,
+      "run": 57,
+      "elapsed_s": 138
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 58,
+      "elapsed_s": 99
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 3,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 59,
+      "elapsed_s": 141
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 60,
+      "elapsed_s": 112
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 61,
+      "elapsed_s": 126
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 62,
+      "elapsed_s": 141
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 63,
+      "elapsed_s": 150
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 64,
+      "elapsed_s": 116
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 65,
+      "elapsed_s": 119
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 3,
+      "run": 66,
+      "elapsed_s": 163
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 67,
+      "elapsed_s": 156
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 68,
+      "elapsed_s": 164
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 69,
+      "elapsed_s": 114
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 70,
+      "elapsed_s": 116
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 71,
+      "elapsed_s": 113
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 72,
+      "elapsed_s": 131
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 73,
+      "elapsed_s": 145
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 74,
+      "elapsed_s": 143
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 75,
+      "elapsed_s": 99
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 3,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 76,
+      "elapsed_s": 101
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 77,
+      "elapsed_s": 100
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 78,
+      "elapsed_s": 125
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 79,
+      "elapsed_s": 120
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 80,
+      "elapsed_s": 141
+    },
+    {
+      "verdict": "CONFIRM",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 0,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 0,
+      "n_spectrum_issues_total": 3,
+      "run": 81,
+      "elapsed_s": 118
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 82,
+      "elapsed_s": 114
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 83,
+      "elapsed_s": 154
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 2,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 84,
+      "elapsed_s": 178
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 85,
+      "elapsed_s": 99
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 86,
+      "elapsed_s": 126
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 87,
+      "elapsed_s": 121
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 88,
+      "elapsed_s": 121
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 2,
+      "n_spectrum_issues_total": 4,
+      "run": 89,
+      "elapsed_s": 97
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 90,
+      "elapsed_s": 95
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 1,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 3,
+      "run": 91,
+      "elapsed_s": 106
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 92,
+      "elapsed_s": 91
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 93,
+      "elapsed_s": 105
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 94,
+      "elapsed_s": 86
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 95,
+      "elapsed_s": 96
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 0,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 3,
+      "run": 96,
+      "elapsed_s": 142
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 1,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 97,
+      "elapsed_s": 109
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 4,
+      "run": 98,
+      "elapsed_s": 112
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "MEDIUM",
+      "n_line_revisions_narrow": {
+        "lyα": 0,
+        "c_iv": 0,
+        "c_iii": 0,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 0,
+      "n_spectrum_issues_narrow": 2,
+      "n_line_revisions_total": 1,
+      "n_spectrum_issues_total": 4,
+      "run": 99,
+      "elapsed_s": 130
+    },
+    {
+      "verdict": "NEEDS_REVISION",
+      "confidence": "LOW",
+      "n_line_revisions_narrow": {
+        "lyα": 1,
+        "c_iv": 1,
+        "c_iii": 1,
+        "mg_ii": 0
+      },
+      "n_line_revisions_narrow_total": 3,
+      "n_spectrum_issues_narrow": 0,
+      "n_line_revisions_total": 3,
+      "n_spectrum_issues_total": 5,
+      "run": 100,
+      "elapsed_s": 116
+    }
+  ]
+}

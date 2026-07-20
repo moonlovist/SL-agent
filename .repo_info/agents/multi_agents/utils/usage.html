@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>usage — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#safe_to_bool" class="sidebar-link sidebar-sublink" data-label="safe_to_bool()">safe_to_bool</a>
+      <a href="#find_overlap_regions" class="sidebar-link sidebar-sublink" data-label="find_overlap_regions()">find_overlap_regions</a>
+      <a href="#normalize_line_name" class="sidebar-link sidebar-sublink" data-label="normalize_line_name()">normalize_line_name</a>
+      <a href="#parse_csv_float" class="sidebar-link sidebar-sublink" data-label="parse_csv_float()">parse_csv_float</a>
+      <a href="#average_flux_by_wavelength" class="sidebar-link sidebar-sublink" data-label="average_flux_by_wavelength()">average_flux_by_wavelength</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#utils">Utils</a> / usage
+</div>
+
+<h1><span class="section-label">Utils</span>usage.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/utils/usage.py</code></p>
+  <p>Shared helpers — boolean coercion, wavelength band overlap detection, spectral line name normalisation, CSV float parsing, wavelength averaging.</p>
+  <div class="tag-row"><span class="tag">utils</span> <span class="tag">helpers</span> <span class="tag">spectroscopy</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#safe_to_bool">safe_to_bool(value -> bool)</a></li>
+  <li><a href="#find_overlap_regions">find_overlap_regions(band_names, band_wavelengths -> dict)</a></li>
+  <li><a href="#normalize_line_name">normalize_line_name(raw -> str)</a></li>
+  <li><a href="#parse_csv_float">parse_csv_float(val -> float|None)</a></li>
+  <li><a href="#average_flux_by_wavelength">average_flux_by_wavelength(wavelength, flux)</a></li>
+</ol>
+
+<div class="func-block" id="safe_to_bool">
+  <h3>safe_to_bool</h3>
+  <div class="sig"><code>safe_to_bool(value) -> bool</code></div>
+  <p>Safe boolean coercion. <code>bool</code> passes through; <code>str</code> matches <code>['true','1','t','yes','y']</code> (case-insensitive); all other values fall through to <code>bool(value)</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>value</code></td><td><code>Any</code></td><td>—</td><td>Value to coerce to boolean</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>bool</code></td><td>Coerced boolean value</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="find_overlap_regions">
+  <h3>find_overlap_regions</h3>
+  <div class="sig"><code>find_overlap_regions(band_names, band_wavelengths) -> dict</code></div>
+  <p>Find all pairwise overlap regions between spectral bands. Iterates all band pairs (i, j), computes <code>max(start_i, start_j)</code> → <code>min(end_i, end_j)</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>band_names</code></td><td><code>list[str]</code></td><td>—</td><td>Band name labels (e.g. <code>["B","R","Z"]</code>)</td></tr>
+    <tr><td><code>band_wavelengths</code></td><td><code>list[[float,float]]</code></td><td>—</td><td>Wavelength range per band as <code>[start, end]</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>overlaps</td><td><code>dict</code></td><td>e.g. <code>{"B-R": [5760.0, 5800.0], ...}</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="normalize_line_name">
+  <h3>normalize_line_name</h3>
+  <div class="sig"><code>normalize_line_name(raw: str) -> str</code></div>
+  <p>Normalise a spectral line name to canonical form. Handles common LLM-generated variants via regex bracket normalisation + alias lookup table (~40 entries covering emission and absorption lines).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>raw</code></td><td><code>str</code></td><td>—</td><td>Raw line name string from LLM output</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>name</td><td><code>str</code></td><td>Canonical name (e.g. <code>"[O II] 3727"</code>) or cleaned input if unmapped</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="parse_csv_float">
+  <h3>parse_csv_float</h3>
+  <div class="sig"><code>parse_csv_float(val: str) -> float | None</code></div>
+  <p>Parse a CSV string to float. Returns <code>None</code> on empty or invalid input.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>val</code></td><td><code>str</code></td><td>—</td><td>CSV cell value to parse</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>value</td><td><code>float | None</code></td><td>Parsed float, or <code>None</code> on empty/invalid</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="average_flux_by_wavelength">
+  <h3>average_flux_by_wavelength</h3>
+  <div class="sig"><code>average_flux_by_wavelength(wavelength, flux) -> (ndarray, ndarray)</code></div>
+  <p>Average flux values at duplicate wavelengths via pandas groupby-mean.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wavelength</code></td><td><code>array-like</code></td><td>—</td><td>Wavelength values (may contain duplicates)</td></tr>
+    <tr><td><code>flux</code></td><td><code>array-like</code></td><td>—</td><td>Flux values corresponding to wavelengths</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(wl, flux)</td><td><code>(ndarray, ndarray)</code></td><td>Unique wavelengths and mean flux at each</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','safe_to_bool','find_overlap_regions','normalize_line_name','parse_csv_float','average_flux_by_wavelength'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

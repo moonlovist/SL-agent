@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RuntimeContainer — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <a href="#function-tree" class="sidebar-link" data-label="Function tree">Tree</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#__init__" class="sidebar-link sidebar-sublink" data-label="__init__()">__init__</a>
+      <a href="#get_model" class="sidebar-link sidebar-sublink" data-label="get_model()">get_model</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / RuntimeContainer
+</div>
+
+<h1><span class="section-label">Core</span>RuntimeContainer</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/core/runtime/runtime_container.py</code></p>
+  <p><strong>Class:</strong> <code>RuntimeContainer</code> — lightweight DI container. Lazy-initializes and caches LLM/VLM client instances keyed by type string. Each agent receives the same container and calls <code>get_model(type)</code> to obtain a shared or on-demand <code>ChatOpenAI</code> client.</p>
+  <p><strong>Dependencies:</strong> <a href="../llm.html">ThisIsModel</a> · <a href="../config/overview.html">AllConfig</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">DI</span> <span class="tag">runtime</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="function-tree">Function Tree</h2>
+
+<div class="file-tree">
+  <ul class="tree">
+    <li>
+      <span class="tree-label">class RuntimeContainer</span>
+      <ul>
+        <li class="file"><a href="#__init__">__init__(configs)</a> <span class="comment">← store config, init model cache</span></li>
+        <li class="file"><a href="#get_model">get_model(type)</a> <span class="comment">← lazy-init + cache + return ChatOpenAI</span></li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#__init__">__init__(configs)</a></li>
+  <li><a href="#get_model">get_model(type -> ChatOpenAI)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="RuntimeContainer"><span class="class-badge">class</span> RuntimeContainer</h2>
+<p class="desc">Dependency injection container. Holds a reference to the full <code>AllConfig</code> and a private model cache (<code>_models: dict</code>). Agents receive this container at construction time and call <code>get_model()</code> to obtain their LLM/VLM client.</p>
+
+<div class="func-block" id="__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, configs: AllConfig)</code></div>
+  <p>Store the config object and initialize an empty <code>_models</code> dict. No clients are created eagerly — all model construction is deferred to the first <code>get_model()</code> call.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-source"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>configs</code></td><td><code>AllConfig</code></td><td>Injected</td><td>Top-level configuration aggregating all Pydantic config models</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="get_model">
+  <h3>get_model</h3>
+  <div class="sig"><code>get_model(self, type: str) -> ChatOpenAI</code></div>
+  <p>Lazy-initialize and cache a model client by type key. Looks up <code>configs.model.type</code>, passes the config dict to <code>ThisIsModel(config).create_client()</code>, and caches the result in <code>_models[type]</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>type</code></td><td><code>str</code></td><td>—</td><td>Model type key, e.g. <code>"llm"</code> or <code>"vlm"</code>, indexing into <code>configs.model</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>client</td><td><code>ChatOpenAI</code></td><td>Ready-to-use ChatOpenAI instance, cached per type key for reuse</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Why lazy init?</strong> Different agents may request different model types (e.g. <code>"llm"</code> for text-only agents, <code>"vlm"</code> for vision agents). By deferring construction to the first <code>get_model()</code> call, models that are never requested are never built — saving API key validation and connection setup for unused backends.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var sidebar = document.getElementById('sidebar');
+  var toggle = document.getElementById('sidebar-toggle');
+  var overlay = document.getElementById('sidebar-overlay');
+  var links = sidebar.querySelectorAll('.sidebar-link');
+  var topLink = document.getElementById('sidebar-link-top');
+  var sublistContents = document.getElementById('sidebar-sublist-contents');
+  var contentsSubIds = ['contents', '__init__', 'get_model'];
+
+  var sections = [];
+  links.forEach(function (link) {
+    var href = link.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+    var target = document.getElementById(href.slice(1));
+    if (target) sections.push({ link: link, target: target });
+  });
+
+  var ticking = false;
+  function updateActiveHeading() {
+    var activeLink = null;
+    var activeId = null;
+    var atBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 10;
+    for (var i = sections.length - 1; i >= 0; i--) {
+      var top = sections[i].target.getBoundingClientRect().top;
+      if (top <= 120 || (atBottom && top < window.innerHeight)) {
+        activeLink = sections[i].link;
+        activeId = sections[i].target.id;
+        break;
+      }
+    }
+    if (!activeLink) activeLink = topLink;
+    links.forEach(function (l) { l.classList.remove('active'); });
+    if (activeLink) activeLink.classList.add('active');
+    if (activeId && contentsSubIds.indexOf(activeId) !== -1) {
+      sublistContents.classList.add('expanded');
+    } else {
+      sublistContents.classList.remove('expanded');
+    }
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      requestAnimationFrame(function () { updateActiveHeading(); ticking = false; });
+      ticking = true;
+    }
+  }, { passive: true });
+  updateActiveHeading();
+
+  function openSidebar() {
+    links.forEach(function (link) {
+      var full = link.getAttribute('data-label');
+      if (full && !link._short) link._short = link.textContent;
+      if (full) link.textContent = full;
+    });
+    sidebar.classList.add('open'); overlay.classList.add('open');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    links.forEach(function (link) { if (link._short) link.textContent = link._short; });
+    sidebar.classList.remove('open'); overlay.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+  toggle.addEventListener('click', function () {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  links.forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (window.innerWidth <= 768) closeSidebar();
+      setTimeout(updateActiveHeading, 120);
+      setTimeout(updateActiveHeading, 400);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+  });
+  var contentsToggle = sidebar.querySelector('.sidebar-section-toggle');
+  if (contentsToggle) {
+    contentsToggle.addEventListener('click', function () { sublistContents.classList.add('expanded'); });
+  }
+  document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function (a) {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tools — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#line-tables" class="sidebar-link sidebar-sublink" data-label="Line Tables">Line Tables</a>
+      <a href="#load_spectrum" class="sidebar-link sidebar-sublink" data-label="load_spectrum()">load_spectrum</a>
+      <a href="#predict_lines" class="sidebar-link sidebar-sublink" data-label="predict_lines()">predict_lines</a>
+      <a href="#fit_peak" class="sidebar-link sidebar-sublink" data-label="fit_peak()">fit_peak</a>
+      <a href="#fit_doublet" class="sidebar-link sidebar-sublink" data-label="fit_doublet()">fit_doublet</a>
+      <a href="#read_spectrum_region" class="sidebar-link sidebar-sublink" data-label="read_spectrum_region()">read_spectrum_region</a>
+      <a href="#write_report" class="sidebar-link sidebar-sublink" data-label="write_report()">write_report</a>
+      <a href="#write_lines_csv" class="sidebar-link sidebar-sublink" data-label="write_lines_csv()">write_lines_csv</a>
+      <a href="#write_synthesis_csv" class="sidebar-link sidebar-sublink" data-label="write_synthesis_csv()">write_synthesis_csv</a>
+      <a href="#grep_kb" class="sidebar-link sidebar-sublink" data-label="grep_kb()">grep_kb</a>
+      <a href="#compute_redshift" class="sidebar-link sidebar-sublink" data-label="compute_redshift()">compute_redshift</a>
+      <a href="#detect_oii_slope_change" class="sidebar-link sidebar-sublink" data-label="detect_oii_slope_change()">detect_oii_slope_change</a>
+      <a href="#compute_redshift_error" class="sidebar-link sidebar-sublink" data-label="compute_redshift_error()">compute_redshift_error</a>
+      <a href="#helpers" class="sidebar-link sidebar-sublink" data-label="Internal Helpers">Internal Helpers</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#harness">Harness</a> / tools
+</div>
+
+<h1><span class="section-label">Harness</span>tools</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/harness/tools.py</code></p>
+  <p>LLM-callable tool suite — 12 <code>@tool</code>-decorated functions for spectrum reading, line fitting, knowledge base searching, and file output. These tools are registered with the agent runtime and presented to the LLM for autonomous use during spectrum analysis.</p>
+  <p><strong>Internal helpers:</strong> 10 module-level functions support the tool layer with Gaussian fitting, CSV utilities, grep caching, and slope-change detection.</p>
+  <div class="tag-row"><span class="tag">harness</span> <span class="tag">tools</span> <span class="tag">LLM-tools</span> <span class="tag">spectrum</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#line-tables">Rest-Frame Line Tables</a></li>
+  <li><a href="#load_spectrum">load_spectrum(npz_path) &rarr; dict</a></li>
+  <li><a href="#predict_lines">predict_lines(redshift, line_type, wl_min, wl_max) &rarr; dict</a></li>
+  <li><a href="#fit_peak">fit_peak(npz_path, center_guess, width_3sigma, ...) &rarr; dict</a></li>
+  <li><a href="#fit_doublet">fit_doublet(npz_path, cg1, cg2, ...) &rarr; dict</a></li>
+  <li><a href="#read_spectrum_region">read_spectrum_region(npz_path, wl_min, wl_max, stride) &rarr; dict</a></li>
+  <li><a href="#write_report">write_report(file_path, content) &rarr; dict</a></li>
+  <li><a href="#write_lines_csv">write_lines_csv(file_path, lines) &rarr; dict</a></li>
+  <li><a href="#write_synthesis_csv">write_synthesis_csv(file_path, rows) &rarr; dict</a></li>
+  <li><a href="#grep_kb">grep_kb(pattern, A, B, C) &rarr; dict</a></li>
+  <li><a href="#compute_redshift">compute_redshift(observed_wl, rest_wl) &rarr; dict</a></li>
+  <li><a href="#detect_oii_slope_change">detect_oii_slope_change(npz_path, target_wl, ...) &rarr; dict</a></li>
+  <li><a href="#compute_redshift_error">compute_redshift_error(rest_wl, wavelength_err) &rarr; dict</a></li>
+  <li><a href="#helpers">Internal Helpers (10 functions)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="line-tables">Rest-Frame Line Tables</h2>
+
+<p class="desc">Single source of truth for rest-frame spectral line data, kept in sync with <code>VI.py</code>. These dictionaries define every line the system can predict, fit, and classify.</p>
+
+<div class="func-block" id="emission_lines">
+  <h3>EMISSION_LINES</h3>
+  <div class="sig"><code>dict[str, float]</code></div>
+  <p>18 emission lines keyed by name with rest-frame wavelength in &Aring;. Covers Lyman-alpha, high-ionization C IV / He II, semi-forbidden C III], Balmer series (H&alpha; through H&epsilon;), and forbidden narrow lines ([O II], [O III]a/b, [N II]a/b, [S II]a/b, [Ne V]).</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Line</th><th>&lambda;_rest (&Aring;)</th><th>Width Class</th></tr>
+    <tr><td>Ly&alpha;</td><td>1216.0</td><td>broad</td></tr>
+    <tr><td>C IV</td><td>1549.0</td><td>broad</td></tr>
+    <tr><td>He II</td><td>1640.4</td><td>both</td></tr>
+    <tr><td>C III]</td><td>1909.0</td><td>broad</td></tr>
+    <tr><td>Mg II</td><td>2800.0</td><td>broad</td></tr>
+    <tr><td>[Ne V]</td><td>3426.0</td><td>narrow</td></tr>
+    <tr><td>[O II]</td><td>3727.0</td><td>narrow</td></tr>
+    <tr><td>H&epsilon;</td><td>3970.1</td><td>both</td></tr>
+    <tr><td>H&delta;</td><td>4102.9</td><td>both</td></tr>
+    <tr><td>H&gamma;</td><td>4341.7</td><td>both</td></tr>
+    <tr><td>H&beta;</td><td>4862.7</td><td>both</td></tr>
+    <tr><td>[O III]a</td><td>4960.3</td><td>narrow</td></tr>
+    <tr><td>[O III]b</td><td>5008.2</td><td>narrow</td></tr>
+    <tr><td>[N II]a</td><td>6549.8</td><td>narrow</td></tr>
+    <tr><td>H&alpha;</td><td>6564.6</td><td>both</td></tr>
+    <tr><td>[N II]b</td><td>6585.3</td><td>narrow</td></tr>
+    <tr><td>[S II]a</td><td>6718.3</td><td>narrow</td></tr>
+    <tr><td>[S II]b</td><td>6732.7</td><td>narrow</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="absorption_lines">
+  <h3>ABSORPTION_LINES</h3>
+  <div class="sig"><code>dict[str, float]</code></div>
+  <p>14 absorption lines keyed by name with rest-frame wavelength in &Aring;. Includes Ca H/K, G-band, Mg I, Mg II, Na D, Ca triplet, and Balmer absorption lines.</p>
+</div>
+
+<div class="func-block" id="width-map">
+  <h3>_WIDTH_3SIGMA_MAP</h3>
+  <div class="sig"><code>dict[str, float]</code></div>
+  <p>Maps line width class to expected 3&sigma; Gaussian width in &Aring;: <code>broad = 90</code>, <code>narrow = 25</code>, <code>both = 50</code>, <code>absorption = 20</code>.</p>
+</div>
+
+<div class="func-block" id="doublet-params">
+  <h3>_DOUBLET_PARAMS</h3>
+  <div class="sig"><code>dict[str, tuple]</code></div>
+  <p>Known doublet parameters keyed by name: <code>(wl1, wl2, separation, amp_ratio_hint, line_type)</code>. Covers Ca H/K, O III, S II, N II, and Na D.</p>
+</div>
+
+<div class="func-block" id="grep-files">
+  <h3>_GREP_FILES</h3>
+  <div class="sig"><code>dict[str, Path]</code></div>
+  <p>Maps searchable knowledge-base file names to their <code>Path</code> objects under <code>kb/</code>: <code>classification.md</code>, <code>ionization.md</code>, <code>lines.md</code>, <code>composite_profile.md</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Tool Functions</h2>
+<p class="desc">All 12 functions are decorated with <code>@tool</code> and registered with the agent runtime for LLM invocation.</p>
+
+<!-- ---- Tool 1: load_spectrum ---- -->
+<div class="func-block" id="load_spectrum">
+  <h3>load_spectrum</h3>
+  <div class="sig"><code>load_spectrum(npz_path: str) -> dict</code></div>
+  <p>Load a cleaned spectrum <code>.npz</code> file and return summary statistics. The file must contain arrays: <code>wavelength</code>, <code>flux</code>, <code>snr</code> (and optionally <code>ivar</code>). Detects distinct spectral bands by looking for gaps &gt;100 &Aring; in the wavelength coverage.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Absolute path to the cleaned <code>.npz</code> file</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>n_points</code></td><td><code>int</code></td><td>Number of wavelength bins</td></tr>
+    <tr><td><code>wavelength_min</code></td><td><code>float</code></td><td>Minimum wavelength (&Aring;)</td></tr>
+    <tr><td><code>wavelength_max</code></td><td><code>float</code></td><td>Maximum wavelength (&Aring;)</td></tr>
+    <tr><td><code>snr_median</code></td><td><code>float</code> or <code>None</code></td><td>Median SNR across the spectrum</td></tr>
+    <tr><td><code>n_arms</code></td><td><code>str</code> or <code>None</code></td><td>Number of distinct spectral bands (if detectable)</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 2: predict_lines ---- -->
+<div class="func-block" id="predict_lines">
+  <h3>predict_lines</h3>
+  <div class="sig"><code>predict_lines(redshift: float, line_type: str = "all", wavelength_min: float = None, wavelength_max: float = None) -> dict</code></div>
+  <p>Predict observed-frame wavelengths for all rest-frame spectral lines at a given redshift. Optionally filter to a wavelength range. Sorts results by observed wavelength. Returns both emission and absorption lines unless <code>line_type</code> restricts.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>—</td><td>The redshift hypothesis z</td></tr>
+    <tr><td><code>line_type</code></td><td><code>str</code></td><td><code>"all"</code></td><td><code>"emission"</code>, <code>"absorption"</code>, or <code>"all"</code></td></tr>
+    <tr><td><code>wavelength_min</code></td><td><code>float</code> or <code>None</code></td><td><code>None</code></td><td>Lower bound for &lambda;_obs (&Aring;)</td></tr>
+    <tr><td><code>wavelength_max</code></td><td><code>float</code> or <code>None</code></td><td><code>None</code></td><td>Upper bound for &lambda;_obs (&Aring;)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>The input redshift</td></tr>
+    <tr><td><code>n_lines</code></td><td><code>int</code></td><td>Number of lines in the result</td></tr>
+    <tr><td><code>lines</code></td><td><code>list[dict]</code></td><td>Each dict: <code>name</code>, <code>rest_wl</code>, <code>obs_wl</code>, <code>width_class</code>, <code>type</code></td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 3: fit_peak ---- -->
+<div class="func-block" id="fit_peak">
+  <h3>fit_peak</h3>
+  <div class="sig"><code>fit_peak(npz_path: str, center_guess: float, width_3sigma: float, line_type: str = "emission", window_half: float = 200.0) -> dict</code></div>
+  <p>Fit a Gaussian + linear baseline model around a predicted line position. Loads the spectrum from <code>.npz</code>, extracts a fitting window centered on the guess, and runs bounded <code>curve_fit</code>. The amplitude sign is constrained by <code>line_type</code> (emission &ge; 0, absorption &le; 0).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum <code>.npz</code> file</td></tr>
+    <tr><td><code>center_guess</code></td><td><code>float</code></td><td>—</td><td>Predicted observed wavelength (&Aring;) — initial guess for Gaussian center</td></tr>
+    <tr><td><code>width_3sigma</code></td><td><code>float</code></td><td>—</td><td>Expected physical width (3&sigma;) of the line in &Aring;. Typical: broad=90, narrow=25, both=50, absorption=20</td></tr>
+    <tr><td><code>line_type</code></td><td><code>str</code></td><td><code>"emission"</code></td><td><code>"emission"</code> (amp &ge; 0) or <code>"absorption"</code> (amp &le; 0)</td></tr>
+    <tr><td><code>window_half</code></td><td><code>float</code></td><td><code>200.0</code></td><td>Half-width of the fitting window in &Aring;</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>center</code></td><td><code>float</code> or <code>None</code></td><td>Fitted Gaussian center (&Aring;)</td></tr>
+    <tr><td><code>center_err</code></td><td><code>float</code> or <code>None</code></td><td>Uncertainty on center (&Aring;)</td></tr>
+    <tr><td><code>amplitude</code></td><td><code>float</code> or <code>None</code></td><td>Gaussian amplitude</td></tr>
+    <tr><td><code>amplitude_err</code></td><td><code>float</code> or <code>None</code></td><td>Uncertainty on amplitude</td></tr>
+    <tr><td><code>sigma</code></td><td><code>float</code> or <code>None</code></td><td>Gaussian &sigma; (&Aring;)</td></tr>
+    <tr><td><code>fwhm</code></td><td><code>float</code> or <code>None</code></td><td>FWHM = 2.35482 &times; &sigma; (&Aring;)</td></tr>
+    <tr><td><code>fwhm_km_s</code></td><td><code>float</code> or <code>None</code></td><td>FWHM in km/s</td></tr>
+    <tr><td><code>delta_chi2_per_n</code></td><td><code>float</code> or <code>None</code></td><td>(&chi;&sup2;_linear &minus; &chi;&sup2;_full) / n</td></tr>
+    <tr><td><code>local_rms</code></td><td><code>float</code> or <code>None</code></td><td>Robust RMS of residuals (MAD-based)</td></tr>
+    <tr><td><code>local_snr</code></td><td><code>float</code> or <code>None</code></td><td>|amp| / local_rms</td></tr>
+    <tr><td><code>n_points</code></td><td><code>int</code></td><td>Number of points in the fitting window</td></tr>
+    <tr><td><code>flags</code></td><td><code>list[str]</code></td><td>Warning flags (e.g. <code>center_deviation_large</code>)</td></tr>
+    <tr><td><code>message</code></td><td><code>str</code></td><td>Human-readable fit summary</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 4: fit_doublet ---- -->
+<div class="func-block" id="fit_doublet">
+  <h3>fit_doublet</h3>
+  <div class="sig"><code>fit_doublet(npz_path: str, center_guess_1: float, center_guess_2: float, line_type: str = "emission", width_3sigma: float = 25.0, window_half: float = 300.0, separation_rest: float = None, separation_tolerance: float = 5.0, amp_ratio_expected: float = None) -> dict</code></div>
+  <p>Fit a doublet (two Gaussians + linear baseline) around a close line pair. On failure, falls back to individual single-Gaussian fits for each component. Performs a separation check and amplitude-ratio check against expected values when provided.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum <code>.npz</code> file</td></tr>
+    <tr><td><code>center_guess_1</code></td><td><code>float</code></td><td>—</td><td>Predicted observed wavelength for component 1 (&Aring;)</td></tr>
+    <tr><td><code>center_guess_2</code></td><td><code>float</code></td><td>—</td><td>Predicted observed wavelength for component 2 (&Aring;)</td></tr>
+    <tr><td><code>line_type</code></td><td><code>str</code></td><td><code>"emission"</code></td><td><code>"emission"</code> or <code>"absorption"</code></td></tr>
+    <tr><td><code>width_3sigma</code></td><td><code>float</code></td><td><code>25.0</code></td><td>Expected 3&sigma; width (&Aring;)</td></tr>
+    <tr><td><code>window_half</code></td><td><code>float</code></td><td><code>300.0</code></td><td>Half-width of fitting window (&Aring;)</td></tr>
+    <tr><td><code>separation_rest</code></td><td><code>float</code> or <code>None</code></td><td><code>None</code></td><td>Expected rest-frame separation (&Aring;) for validation</td></tr>
+    <tr><td><code>separation_tolerance</code></td><td><code>float</code></td><td><code>5.0</code></td><td>Tolerance for separation check (&Aring;)</td></tr>
+    <tr><td><code>amp_ratio_expected</code></td><td><code>float</code> or <code>None</code></td><td><code>None</code></td><td>Expected amplitude ratio (comp2/comp1) for validation</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>component_1</code></td><td><code>dict</code> or <code>None</code></td><td>Fit result for first Gaussian (center, amplitude, sigma, fwhm)</td></tr>
+    <tr><td><code>component_2</code></td><td><code>dict</code> or <code>None</code></td><td>Fit result for second Gaussian</td></tr>
+    <tr><td><code>delta_chi2_per_n</code></td><td><code>float</code> or <code>None</code></td><td>Improvement over linear baseline</td></tr>
+    <tr><td><code>local_rms</code></td><td><code>float</code> or <code>None</code></td><td>Robust RMS of residuals</td></tr>
+    <tr><td><code>local_snr</code></td><td><code>float</code> or <code>None</code></td><td>Max |amp| / local_rms</td></tr>
+    <tr><td><code>separation_check</code></td><td><code>dict</code> or <code>None</code></td><td><code>{observed_sep_A, expected_sep_A, match}</code></td></tr>
+    <tr><td><code>amp_ratio_check</code></td><td><code>dict</code> or <code>None</code></td><td><code>{observed_ratio, expected_ratio}</code></td></tr>
+    <tr><td><code>n_points</code></td><td><code>int</code></td><td>Number of points in the fitting window</td></tr>
+    <tr><td><code>flags</code></td><td><code>list[str]</code></td><td>Warning flags (center deviation, negative &Delta;&chi;&sup2;)</td></tr>
+    <tr><td><code>message</code></td><td><code>str</code></td><td>Human-readable fit summary with component details</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 5: read_spectrum_region ---- -->
+<div class="func-block" id="read_spectrum_region">
+  <h3>read_spectrum_region</h3>
+  <div class="sig"><code>read_spectrum_region(npz_path: str, wl_min: float, wl_max: float, stride: int = 1) -> dict</code></div>
+  <p>Read a raw slice of the cleaned spectrum for manual inspection. Use this to investigate anomalies: DLA damping wings, Ly&alpha; forest, associated absorption, or any region where fit_peak returns suspicious results. Supports downsampling via stride for large regions.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum <code>.npz</code> file</td></tr>
+    <tr><td><code>wl_min</code></td><td><code>float</code></td><td>—</td><td>Lower wavelength bound (&Aring;)</td></tr>
+    <tr><td><code>wl_max</code></td><td><code>float</code></td><td>—</td><td>Upper wavelength bound (&Aring;)</td></tr>
+    <tr><td><code>stride</code></td><td><code>int</code></td><td><code>1</code></td><td>Downsampling step; use 2&ndash;5 for large regions</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>wl_range</code></td><td><code>[float, float]</code></td><td>Wavelength bounds [wl_min, wl_max]</td></tr>
+    <tr><td><code>n</code></td><td><code>int</code></td><td>Number of points returned</td></tr>
+    <tr><td><code>wl</code></td><td><code>list[float]</code></td><td>Wavelength array (&Aring;, 3 d.p.)</td></tr>
+    <tr><td><code>fl</code></td><td><code>list[float]</code></td><td>Flux array (4 d.p.)</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 6: write_report ---- -->
+<div class="func-block" id="write_report">
+  <h3>write_report</h3>
+  <div class="sig"><code>write_report(file_path: str, content: str) -> dict</code></div>
+  <p>Write a natural-language analysis report to a Markdown file. Creates parent directories as needed. The report is for astronomers to read and audit; the JSON block in the LLM response is for downstream pipelines.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>file_path</code></td><td><code>str</code></td><td>—</td><td>Absolute path for the output <code>.md</code> file</td></tr>
+    <tr><td><code>content</code></td><td><code>str</code></td><td>—</td><td>Markdown content of the report</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>path</code></td><td><code>str</code></td><td>Absolute path of the written file</td></tr>
+    <tr><td><code>size_bytes</code></td><td><code>int</code></td><td>File size in bytes (UTF-8 encoded)</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 7: write_lines_csv ---- -->
+<div class="func-block" id="write_lines_csv">
+  <h3>write_lines_csv</h3>
+  <div class="sig"><code>write_lines_csv(file_path: str, lines: list) -> dict</code></div>
+  <p>Write CWT feature evaluation results to a CSV file. Each row represents one line that was evaluated (status: LIKELY, MARGINAL, NOT_FOUND, or MASKED). The CSV is the definitive structured record of the analysis &mdash; downstream pipelines read this, not the JSON in the chat response.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>file_path</code></td><td><code>str</code></td><td>—</td><td>Absolute path for the output <code>.csv</code> file</td></tr>
+    <tr><td><code>lines</code></td><td><code>list[dict]</code></td><td>—</td><td>Each dict: <code>name</code>, <code>rest_wavelength</code>, <code>predicted_obs</code>, <code>fitted_center</code>, <code>fitted_center_err</code>, <code>amplitude</code>, <code>amplitude_err</code>, <code>fitted_sigma</code>, <code>fwhm_km_s</code>, <code>ridge_length</code>, <code>cwt_snr</code>, <code>status</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>path</code></td><td><code>str</code></td><td>Absolute path of the written file</td></tr>
+    <tr><td><code>n_lines</code></td><td><code>int</code></td><td>Number of lines written</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 8: write_synthesis_csv ---- -->
+<div class="func-block" id="write_synthesis_csv">
+  <h3>write_synthesis_csv</h3>
+  <div class="sig"><code>write_synthesis_csv(file_path: str, rows: list) -> dict</code></div>
+  <p>Write the final line catalog for the confirmed redshift hypothesis. One row per evaluated spectral line from the best hypothesis. This is the definitive line catalog &mdash; downstream code should not need to consult individual harness CSVs. Contains additional synthesis-specific columns: <code>delta_chi2_per_n</code>, <code>local_snr</code>, <code>source</code>, <code>implied_z</code>, <code>is_anchor</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>file_path</code></td><td><code>str</code></td><td>—</td><td>Absolute path for the output <code>.csv</code> file</td></tr>
+    <tr><td><code>rows</code></td><td><code>list[dict]</code></td><td>—</td><td>Each dict with: <code>name</code>, <code>rest_wavelength</code>, <code>predicted_obs</code>, <code>fitted_center</code>, <code>fitted_center_err</code>, <code>amplitude</code>, <code>amplitude_err</code>, <code>fitted_sigma</code>, <code>fwhm_km_s</code>, <code>ridge_length</code>, <code>cwt_snr</code>, <code>delta_chi2_per_n</code>, <code>local_snr</code>, <code>source</code>, <code>implied_z</code>, <code>status</code>, <code>is_anchor</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>path</code></td><td><code>str</code></td><td>Absolute path of the written file</td></tr>
+    <tr><td><code>n_rows</code></td><td><code>int</code></td><td>Number of rows written</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 9: grep_kb ---- -->
+<div class="func-block" id="grep_kb">
+  <h3>grep_kb</h3>
+  <div class="sig"><code>grep_kb(pattern: str, A: int = 0, B: int = 0, C: int = 0) -> dict</code></div>
+  <p>Search the knowledge base and skill files with a grep-compatible regex pattern and optional context lines. Use this to check what the pipeline methodology, physics rules, and classification criteria actually say. Essential for distinguishing <code>skill_gap</code> (rule missing from doc) from <code>llm_error</code> (LLM ignored a documented rule). Returns match blocks with line numbers and context.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>pattern</code></td><td><code>str</code></td><td>—</td><td>Grep-compatible regex (case-insensitive)</td></tr>
+    <tr><td><code>A</code></td><td><code>int</code></td><td><code>0</code></td><td>Lines to show AFTER each match (like grep -A)</td></tr>
+    <tr><td><code>B</code></td><td><code>int</code></td><td><code>0</code></td><td>Lines to show BEFORE each match (like grep -B)</td></tr>
+    <tr><td><code>C</code></td><td><code>int</code></td><td><code>0</code></td><td>Lines before AND after (like grep -C). A/B take precedence over C</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>results</td><td><code>dict[str, list]</code></td><td>Filename &rarr; list of match blocks. Each block is <code>list[str]</code> of <code>"L&lt;num&gt;&gt;: &lt;text&gt;"</code>. Returns <code>{"(no matches)": []}</code> if nothing found</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 10: compute_redshift ---- -->
+<div class="func-block" id="compute_redshift">
+  <h3>compute_redshift</h3>
+  <div class="sig"><code>compute_redshift(observed_wavelength: float, rest_wavelength: float) -> dict</code></div>
+  <p>Compute the redshift implied by an observed spectral line: z = &lambda;_obs / &lambda;_rest &minus; 1. Use to check whether a fitted line center is consistent with the verification window.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>observed_wavelength</code></td><td><code>float</code></td><td>—</td><td>Observed wavelength (&Aring;), e.g. fitted center from fit_peak</td></tr>
+    <tr><td><code>rest_wavelength</code></td><td><code>float</code></td><td>—</td><td>Rest-frame wavelength of the line (&Aring;)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>Implied redshift (6 d.p.)</td></tr>
+    <tr><td><code>rest_wavelength</code></td><td><code>float</code></td><td>Input rest wavelength</td></tr>
+    <tr><td><code>observed_wavelength</code></td><td><code>float</code></td><td>Input observed wavelength</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 11: detect_oii_slope_change ---- -->
+<div class="func-block" id="detect_oii_slope_change">
+  <h3>detect_oii_slope_change</h3>
+  <div class="sig"><code>detect_oii_slope_change(npz_path: str, target_wl: float, search_window: float = 25.0) -> dict</code></div>
+  <p>Detect the [O II] unresolved doublet slope-change signature at a target wavelength. [O II] 3727 is a close doublet (3726.0/3729.0 &Aring;, rest sep 2.8 &Aring;) unresolved at DESI resolution. Its discrete derivative on the rising edge shows a characteristic dip &mdash; rising, dropping significantly, then rising again. A true single line cannot produce this pattern. Use to discriminate [O II] from [O III]b when the same observed feature is claimed by competing hypotheses.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum <code>.npz</code> file</td></tr>
+    <tr><td><code>target_wl</code></td><td><code>float</code></td><td>—</td><td>Observed wavelength (&Aring;) where [O II] is claimed</td></tr>
+    <tr><td><code>search_window</code></td><td><code>float</code></td><td><code>25.0</code></td><td>Half-width of the search window (&Aring;)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>detected</code></td><td><code>bool</code></td><td>True if slope-change or valley signature found</td></tr>
+    <tr><td><code>signature_type</code></td><td><code>str</code> or <code>None</code></td><td><code>"valley"</code> (flux reversal) or <code>"slope-change"</code> (derivative dip)</td></tr>
+    <tr><td><code>peak_wl</code></td><td><code>float</code></td><td>Actual peak wavelength (&Aring;)</td></tr>
+    <tr><td><code>peak_flux</code></td><td><code>float</code></td><td>Peak flux value</td></tr>
+    <tr><td><code>dip_ratio</code></td><td><code>float</code></td><td>dip_deriv / max_deriv (&lt; 0.20 = detected slope-change)</td></tr>
+    <tr><td><code>dip_threshold</code></td><td><code>float</code></td><td>Threshold used for dip detection</td></tr>
+    <tr><td><code>max_deriv</code></td><td><code>float</code></td><td>Maximum derivative on the rising edge</td></tr>
+    <tr><td><code>max_deriv_wl</code></td><td><code>float</code></td><td>Wavelength of max derivative</td></tr>
+    <tr><td><code>dip_deriv</code></td><td><code>float</code></td><td>Minimum derivative after the max</td></tr>
+    <tr><td><code>dip_wl</code></td><td><code>float</code></td><td>Wavelength of the dip</td></tr>
+    <tr><td><code>recovery_deriv</code></td><td><code>float</code></td><td>Max derivative after the dip</td></tr>
+    <tr><td><code>recovery_wl</code></td><td><code>float</code> or <code>None</code></td><td>Wavelength of recovery peak</td></tr>
+    <tr><td><code>recovery_ok</code></td><td><code>bool</code> or <code>None</code></td><td>True if recovery meets threshold</td></tr>
+    <tr><td><code>fwhm_A</code></td><td><code>float</code> or <code>None</code></td><td>FWHM estimate (&Aring;)</td></tr>
+    <tr><td><code>fwhm_km_s</code></td><td><code>float</code> or <code>None</code></td><td>FWHM estimate (km/s)</td></tr>
+    <tr><td><code>deriv_profile</code></td><td><code>list[float]</code></td><td>Full derivative array on the rising edge</td></tr>
+    <tr><td><code>deriv_wl</code></td><td><code>list[float]</code></td><td>Wavelengths for derivative array</td></tr>
+    <tr><td><code>n_rise_pixels</code></td><td><code>int</code></td><td>Number of pixels in the rising edge</td></tr>
+    <tr><td><code>n_deriv_points</code></td><td><code>int</code></td><td>Number of derivative points</td></tr>
+    <tr><td><code>n_post_dip</code></td><td><code>int</code></td><td>Number of derivative points after dip</td></tr>
+  </table>
+</div>
+
+<!-- ---- Tool 12: compute_redshift_error ---- -->
+<div class="func-block" id="compute_redshift_error">
+  <h3>compute_redshift_error</h3>
+  <div class="sig"><code>compute_redshift_error(rest_wavelength: float, wavelength_error: float) -> dict</code></div>
+  <p>Compute the redshift uncertainty &sigma;_z from a line's wavelength error: &sigma;_z = wavelength_error / rest_wavelength. Use the ANCHOR line (lowest-ionization confirmed line) for the most reliable &sigma;_z estimate.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>rest_wavelength</code></td><td><code>float</code></td><td>—</td><td>Rest-frame wavelength of the line (&Aring;)</td></tr>
+    <tr><td><code>wavelength_error</code></td><td><code>float</code></td><td>—</td><td>Wavelength measurement uncertainty (&Aring;), from CWT catalog <code>wavelength_err</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>sigma_z</code></td><td><code>float</code></td><td>Redshift uncertainty &sigma;_z (6 d.p.)</td></tr>
+    <tr><td><code>rest_wavelength</code></td><td><code>float</code></td><td>Input rest wavelength</td></tr>
+    <tr><td><code>wavelength_error</code></td><td><code>float</code></td><td>Input wavelength error</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="helpers">Internal Helpers</h2>
+<p class="desc">Module-level helper functions supporting the tool layer. Grouped by domain: fitting core routines, CSV utilities, knowledge-base loading, and detection logic.</p>
+
+<!-- --- Fitting Models --- -->
+<h3>Fitting Model Functions</h3>
+
+<div class="func-block" id="_gaussian_plus_linear">
+  <h3>_gaussian_plus_linear</h3>
+  <div class="sig"><code>_gaussian_plus_linear(x, amp, center, sigma, slope, intercept) -> ndarray</code></div>
+  <p>Gaussian plus linear baseline model: <code>amp * exp(-(x - center)^2 / (2 * sigma^2)) + slope * x + intercept</code>. Used as the fitting function for <code>curve_fit</code> in all single-peak fits.</p>
+</div>
+
+<div class="func-block" id="_doublet_model">
+  <h3>_doublet_model</h3>
+  <div class="sig"><code>_doublet_model(x, amp1, center1, sigma1, amp2, center2, sigma2, slope, intercept) -> ndarray</code></div>
+  <p>Two-Gaussian plus linear baseline model. Used for doublet fitting where &lambda; separation is known and the two components may partially overlap.</p>
+</div>
+
+<!-- --- Fitting Core --- -->
+<h3>Fitting Core Routines</h3>
+
+<div class="func-block" id="_do_fit_peak">
+  <h3>_do_fit_peak</h3>
+  <div class="sig"><code>_do_fit_peak(wl_full, flux_full, center_guess, width_3sigma, line_type="emission", window_half=200.0) -> dict</code></div>
+  <p>Core single-peak fitting logic operating on in-memory arrays (no file I/O). The public <code>fit_peak</code> tool delegates to this function after loading the .npz file.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Same return shape as <code>fit_peak</code>: <code>center</code>, <code>center_err</code>, <code>amplitude</code>, <code>amplitude_err</code>, <code>sigma</code>, <code>fwhm</code>, <code>fwhm_km_s</code>, <code>delta_chi2_per_n</code>, <code>local_rms</code>, <code>local_snr</code>, <code>n_points</code>, <code>flags</code>, <code>message</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_do_fit_doublet">
+  <h3>_do_fit_doublet</h3>
+  <div class="sig"><code>_do_fit_doublet(wl_full, flux_full, center_guess_1, center_guess_2, line_type="emission", width_3sigma=25.0, window_half=300.0, separation_rest=None, separation_tolerance=5.0, amp_ratio_expected=None) -> dict</code></pre></div>
+  <p>Core doublet fitting logic operating on in-memory arrays. On <code>curve_fit</code> failure, falls back to individual single-Gaussian fits via <code>_try_fit_single</code> for each component. Performs separation and amplitude-ratio validation against expected doublet parameters.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Same return shape as <code>fit_doublet</code>: <code>component_1</code>, <code>component_2</code>, <code>delta_chi2_per_n</code>, <code>local_rms</code>, <code>local_snr</code>, <code>separation_check</code>, <code>amp_ratio_check</code>, <code>n_points</code>, <code>flags</code>, <code>message</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_try_fit_single">
+  <h3>_try_fit_single</h3>
+  <div class="sig"><code>_try_fit_single(wl, flux, center_guess, width_3sigma, line_type, window_half) -> dict | None</code></div>
+  <p>Attempt a single-Gaussian fit on a sub-array. Returns a compact result dict (<code>center</code>, <code>amplitude</code>, <code>sigma</code>, <code>fwhm</code>, <code>fwhm_km_s</code>) or <code>None</code> on failure. Used as the fallback path inside <code>_do_fit_doublet</code> when the full 8-parameter fit fails.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code> or <code>None</code></td><td><code>{"center", "center_err", "amplitude", "amplitude_err", "sigma", "fwhm", "fwhm_km_s"}</code> or <code>None</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_doublet_result">
+  <h3>_build_doublet_result</h3>
+  <div class="sig"><code>_build_doublet_result(c1_info, c2_info, n_pts, flags, msg, fallback_c1=None, fallback_c2=None) -> dict</code></pre></div>
+  <p>Build a consistent return dict for <code>fit_doublet</code>. Used by both the normal success path and the fallback path to ensure the output schema is identical regardless of whether the full doublet fit or individual fits were used.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Standard <code>fit_doublet</code> return shape</td></tr>
+  </table>
+</div>
+
+<!-- --- CSV & File Utilities --- -->
+<h3>CSV &amp; File Utilities</h3>
+
+<div class="func-block" id="_resolve_csv_path">
+  <h3>_resolve_csv_path</h3>
+  <div class="sig"><code>_resolve_csv_path(harness_dir: str, idx: int) -> str</code></div>
+  <p>Return the best available lines CSV for a hypothesis. Prefers <code>{idx}_lines_cleaned.csv</code> (post-FeatureAuditor) over the original <code>{idx}_lines.csv</code>. Falls back to the original when the cleaned version does not exist.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Root harness output directory</td></tr>
+    <tr><td><code>idx</code></td><td><code>int</code></td><td>—</td><td>Hypothesis index</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>path</td><td><code>str</code></td><td>Resolved absolute path to the CSV file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_line_tables">
+  <h3>_build_line_tables</h3>
+  <div class="sig"><code>_build_line_tables(harness_results: list, harness_dir: str) -> str</code></div>
+  <p>Build per-hypothesis line tables from lines.csv (preferring cleaned). The synthesis agent needs the raw measurement data to populate <code>write_synthesis_csv</code> accurately. When FeatureAuditor has run, REMOVED features are excluded and FLAGGED features show the flag text.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>—</td><td>List of harness result dicts, each with <code>hypothesis_idx</code></td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Root harness output directory</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>markdown</td><td><code>str</code></td><td>Formatted Markdown tables with per-hypothesis line data</td></tr>
+  </table>
+</div>
+
+<!-- --- KB & Detection --- -->
+<h3>Knowledge Base &amp; Detection Utilities</h3>
+
+<div class="func-block" id="_load_grep_files">
+  <h3>_load_grep_files</h3>
+  <div class="sig"><code>_load_grep_files() -> dict[str, str]</code></div>
+  <p>Lazy-load and cache the searchable knowledge-base files into memory. Files are read from <code>kb/</code> relative to the harness directory. The cache persists for the lifetime of the process, so repeated <code>grep_kb</code> calls avoid redundant disk I/O.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>files</td><td><code>dict[str, str]</code></td><td>Filename &rarr; file content for all four KB markdown files</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_detect_oii_slope_change_core">
+  <h3>_detect_oii_slope_change_core</h3>
+  <div class="sig"><code>_detect_oii_slope_change_core(wavelength, flux, target_wl, search_window=25.0, rise_search_n=20, dip_threshold=0.20, recovery_threshold=2.0) -> dict</code></div>
+  <p>Core detection logic for the [O II] unresolved doublet slope-change signature. Operates on in-memory arrays. The public <code>detect_oii_slope_change</code> tool delegates to this after loading the .npz file. Implements two detection modes: <strong>valley</strong> (flux reversal &mdash; unambiguous) and <strong>slope-change</strong> (derivative dip below threshold with recovery).</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Same return shape as <code>detect_oii_slope_change</code></td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-07-03</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','line-tables','load_spectrum','predict_lines','fit_peak','fit_doublet','read_spectrum_region','write_report','write_lines_csv','write_synthesis_csv','grep_kb','compute_redshift','detect_oii_slope_change','compute_redshift_error','helpers'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

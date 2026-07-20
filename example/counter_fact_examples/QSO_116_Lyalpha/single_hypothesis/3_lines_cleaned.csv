@@ -1,0 +1,24 @@
+name,rest_wavelength,predicted_obs,fitted_center,fitted_center_err,amplitude,amplitude_err,fitted_sigma,fwhm_km_s,ridge_length,cwt_snr,status,feature_audit,feature_audit_flag
+[Ne V],3426.0,4152.7,4168.0,0.8,0.2,,4.46,753.0,5,6.7,LIKELY,KEEP,
+[O II],3727.0,4517.6,4528.8,0.8,0.2,,13.93,2174.0,5,7.1,LIKELY,REMOVED,"Broad, flat plateau spanning 4524-4530 with flux ~0.67. Not a distinct peak — just a gentle continuum undulation. CWT labeled 'broad' but there is no coherent emission line structure."
+Ca K_abs,3934.8,4769.4,4778.4,0.8,-1.8,,5.95,878.0,4,6.0,LIKELY,REMOVED,"This is the red wing of the bright emission at 4767.2, not an absorption feature. Flux is still very high (3.1782). CWT misinterpreted the declining wing as absorption. The feature is a continuum slope, not a trough."
+Ca H_abs,3969.6,4811.6,4824.0,0.8,-0.3,,18.64,2729.0,6,17.3,LIKELY,REMOVED,Gentle continuum decline from the bright emission complex. Flux is still high (1.721). No absorption trough — just the broad declining slope. CWT over-fitted the continuum.
+Hε,3970.1,4812.2,4857.6,0.8,0.5,,12.74,1851.0,6,8.4,MARGINAL,REMOVED,On the declining side of a broad emission hump peaking at 4855.2 (2.0087). Not a distinct narrow peak — just part of a broader structure. CWT picked a point on the declining shoulder.
+Hε_abs,3970.1,4812.2,4824.0,0.8,-0.3,,18.64,2729.0,6,17.3,MARGINAL,REMOVED,Gentle continuum decline from the bright emission complex. Flux is still high (1.721). No absorption trough — just the broad declining slope. CWT over-fitted the continuum.
+Hδ,4102.9,4973.2,4947.2,0.8,0.0,,4.08,580.0,12,13.4,MARGINAL,,
+Hδ_abs,4102.9,4973.2,4966.4,0.8,-0.1,,5.95,845.0,8,7.3,LIKELY,REMOVED,Essentially flat. Flux is constant at ~0.676-0.678 across 4965-4967. No absorption trough. Amplitude -0.100 is within the noise.
+G-band_abs,4305.6,5218.9,5176.8,0.8,0.0,,39.92,5449.0,4,10.8,MARGINAL,REMOVED,Flux is rising through this region (5176.0=0.5749 → 5176.8=0.5976 → 5177.6=0.6129). No absorption. Amplitude is 0.000. Pure CWT phantom.
+Hγ,4341.7,5262.6,5233.6,0.8,0.1,,18.64,2515.0,10,8.0,MARGINAL,REMOVED,"Very gentle, broad hump with amplitude only 0.1. Neighborhood (5200-5280) shows many similar undulations. Noise forest: 5+ peaks of comparable amplitude within ±100 Å. Target/mean ≈ 1.1×. Feature indistinguishable from surrounding fluctuations."
+Hγ_abs,4341.7,5262.6,,,,,,,,,NOT_FOUND,,
+Hβ,4862.7,5894.2,5906.4,0.8,0.0,,4.08,485.0,4,5.9,LIKELY,,
+Hβ_abs,4862.7,5894.2,5944.2,2.68,-1.047,0.046,79.68,9463.0,,,MARGINAL,REMOVED,No absorption trough. Flux is rising through this region (5944.0=0.6726 → 5944.8=0.6874). The CWT amplitude of -1.047 is completely inconsistent with the data — flux is positive and increasing.
+[O III]a,4960.3,6012.5,5996.2,2.47,0.223,0.019,19.31,2274.0,,,MARGINAL,REMOVED,"On a very broad, flat-topped emission plateau spanning 5990-6010. Not a distinct peak — just part of a broad continuum hump. CWT over-fitted the plateau as a separate feature."
+[O III]b,5008.2,6070.5,6072.8,0.8,1.6,,22.55,2623.0,12,24.5,LIKELY,KEEP,
+Mg I_abs,5176.7,6274.8,6224.8,4.87,-1.082,0.092,105.48,11963.0,,,MARGINAL,REMOVED,Essentially flat. Flux is ~0.61 across 6224-6226. The CWT amplitude of -1.082 is completely inconsistent with the data. No absorption trough.
+Na D_abs,5895.6,7146.2,7199.2,0.8,0.0,,36.14,3546.0,5,7.7,MARGINAL,REMOVED,Gentle decline. Amplitude is +0.000 (positive!) — not even an absorption. Flux drops from 0.445 to 0.428 across several pixels — just continuum structure.
+[N II]a,6549.8,7939.1,7932.8,0.8,0.0,,16.86,1502.0,5,5.3,LIKELY,,
+Hα,6564.6,7957.1,7932.8,0.8,0.0,,16.86,1502.0,5,5.3,MARGINAL,,
+Hα_abs,6564.6,7957.1,7983.2,0.8,-0.1,,4.93,435.0,6,7.1,MARGINAL,FLAGGED,🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.; Genuine narrow absorption trough. Flux drops from ~0.34 at 7980 to 0.261 at 7983.2. Visually coherent but in the OH zone — may be atmospheric rather than astrophysical.
+[N II]b,6585.3,7982.2,7994.4,0.8,0.1,,4.46,393.0,7,8.3,LIKELY,FLAGGED,"🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.; Genuine narrow emission peak at 7994.4 (0.4712). Well-defined, spans ~6 pixels. In the OH zone — may be an OH skyline rather than astrophysical."
+[S II]a,6718.3,8143.4,,,,,,,,,NOT_FOUND,,
+[S II]b,6732.7,8160.8,,,,,,,,,NOT_FOUND,,

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>message_utils — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#image_to_base64" class="sidebar-link sidebar-sublink" data-label="image_to_base64()">image_to_base64</a>
+      <a href="#create_message" class="sidebar-link sidebar-sublink" data-label="create_message()">create_message</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / message_utils
+</div>
+
+<h1><span class="section-label">Core</span>message_utils.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/common/message_utils.py</code></p>
+  <p><strong>Role:</strong> LangChain message construction helpers — builds <code>SystemMessage</code> / <code>HumanMessage</code> lists with optional base64-encoded image attachments. Used by <code>BaseAgent.call_llm_with_context</code> to assemble prompts before LLM invocation.</p>
+  <p><strong>Dependencies:</strong> langchain_core.messages (SystemMessage, HumanMessage)</p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">utils</span> <span class="tag">LangChain</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#image_to_base64">image_to_base64(image_path -> str)</a></li>
+  <li><a href="#create_message">create_message(system_prompt, user_prompt, image_path? -> list)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<div class="func-block" id="image_to_base64">
+  <h3>image_to_base64</h3>
+  <div class="sig"><code>image_to_base64(image_path: str) -> str</code></div>
+  <p>Read an image file from disk and encode it as a base64 string. Used to embed images in LangChain <code>HumanMessage</code> content blocks via <code>data:image/jpeg;base64,...</code> URLs.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>image_path</code></td><td><code>str</code></td><td>—</td><td>Path to the image file on disk</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>data</td><td><code>str</code></td><td>Base64-encoded image data</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="create_message">
+  <h3>create_message</h3>
+  <div class="sig"><code>create_message(system_prompt: str, user_prompt: str, image_path: Optional[str] = None) -> list</code></div>
+  <p>Build a LangChain message list. Wraps <code>system_prompt</code> in a <code>SystemMessage</code>, creates a <code>HumanMessage</code> with <code>user_prompt</code> as text. If <code>image_path</code> is provided (str or list), appends base64 <code>image_url</code> blocks.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>system_prompt</code></td><td><code>str</code></td><td>—</td><td>System prompt text</td></tr>
+    <tr><td><code>user_prompt</code></td><td><code>str</code></td><td>—</td><td>User prompt text</td></tr>
+    <tr><td><code>image_path</code></td><td><code>Optional[str]</code></td><td><code>None</code></td><td>Path(s) to image file(s); appends base64 blocks if set</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>messages</td><td><code>list</code></td><td><code>[SystemMessage, HumanMessage]</code> ready for <code>model.ainvoke()</code></td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Where this is used:</strong> <code>BaseAgent.call_llm_with_context()</code> calls <code>create_message(system_prompt, user_prompt, image_path)</code> to assemble the message list before invoking the LLM or VLM. See <a href="base_agent.html">BaseAgent</a>.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','image_to_base64','create_message'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

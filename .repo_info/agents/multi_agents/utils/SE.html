@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SE — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#analyze_failure" class="sidebar-link sidebar-sublink" data-label="analyze_failure()">analyze_failure</a>
+      <a href="#analyze_failure_batch" class="sidebar-link sidebar-sublink" data-label="analyze_failure_batch()">analyze_failure_batch</a>
+      <a href="#_record_failure" class="sidebar-link sidebar-sublink" data-label="_record_failure()">_record_failure</a>
+      <a href="#_write_batch_report" class="sidebar-link sidebar-sublink" data-label="_write_batch_report()">_write_batch_report</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#utils">Utils</a> / SE
+</div>
+
+<h1><span class="section-label">Utils</span>SE.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/utils/SE.py</code></p>
+  <p>SelfEvolve helpers — LLM-driven root cause analysis of synthesis failures, pending failure queue management, batch analysis report generation, and structured failure recording with ground-truth comparison.</p>
+  <div class="tag-row"><span class="tag">utils</span> <span class="tag">SE</span> <span class="tag">self-evolve</span> <span class="tag">failure-analysis</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_load_skill">_load_skill(filename)</a></li>
+  <li><a href="#analyze_failure">analyze_failure(...) — async</a></li>
+  <li><a href="#_fallback_analysis">_fallback_analysis()</a></li>
+  <li><a href="#_append_pending_failure">_append_pending_failure(output_dir, record)</a></li>
+  <li><a href="#_read_pending_failures">_read_pending_failures(output_dir)</a></li>
+  <li><a href="#_clear_pending_failures">_clear_pending_failures(output_dir)</a></li>
+  <li><a href="#_load_batch_skill">_load_batch_skill()</a></li>
+  <li><a href="#analyze_failure_batch">analyze_failure_batch(...) — async</a></li>
+  <li><a href="#_write_batch_report">_write_batch_report(...)</a></li>
+  <li><a href="#_record_failure">_record_failure(...)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Skill &amp; Queue Helpers</h2>
+
+<div class="func-block" id="_load_skill">
+  <h3>_load_skill</h3>
+  <div class="sig"><code>_load_skill(filename: str) -> str</code></div>
+  <p>Load a skill prompt markdown file from the SE skill directory. Used to load the blind-review and root-cause analysis skill templates.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>filename</code></td><td><code>str</code></td><td>—</td><td>Skill file name (e.g. <code>"root_cause_skill.md"</code>)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>content</td><td><code>str</code></td><td>Raw markdown content of the skill file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_load_batch_skill">
+  <h3>_load_batch_skill</h3>
+  <div class="sig"><code>_load_batch_skill() -> str</code></div>
+  <p>Load the batch analysis skill prompt template. Reads the <code>batch_analysis_skill.md</code> file.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>template</td><td><code>str</code></td><td>Batch analysis skill prompt with <code>{n_failures}</code> and <code>{failure_summaries}</code> placeholders</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_append_pending_failure">
+  <h3>_append_pending_failure</h3>
+  <div class="sig"><code>_append_pending_failure(output_dir: str, record: dict) -> str</code></div>
+  <p>Append a failure record to the pending failures JSONL queue. Creates the failure directory and file if they don't exist.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory containing <code>failure/</code></td></tr>
+    <tr><td><code>record</code></td><td><code>dict</code></td><td>—</td><td>Structured failure record to append</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>path</td><td><code>str</code></td><td>Path to the updated pending.jsonl file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_read_pending_failures">
+  <h3>_read_pending_failures</h3>
+  <div class="sig"><code>_read_pending_failures(output_dir: str) -> list[dict]</code></div>
+  <p>Read and return all pending failure records from the JSONL queue. Returns empty list if the file does not exist.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory containing <code>failure/pending.jsonl</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>records</td><td><code>list[dict]</code></td><td>All pending failure records; [] if none</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_clear_pending_failures">
+  <h3>_clear_pending_failures</h3>
+  <div class="sig"><code>_clear_pending_failures(output_dir: str) -> None</code></div>
+  <p>Delete the pending failures queue after successful batch analysis. Removes <code>failure/pending.jsonl</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_fallback_analysis">
+  <h3>_fallback_analysis</h3>
+  <div class="sig"><code>_fallback_analysis() -> dict</code></div>
+  <p>Return a minimal fallback analysis dict when the LLM is unavailable or fails. Used to avoid blocking the pipeline on LLM errors.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>analysis</td><td><code>dict</code></td><td><code>{"root_cause": "unknown", "explanation": "LLM unavailable", "suggested_fix": "retry"}</code></td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Core Analysis</h2>
+
+<div class="func-block" id="analyze_failure">
+  <h3>analyze_failure</h3>
+  <div class="sig"><code>async analyze_failure(synthesis_result, harness_results, harness_dir, ground_truth, mismatch_info, *, model, api_key, base_url, wl=None, fl=None, temperature=0.0, stream_md_path=None) -> dict</code></div>
+  <p>Call an LLM to identify the root cause of a single synthesis failure. Builds Dn4000 diagnostic slices from the spectrum, formats each harness result into a structured summary, then presents the full context to the LLM with the blind-review skill prompt.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>synthesis_result</code></td><td><code>dict</code></td><td>—</td><td>Full rule_analysis dict from synthesis</td></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>—</td><td>Raw harness results (used to build summaries the synthesis saw)</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Directory with harness reports and per-line CSVs</td></tr>
+    <tr><td><code>ground_truth</code></td><td><code>dict</code></td><td>—</td><td><code>{"z": float, "type": str}</code></td></tr>
+    <tr><td><code>mismatch_info</code></td><td><code>dict</code></td><td>—</td><td><code>{"z_mismatch": bool, "type_mismatch": bool}</code></td></tr>
+    <tr><td><code>model</code></td><td><code>str</code></td><td>—</td><td>LLM model name</td></tr>
+    <tr><td><code>api_key</code></td><td><code>str</code></td><td>—</td><td>API key for LLM</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str</code></td><td>—</td><td>API base URL</td></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>Wavelength grid; flat placeholder used if None</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>Flux array; flat placeholder used if None</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.0</code></td><td>LLM temperature</td></tr>
+    <tr><td><code>stream_md_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Path to stream LLM output; uses default under harness_dir if None</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>analysis</td><td><code>dict</code></td><td><code>{"root_cause": str, "explanation": str, "suggested_fix": str}</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="analyze_failure_batch">
+  <h3>analyze_failure_batch</h3>
+  <div class="sig"><code>async analyze_failure_batch(output_dir, batch_num, *, model, api_key, base_url, temperature=0.0) -> dict | None</code></div>
+  <p>Run a collective LLM analysis on a batch of pending failures. Reads from <code>failure/pending.jsonl</code>, builds compact failure summaries, streams the LLM response to a Markdown file, and clears the pending queue on success. Uses the batch analysis skill prompt for systematic weakness identification.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory</td></tr>
+    <tr><td><code>batch_num</code></td><td><code>int</code></td><td>—</td><td>Batch index for naming the output stream file</td></tr>
+    <tr><td><code>model</code></td><td><code>str</code></td><td>—</td><td>LLM model name</td></tr>
+    <tr><td><code>api_key</code></td><td><code>str</code></td><td>—</td><td>API key</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str</code></td><td>—</td><td>API base URL</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.0</code></td><td>LLM temperature</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>analysis</td><td><code>dict | None</code></td><td>Parsed batch analysis dict, or None if no pending failures or LLM fails</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_record_failure">
+  <h3>_record_failure</h3>
+  <div class="sig"><code>_record_failure(synthesis_result, harness_dir, ground_truth, mismatch_info, analysis, output_dir="") -> str</code></div>
+  <p>Write a structured failure record with three outputs: (1) per-sample JSON in harness_dir, (2) appended to the pending queue for batch accumulation, (3) appended to the global failure_log.jsonl archive. Extracts the synthesis verdict summary for comparison against ground truth.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>synthesis_result</code></td><td><code>dict</code></td><td>—</td><td>Full rule_analysis dict from synthesis</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>—</td><td>Directory with harness outputs</td></tr>
+    <tr><td><code>ground_truth</code></td><td><code>dict</code></td><td>—</td><td><code>{"z": float, "type": str}</code></td></tr>
+    <tr><td><code>mismatch_info</code></td><td><code>dict</code></td><td>—</td><td>Discrepancy flags from comparison</td></tr>
+    <tr><td><code>analysis</code></td><td><code>dict</code></td><td>—</td><td>Root cause analysis from <code>analyze_failure</code></td></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td><code>""</code></td><td>Root output directory; defaults to harness_dir</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>pending_path</td><td><code>str</code></td><td>Path to the updated pending.jsonl</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_write_batch_report">
+  <h3>_write_batch_report</h3>
+  <div class="sig"><code>_write_batch_report(output_dir: str, records: list, batch_num: int, analysis: dict) -> str</code></div>
+  <p>Generate a comprehensive batch failure analysis report in Markdown. Includes per-failure summaries with ground truth vs prediction comparison, root cause categories, and the collective LLM analysis. Saves to <code>failure/batch_{batch_num}_report.md</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory</td></tr>
+    <tr><td><code>records</code></td><td><code>list[dict]</code></td><td>—</td><td>Accumulated failure records</td></tr>
+    <tr><td><code>batch_num</code></td><td><code>int</code></td><td>—</td><td>Batch index for report file naming</td></tr>
+    <tr><td><code>analysis</code></td><td><code>dict</code></td><td>—</td><td>Collective analysis from <code>analyze_failure_batch</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>path</td><td><code>str</code></td><td>Path to the generated batch report</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_load_skill','analyze_failure','_fallback_analysis','_append_pending_failure','_read_pending_failures','_clear_pending_failures','_load_batch_skill','analyze_failure_batch','_write_batch_report','_record_failure'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+# FORMA — Docker Compose
+#
+# Usage:
+#   # CLI mode (single or batch processing)
+#   INPUT_DIR_HOST=/path/to/fits OUTPUT_DIR_HOST=/path/to/results docker compose run forma-cli
+#
+#   # Override specific .env values:
+#   docker compose run -e FILE_NAME=QSO_116 -e RUN_MODE=s forma-cli
+#
+#   # WebUI mode
+#   docker compose up forma-web
+#   # Open http://localhost:7860
+#
+# ── Redrock local fallback ──
+# If your Docker can reach GitHub, you don't need to set these — the build
+# will git clone automatically and the result is cached permanently.
+#
+# If GitHub is unreachable from Docker, set REDROCK_SKIP_GIT_CLONE=true and
+# provide REDROCK_SOURCE_DIR pointing to a pre-cloned redrock repo:
+#
+#   REDROCK_SKIP_GIT_CLONE=true \
+#   REDROCK_SOURCE_DIR=/path/to/redrock \
+#     docker compose up forma-web --build
+#
+# Templates and archetypes are auto-detected inside REDROCK_SOURCE_DIR
+# (standard layout).  Only set the *_DIR variants below if yours are elsewhere.
+
+services:
+  forma-cli:
+    build:
+      context: .
+      additional_contexts:
+        local-redrock: ${REDROCK_SOURCE_DIR:-.}
+        local-templates: ${REDROCK_TEMPLATES_DIR:-${REDROCK_SOURCE_DIR:-.}}
+        local-archetypes: ${REDROCK_ARCHETYPES_DIR:-${REDROCK_SOURCE_DIR:-.}}
+      args:
+        REDROCK_SKIP_GIT_CLONE: ${REDROCK_SKIP_GIT_CLONE:-false}
+    image: forma:latest
+    container_name: forma-cli
+    env_file:
+      - .env
+    environment:
+      # Container-side paths (override whatever .env says)
+      INPUT_DIR: /data/input
+      OUTPUT_DIR: /data/output
+      RR_TEMPLATE_DIR: /opt/redrock/py/redrock/templates
+      ARCHETYPE_DIR: /opt/redrock/redrock-archetypes
+      # Redrock subprocess: set OMP threads if not in .env
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-1}
+    volumes:
+      - ${INPUT_DIR_HOST:-./data/input}:/data/input:ro
+      - ${OUTPUT_DIR_HOST:-./data/output}:/data/output
+    user: "${UID:-1000}:${GID:-1000}"
+    command: ["cli"]
+
+  forma-web:
+    build:
+      context: .
+      additional_contexts:
+        local-redrock: ${REDROCK_SOURCE_DIR:-.}
+        local-templates: ${REDROCK_TEMPLATES_DIR:-${REDROCK_SOURCE_DIR:-.}}
+        local-archetypes: ${REDROCK_ARCHETYPES_DIR:-${REDROCK_SOURCE_DIR:-.}}
+    image: forma:latest
+    container_name: forma-web
+    env_file:
+      - .env
+    environment:
+      # Container-side paths
+      INPUT_DIR: /data/input
+      OUTPUT_DIR: /data/output
+      RR_TEMPLATE_DIR: /opt/redrock/py/redrock/templates
+      ARCHETYPE_DIR: /opt/redrock/redrock-archetypes
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-1}
+      # Gradio server
+      GRADIO_SERVER_PORT: 7860
+      GRADIO_SERVER_NAME: "0.0.0.0"
+    volumes:
+      - ${INPUT_DIR_HOST:-./data/input}:/data/input:ro
+      - ${OUTPUT_DIR_HOST:-./data/output}:/data/output
+    ports:
+      - "${WEBUI_PORT:-7860}:7860"
+    user: "${UID:-1000}:${GID:-1000}"
+    command: ["web"]

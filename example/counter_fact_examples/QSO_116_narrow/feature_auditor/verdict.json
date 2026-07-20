@@ -1,0 +1,726 @@
+{
+  "spectrum_quality": "high-quality",
+  "spectrum_quality_justification": "Spectrum shows a spectacular bright narrow emission line at 4767 Å (amplitude +6.1, the dominant feature) and a very bright narrow emission complex around 6072 Å. Continuum is well-detected across the full range. However, many CWT-detected features have near-zero amplitude (0.000) and are indistinguishable from the local noise floor — these are pure CWT phantom detections.",
+  "feature_verdicts": [
+    {
+      "wl_obs": 3708.0,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "🔵 Blue edge zone — non-Gaussian noise, throughput collapse",
+        "Genuine narrow emission peak at 3707.2 (1.133), with 3708.0 on the declining side. Feature is visually coherent but in the blue edge noise zone."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 3737.6,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔵 Blue edge zone",
+        "Very broad, gentle undulation — not a distinct peak. Flux rises slowly from ~0.5 to ~0.75 across 20+ Å. CWT labeled 'broad' but this is a continuum modulation, not a spectral line."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 3932.8,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "🔵 Blue edge zone",
+        "Real absorption trough. Flux minimum at 3931.2 (0.0172), CWT picked 3932.8 on the rising edge. Trough is deep and visually obvious. Classic Ca K/H region."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 3961.6,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔵 Blue edge zone",
+        "No absorption trough — flux is rising through this region (3960.0=0.7608 → 3961.6=0.9545 → 3962.4=0.9842). CWT appears to have detected the rising continuum slope as 'absorption'. The actual trough is near 3955."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4055.2,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Red wing of the bright emission complex peaking at 4047.2 (1.6786). Not a distinct feature — just the declining wing of a larger emission structure. CWT over-fitted the wing as a separate broad feature."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4168.0,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Genuine narrow emission peak at 4167.2 (0.8976), with 4168.0 on the declining side. Well-defined, spans ~6 pixels. Stands out clearly from the local neighborhood."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 4177.6,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "Real absorption trough but minimum is at 4176.0 (0.1674), not 4177.6. CWT picked the rising edge. Trough is visually coherent but shallow relative to surrounding continuum."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 4266.4,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Genuine narrow emission peak. Flux rises from 0.818 at 4264.8 to 0.947 at 4267.2. Well-defined, spans ~8 pixels. Visually dominant in ±100 Å neighborhood."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 4280.0,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Deep, narrow absorption trough. Flux drops to near zero (0.0005 at 4280.0, minimum -0.0338 at 4282.4). Visually striking — one of the deepest absorption features in the spectrum."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 4348.8,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "Real absorption trough but minimum is at 4351.2 (0.0177), not 4348.8. CWT picked the declining shoulder. Trough is part of a broader absorption complex spanning 4340-4360."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 4528.8,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Broad, flat plateau spanning 4524-4530 with flux ~0.67. Not a distinct peak — just a gentle continuum undulation. CWT labeled 'broad' but there is no coherent emission line structure."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4767.2,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Dominant feature of the entire spectrum. Extremely bright narrow emission peaking at 4766.4 (6.9371). Amplitude +6.1. The most visually striking feature in the spectrum by a large margin."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 4778.4,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "This is the red wing of the bright emission at 4767.2, not an absorption feature. Flux is still very high (3.1782). CWT misinterpreted the declining wing as absorption. The feature is a continuum slope, not a trough."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4824.0,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle continuum decline from the bright emission complex. Flux is still high (1.721). No absorption trough — just the broad declining slope. CWT over-fitted the continuum."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4857.6,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "On the declining side of a broad emission hump peaking at 4855.2 (2.0087). Not a distinct narrow peak — just part of a broader structure. CWT picked a point on the declining shoulder."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4947.2,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux is constant at ~0.83 across 4946-4948. Amplitude is 0.000. No emission peak whatsoever — pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 4966.4,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux is constant at ~0.676-0.678 across 4965-4967. No absorption trough. Amplitude -0.100 is within the noise."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5176.8,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Flux is rising through this region (5176.0=0.5749 → 5176.8=0.5976 → 5177.6=0.6129). No absorption. Amplitude is 0.000. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5233.6,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Very gentle, broad hump with amplitude only 0.1. Neighborhood (5200-5280) shows many similar undulations. Noise forest: 5+ peaks of comparable amplitude within ±100 Å. Target/mean ≈ 1.1×. Feature indistinguishable from surrounding fluctuations."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5706.4,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux oscillates between 0.518-0.525. Amplitude is 0.000. No emission peak. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5906.4,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux is constant at ~0.703-0.706. Amplitude is 0.000. No emission peak. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5944.2,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "No absorption trough. Flux is rising through this region (5944.0=0.6726 → 5944.8=0.6874). The CWT amplitude of -1.047 is completely inconsistent with the data — flux is positive and increasing."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 5996.2,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "On a very broad, flat-topped emission plateau spanning 5990-6010. Not a distinct peak — just part of a broad continuum hump. CWT over-fitted the plateau as a separate feature."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6072.8,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Very bright, narrow emission feature. Peak at 6073.6 (2.5708). Visually dominant — one of the brightest features in the spectrum. Broad wings spanning ~20 Å. Genuine narrow emission line."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 6133.6,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle decline from the bright emission at 6072.8. Flux is still >1.0. No absorption trough — just the declining continuum. CWT over-fitted the continuum slope."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6180.8,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Very shallow dip on a declining slope. Flux drops from 0.650 to 0.598 across 3 pixels — this is just continuum structure, not a distinct absorption line. Amplitude -0.100 is at the noise floor."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6224.8,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux is ~0.61 across 6224-6226. The CWT amplitude of -1.082 is completely inconsistent with the data. No absorption trough."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6380.0,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Very shallow dip on a gentle decline. Flux drops from 0.535 to 0.499 across 3 pixels. Barely distinguishable from the continuum slope. Amplitude -0.100 is at the noise floor."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6532.0,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle broad hump on a rising slope. Amplitude only 0.1. Neighborhood (6480-6600) shows many similar undulations. Noise forest: 5+ peaks of comparable amplitude within ±100 Å. Target/mean ≈ 1.1×."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6574.4,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Essentially flat. Flux is constant at ~0.451-0.454 across 6573-6576. No absorption trough. Amplitude -0.100 is within the noise."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6641.6,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Flux is rising through this region (6640.8=0.4112 → 6641.6=0.4193 → 6642.4=0.4319). No absorption. Amplitude is 0.000. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6824.8,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Flux is rising through this region (6824.0=0.4206 → 6824.8=0.4376 → 6825.6=0.4416). No absorption. Amplitude is 0.000. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6856.0,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle rising slope. Flux increases slowly from 0.505 to 0.526 across several pixels. Not a distinct peak — just continuum structure. Amplitude only 0.1."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6953.6,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Very shallow dip in a declining region. Flux drops from 0.307 to 0.303 — a 0.004 change. Barely distinguishable from noise. Amplitude -0.100 is at the noise floor."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 6984.8,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "Genuine narrow emission peak but the peak is at 6984.0 (0.5311), not 6984.8 (0.5233). CWT picked the declining side. Feature is real but position is slightly offset."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 7199.2,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle decline. Amplitude is +0.000 (positive!) — not even an absorption. Flux drops from 0.445 to 0.428 across several pixels — just continuum structure."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 7369.6,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "Gentle decline from 0.421 to 0.365 across several pixels. Very shallow, not a distinct absorption trough. Amplitude -0.100 is at the noise floor."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 7480.0,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Genuine narrow emission peak. Visually distinct from the local neighborhood. Spans ~15 pixels."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 7665.6,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "Genuine narrow emission feature but peak is at 7664.8 (0.4689), not 7665.6 (0.4532). CWT picked the declining side. Feature is real but position slightly offset."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 7714.4,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "Genuine narrow emission peak at 7714.4 (0.4616). Well-defined, spans ~6 pixels. Stands out from the local neighborhood."
+      ],
+      "recommendation": "KEEP"
+    },
+    {
+      "wl_obs": 7932.8,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Very gentle rise. Amplitude is 0.000. No distinct emission peak — just a flat region with minor fluctuations. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 7983.2,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Genuine narrow absorption trough. Flux drops from ~0.34 at 7980 to 0.261 at 7983.2. Visually coherent but in the OH zone — may be atmospheric rather than astrophysical."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 7994.4,
+      "feature_type": "emission",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Genuine narrow emission peak at 7994.4 (0.4712). Well-defined, spans ~6 pixels. In the OH zone — may be an OH skyline rather than astrophysical."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 8301.6,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Genuine absorption trough but minimum is at 8300.8 (0.1983), not 8301.6 (0.2136). Deep drop from ~0.37 at 8298. In the OH zone."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 8367.2,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "On a declining slope from 8366.4 (0.4217) to 8368.0 (0.4078). Not a distinct peak. Amplitude only 0.1."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 8468.0,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Deep, dramatic absorption trough. Flux drops from ~0.33 at 8464 to 0.054 at 8468.0. One of the deepest absorption features in the spectrum. Visually striking but in the OH zone."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 8484.8,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "On a declining slope. Amplitude is 0.000. No distinct emission peak. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 8520.0,
+      "feature_type": "emission",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Very gentle rise. Amplitude is 0.000. No distinct emission peak — just a flat region. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 8616.0,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Gentle decline. Amplitude is 0.000. No distinct absorption trough. Pure CWT phantom."
+      ],
+      "recommendation": "REMOVE"
+    },
+    {
+      "wl_obs": 8645.6,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "MEDIUM",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Genuine narrow absorption trough. Flux drops from 0.243 to 0.221. Visually coherent but shallow. In the OH zone."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 8832.0,
+      "feature_type": "absorption",
+      "is_real": true,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å). Amplitude may be contaminated by OH skyline residuals.",
+        "Deep, dramatic absorption trough. Flux drops from ~0.66 at 8828 to 0.117 at 8832.0. Very striking feature but in the dense OH forest zone."
+      ],
+      "recommendation": "FLAG"
+    },
+    {
+      "wl_obs": 9051.2,
+      "feature_type": "absorption",
+      "is_real": false,
+      "confidence": "HIGH",
+      "issues": [
+        "🔴 OH airglow zone (>7800 Å, >9000 Å dense OH forest). Amplitude may be contaminated by OH skyline residuals.",
+        "Very shallow dip. Flux drops from 0.285 to 0.275 — a 0.01 change. In the dense OH forest beyond 9000 Å. Barely distinguishable from noise."
+      ],
+      "recommendation": "REMOVE"
+    }
+  ],
+  "oii_morphology_verdicts": [],
+  "lyalpha_forest_verdicts": [],
+  "composite_profile_verdicts": [
+    {
+      "hypothesis_idx": 2,
+      "species": "Hα",
+      "wl_em": 6532.0,
+      "wl_abs": 6574.4,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "Both components are not real. 6532.0 is a gentle broad hump indistinguishable from noise; 6574.4 is flat. No composite profile possible."
+    },
+    {
+      "hypothesis_idx": 2,
+      "species": "Hβ",
+      "wl_em": 4857.6,
+      "wl_abs": 4824.0,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "4857.6 is on the declining shoulder of a broad emission hump (not a distinct peak). 4824.0 is a gentle continuum decline (not absorption). No composite profile."
+    },
+    {
+      "hypothesis_idx": 4,
+      "species": "Hβ",
+      "wl_em": 4857.6,
+      "wl_abs": 4824.0,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "Same as H2 Hβ — neither component is a real, distinct feature. No composite profile."
+    },
+    {
+      "hypothesis_idx": 3,
+      "species": "Hα",
+      "wl_em": 7932.8,
+      "wl_abs": 7983.2,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "7932.8 emission is not real (flat, amplitude 0.000). 7983.2 is a real absorption in the OH zone but the emission component doesn't exist. No composite."
+    },
+    {
+      "hypothesis_idx": 3,
+      "species": "Hβ",
+      "wl_em": 5906.4,
+      "wl_abs": 5944.2,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "Both components are not real. 5906.4 is flat (amplitude 0.000). 5944.2 shows no absorption — flux is rising. No composite."
+    },
+    {
+      "hypothesis_idx": 1,
+      "species": "Mg II",
+      "wl_em": 4266.4,
+      "wl_abs": 4280.0,
+      "is_composite": false,
+      "morphology": "spike_valley_spike",
+      "notes": "Both components are real but form a spike-valley-spike pattern: narrow emission at 4266.4 (peak 0.947) followed by deep narrow absorption at 4280.0 (trough 0.0005). The emission is narrow, not broad. This does NOT show the broad symmetric 'M' shape of a genuine composite profile. Treat as independent detections."
+    },
+    {
+      "hypothesis_idx": 5,
+      "species": "Mg II",
+      "wl_em": 4767.2,
+      "wl_abs": 4778.4,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "4767.2 is the dominant bright emission. 4778.4 is the red wing of that same emission (not real absorption). No composite — the 'absorption' is just the declining wing."
+    },
+    {
+      "hypothesis_idx": 5,
+      "species": "Hβ",
+      "wl_em": 8367.2,
+      "wl_abs": 8301.6,
+      "is_composite": false,
+      "morphology": "noise",
+      "notes": "8367.2 emission is not real (declining slope, not a distinct peak). 8301.6 is a real absorption in the OH zone. No composite — emission component doesn't exist."
+    }
+  ],
+  "global_issues": [
+    "Blue edge (<4000 Å) shows elevated noise and throughput collapse. Features here require extra scrutiny.",
+    "OH airglow zone (>7800 Å) shows dense skyline residuals. Features at 7932.8, 7983.2, 7994.4, 8301.6, 8367.2, 8468.0, 8484.8, 8520.0, 8616.0, 8645.6, 8832.0, 9051.2 may be contaminated. OH forest is especially dense beyond 9000 Å.",
+    "OI airglow at 5577.3, 6300.3, 6363.8 Å may contaminate narrow emission features in the visible band — no features in the matrix fall within ±10 Å of these positions.",
+    "Many CWT-detected features have amplitude 0.000 and are pure phantom detections — the CWT pipeline appears to have over-fitted noise across much of the spectrum.",
+    "The spectrum is dominated by a very bright narrow emission at 4767 Å and a bright narrow emission complex around 6072 Å. Most other claimed features are at or near the noise floor."
+  ],
+  "doublet_verdicts": [
+    {
+      "hypothesis_idx": 1,
+      "name_a": "[O III]a",
+      "name_b": "[O III]b",
+      "wl_a": 7665.6,
+      "wl_b": 7714.4,
+      "ratio_expected": "b:a ≈ 3:1 (a/b ≈ 0.33)",
+      "ratio_actual": "a/b ≈ 1.00",
+      "ratio_ok": false,
+      "notes": "Both components are real narrow emission peaks confirmed via Step 3. However, the ratio a/b=1.00 is inconsistent with [O III] (expected a/b ≈ 0.33). [O III]a is as bright as [O III]b when it should be ~3× fainter. Both should be KEEP (real peaks) but the ratio anomaly suggests possible blending or misidentification."
+    },
+    {
+      "hypothesis_idx": 2,
+      "name_a": "Ca K_abs",
+      "name_b": "Ca H_abs",
+      "wl_a": 3932.8,
+      "wl_b": 3961.6,
+      "ratio_expected": "K deeper than H",
+      "ratio_actual": "K/H ≈ 1.67",
+      "ratio_ok": false,
+      "notes": "Ca K_abs at 3932.8 is a real absorption trough (trough minimum slightly offset at 3931.2). Ca H_abs at 3961.6 is NOT real — flux is rising through this region, no absorption trough. The 'doublet' is a chance alignment of one real feature with a noise detection."
+    },
+    {
+      "hypothesis_idx": 3,
+      "name_a": "Ca K_abs",
+      "name_b": "Ca H_abs",
+      "wl_a": 4778.4,
+      "wl_b": 4824.0,
+      "ratio_expected": "K deeper than H",
+      "ratio_actual": "K/H ≈ 6.00",
+      "ratio_ok": false,
+      "notes": "Neither component is a real absorption feature. 4778.4 is the red wing of the bright emission at 4767.2. 4824.0 is a gentle continuum decline. Both are CWT artifacts."
+    },
+    {
+      "hypothesis_idx": 3,
+      "name_a": "[O III]a",
+      "name_b": "[O III]b",
+      "wl_a": 5996.2,
+      "wl_b": 6072.8,
+      "ratio_expected": "b:a ≈ 3:1 (a/b ≈ 0.33)",
+      "ratio_actual": "a/b ≈ 0.14",
+      "ratio_ok": false,
+      "notes": "[O III]a at 5996.2 is not real — it's on a broad flat plateau, not a distinct peak. [O III]b at 6072.8 is a real bright broad emission. The 'doublet' is a chance alignment of a noise feature with a real emission line."
+    },
+    {
+      "hypothesis_idx": 3,
+      "name_a": "[N II]a",
+      "name_b": "[N II]b",
+      "wl_a": 7932.8,
+      "wl_b": 7994.4,
+      "ratio_expected": "b:a ≈ 3:1",
+      "ratio_actual": "a/b ≈ 0.00",
+      "ratio_ok": false,
+      "notes": "[N II]a at 7932.8 is not real (flat, amplitude 0.000). [N II]b at 7994.4 is a real narrow emission in the OH zone. The 'doublet' is a chance alignment of a noise feature with a real (possibly OH skyline) emission."
+    },
+    {
+      "hypothesis_idx": 4,
+      "name_a": "Ca K_abs",
+      "name_b": "Ca H_abs",
+      "wl_a": 3932.8,
+      "wl_b": 3961.6,
+      "ratio_expected": "K deeper than H",
+      "ratio_actual": "K/H ≈ 1.67",
+      "ratio_ok": false,
+      "notes": "Same as H2. Ca K_abs is real, Ca H_abs is not. Chance alignment."
+    },
+    {
+      "hypothesis_idx": 4,
+      "name_a": "[N II]a",
+      "name_b": "[N II]b",
+      "wl_a": 6532.0,
+      "wl_b": 6532.0,
+      "ratio_expected": "b:a ≈ 3:1",
+      "ratio_actual": "a/b ≈ 1.00",
+      "ratio_ok": false,
+      "notes": "Both components at the same wavelength — pipeline error. 6532.0 is not a real feature (gentle broad hump, indistinguishable from noise)."
+    },
+    {
+      "hypothesis_idx": 5,
+      "name_a": "Ca K_abs",
+      "name_b": "Ca H_abs",
+      "wl_a": 6641.6,
+      "wl_b": 6824.8,
+      "ratio_expected": "K deeper than H",
+      "ratio_actual": "K/H ≈ 0.00",
+      "ratio_ok": false,
+      "notes": "Neither component is real. 6641.6 shows rising flux (no absorption). 6824.8 shows rising flux (no absorption). Both are CWT phantoms with amplitude 0.000."
+    },
+    {
+      "hypothesis_idx": 5,
+      "name_a": "[O III]a",
+      "name_b": "[O III]b",
+      "wl_a": 8484.8,
+      "wl_b": 8520.0,
+      "ratio_expected": "b:a ≈ 3:1 (a/b ≈ 0.33)",
+      "ratio_actual": "a/b ≈ 0.00",
+      "ratio_ok": false,
+      "notes": "Neither component is real. Both are in the OH zone with amplitude 0.000. Pure CWT phantoms."
+    }
+  ]
+}

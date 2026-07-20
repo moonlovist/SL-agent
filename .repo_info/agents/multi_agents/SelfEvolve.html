@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SelfEvolve — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_normalise_spectype" class="sidebar-link sidebar-sublink" data-label="_normalise_spectype">_normalise_spectype</a>
+      <a href="#SelfEvolve" class="sidebar-link sidebar-sublink" data-label="SelfEvolve">SelfEvolve</a>
+      <a href="#SelfEvolve.__init__" class="sidebar-link sidebar-sublink" data-label="__init__">__init__</a>
+      <a href="#SelfEvolve.run" class="sidebar-link sidebar-sublink" data-label="run">run</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#agents">Agents</a> / SelfEvolve
+</div>
+
+<h1><span class="section-label">Agent</span>SelfEvolve</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/SelfEvolve.py</code></p>
+  <p>Stage 5 (optional) — Ground-truth comparison, failure root-cause analysis, and self-evolution. Runs after HypothesisAnalyst when <code>self_evolve</code> is enabled. Compares the synthesis verdict against ground truth, runs two-round LLM root-cause analysis on mismatches, and writes structured failure records.</p>
+  <p><strong>Classes:</strong> <code>SelfEvolve(BaseAgent)</code></p>
+  <p><strong>Dependencies:</strong> <a href="utils/SE.html">SE</a> · <a href="utils/HA.html">HA</a> · <a href="../../agents/common/base_agent.html">BaseAgent</a> · <a href="../../agents/common/state.html">SpectroState</a> · <a href="../../core/runtime/runtime_container.html">RuntimeContainer</a></p>
+  <div class="tag-row"><span class="tag">agent</span> <span class="tag">SelfEvolve</span> <span class="tag">Stage-5</span> <span class="tag primary">failure-analysis</span> <span class="tag">root-cause</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_normalise_spectype">_normalise_spectype(raw) -> str</a></li>
+  <li><a href="#SelfEvolve">Class SelfEvolve</a></li>
+  <li><a href="#SelfEvolve.__init__">SelfEvolve.__init__(self, runtime)</a></li>
+  <li><a href="#SelfEvolve.run">SelfEvolve.run(self, state) — async</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<div class="func-block" id="_normalise_spectype">
+  <h3>_normalise_spectype</h3>
+  <div class="sig"><code>_normalise_spectype(raw: str) -> str</code></div>
+  <p>Normalise spectral type strings from FITS metadata for comparison with synthesis classification. Maps short FITS enum values to the long forms used in the pipeline. Unknown or unmapped types are returned unchanged (case-preserved after stripping).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>raw</code></td><td><code>str</code></td><td>—</td><td>Raw spectral type string from FITS metadata. Compared case-insensitively after whitespace stripping.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>normalised</td><td><code>str</code></td><td>Normalised spectral type: one of <code>"QSO"</code>, <code>"Galaxy"</code>, <code>"Unknown"</code>, or the original input if no mapping exists.</td></tr>
+  </table>
+  <table>
+  <colgroup><col class="col-name"><col class="col-type"><col></colgroup>
+    <tr><th>FITS Value</th><th>Maps To</th><th>Description</th></tr>
+    <tr><td><code>"QSO"</code></td><td><code>"QSO"</code></td><td>Quasar</td></tr>
+    <tr><td><code>"ELG"</code></td><td><code>"Galaxy"</code></td><td>Emission-line galaxy</td></tr>
+    <tr><td><code>"LRG"</code></td><td><code>"Galaxy"</code></td><td>Luminous red galaxy</td></tr>
+    <tr><td><code>"BGS"</code></td><td><code>"Galaxy"</code></td><td>Bright galaxy survey</td></tr>
+    <tr><td><code>"GALAXY"</code></td><td><code>"Galaxy"</code></td><td>Generic galaxy</td></tr>
+    <tr><td><code>"STAR"</code></td><td><code>"Unknown"</code></td><td>Stellar object (synthesis does not classify stars)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="SelfEvolve"><span class="class-badge">class</span> SelfEvolve</h2>
+<p class="desc">Inherits: <code>BaseAgent</code></p>
+<p class="desc">Stage 5 optional agent. Compares synthesis verdict against ground truth via FITS metadata (<code>VI_Z</code>, <code>VI_SPECTYPE</code>) or environment variables (<code>EXPECTED_Z</code>, <code>EXPECTED_TYPE</code>). On mismatch with sufficient confidence and in-scoring redshift, runs a two-round LLM root-cause analysis and writes structured failure records for individual and batch review.</p>
+<p class="desc">Class variable <code>agent_name = "SelfEvolve"</code> identifies the agent for logging and dispatch.</p>
+
+<div class="func-block" id="SelfEvolve.__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, runtime: RuntimeContainer)</code></div>
+  <p>Initialise SelfEvolve agent. Calls <code>super().__init__(runtime)</code> to set up LLM model access, vendor detection, and thinking mode configuration.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-source"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>runtime</code></td><td><code>RuntimeContainer</code></td><td>Injected</td><td>DI container providing <code>configs</code> (params, model) and runtime services.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td><code>None</code></td><td>Constructor, no return value.</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="SelfEvolve.run">
+  <h3>run</h3>
+  <div class="sig"><code>async run(self, state: SpectroState) -> SpectroState</code></div>
+  <p>Main entry point. Compares the HypothesisAnalyst synthesis verdict against ground truth and triggers root-cause analysis on mismatch. Returns the state unmodified on pass or skip.</p>
+
+  <p><strong>Ground-truth comparison flow:</strong></p>
+  <ul>
+    <li><strong>Resolve ground truth</strong> — Priority 1: FITS metadata fields <code>VI_Z</code> and <code>VI_SPECTYPE</code> from the spectrum dictionary. Priority 2 (fallback): environment variables <code>EXPECTED_Z</code> and <code>EXPECTED_TYPE</code>. If neither is available, logs an info message and skips.</li>
+    <li><strong>Extract synthesis verdict</strong> — Calls <code>extract_verdict_summary(state["hypothesis_analysis"])</code> to obtain the synthesised redshift, classification, and confidence level.</li>
+    <li><strong>Compute mismatch flags</strong> — <code>z_mismatch</code>: <code>True</code> if synthesis z is <code>None</code> or <code>abs(result_z - expected_z) &gt; z_tolerance</code>. <code>type_mismatch</code>: <code>True</code> if <code>summary["classification"] != expected_type</code>.</li>
+    <li><strong>Early-exit conditions</strong> — If no mismatch: log PASSED and return. If confidence is <code>"LOW"</code>: log abstention and skip. If the true redshift is not in the scoring set (<code>min_dz &gt; tolerance</code>): log and skip (upstream CWT/scoring issue).</li>
+    <li><strong>Run failure analysis</strong> — On confirmed mismatch, calls <code>analyze_failure</code> from <code>SE.py</code> which executes a two-round LLM analysis: Round 1 blind review without ground truth, Round 2 root-cause identification with ground truth and tool access (<code>read_spectrum_region</code>, <code>grep_kb</code>).</li>
+    <li><strong>Record failure</strong> — Calls <code>_record_failure</code> to write per-sample JSON, append to batch pending queue (<code>failure/pending.jsonl</code>), and append to global log (<code>failure_log.jsonl</code>). Sets <code>state["_failure_recorded"] = True</code>.</li>
+  </ul>
+
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Pipeline state containing <code>hypothesis_results</code>, <code>hypothesis_analysis</code>, <code>spectrum</code>, and <code>output_dir</code>.</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Unmodified state on pass/skip, or state with <code>_failure_recorded = True</code> after failure analysis.</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<p>SelfEvolve is optional and controlled by the <code>self_evolve</code> config flag. It distinguishes honest abstention (LOW confidence, no analysis triggered), upstream scoring failures (true z out of scoring range), and genuine synthesis failures that warrant root-cause investigation. The two-round analysis design (blind review first, then ground-truth-informed root cause) reduces confirmation bias in the LLM assessment.</p>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_normalise_spectype','SelfEvolve','SelfEvolve.__init__','SelfEvolve.run'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+# ====================
+# Data & outputs (RECURSIVE)
+# ====================
+data/
+test_set/
+.to_harness/
+llm-spectro-agent-old-master/
+
+# agent
+.agents/
+.qoder/
+
+skills-lock.json
+node_modules/
+
+# Debug
+.debugger/
+
+# Paper
+.paper/
+
+# Backup
+.backup/
+
+# Logs
+log/
+
+# Environments
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# codearts
+.arts/
+.codeartsdoer/
+
+# WebUI persisted config
+.forma_webui_config.json
+
+# Docker (dev only — production uses the committed compose file)
+docker-compose.override.yml
+
+# claude
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+env/
+ENV/
+
+wxyv46kb.pdf

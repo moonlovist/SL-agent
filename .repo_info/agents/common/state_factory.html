@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StateFactory — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#StateFactory" class="sidebar-link sidebar-sublink" data-label="StateFactory">StateFactory</a>
+      <a href="#__init__" class="sidebar-link sidebar-sublink" data-label="__init__()">__init__</a>
+      <a href="#create" class="sidebar-link sidebar-sublink" data-label="create()">create</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / StateFactory
+</div>
+
+<h1><span class="section-label">Core</span>StateFactory</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/common/state_factory.py</code></p>
+  <p><strong>Class:</strong> <code>StateFactory</code> — constructs initial <code>SpectroState</code> objects from <code>AllConfig</code>. Resolves file paths, creates per-spectrum output directories, and pre-fills empty containers for downstream pipeline stages.</p>
+  <p><strong>Dependencies:</strong> <a href="state.html">SpectroState</a> · <a href="../../core/config/all_config.html">AllConfig</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">factory</span> <span class="tag">state</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#StateFactory">class StateFactory</a></li>
+  <li><a href="#__init__">__init__(configs)</a></li>
+  <li><a href="#create">create(file_name, input_dir, output_dir) -> SpectroState</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="StateFactory"><span class="class-badge">class</span> StateFactory</h2>
+<p class="desc">Factory that builds initial <code>SpectroState</code> instances. Takes an <code>AllConfig</code> at construction; the <code>create()</code> method resolves input/output paths and returns a ready-to-use state object.</p>
+
+<div class="func-block" id="__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, configs: AllConfig)</code></div>
+  <p>Store the full <code>AllConfig</code> and extract <code>params_config</code> and <code>io_config</code> for use in <code>create()</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-source"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Source</th><th>Description</th></tr>
+    <tr><td><code>configs</code></td><td><code>AllConfig</code></td><td>Injected</td><td>Provides <code>params</code> and <code>io</code> sub-configs</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="create">
+  <h3>create</h3>
+  <div class="sig"><code>create(self, file_name: str, input_dir: str, output_dir: str) -> SpectroState</code></div>
+  <p>Build a new <code>SpectroState</code>. Resolves <code>file_path</code> from input_dir + file_name + input_format, creates per-spectrum output directory with <code>visual_interpreter/</code> sub-directory, pre-fills image paths and initialises all empty containers (qualitative_analysis, rule_analysis_*, extract_*, auditing_history_*, in_brief, etc.).</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>file_name</code></td><td><code>str</code></td><td>—</td><td>Base file name (without extension)</td></tr>
+    <tr><td><code>input_dir</code></td><td><code>str</code></td><td>—</td><td>Directory containing input spectrum files</td></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Root output directory; per-spectrum sub-directory is created under it</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>state</td><td><code>SpectroState</code></td><td>Initialised state ready for the LangGraph pipeline</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<div class="note">
+  <strong>Why a separate factory?</strong> SpectroState construction involves path resolution and directory creation that depend on <code>IOConfig</code>. Keeping this logic in a dedicated factory avoids cluttering the state class and makes it easy to adjust path conventions without touching the state definition. See <a href="state.html">SpectroState</a> for the full field list.
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','StateFactory','__init__','create'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

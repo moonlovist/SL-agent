@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>single_hypothesis — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_is_retryable" class="sidebar-link sidebar-sublink" data-label="_is_retryable()">_is_retryable</a>
+      <a href="#_resolve_max_tokens" class="sidebar-link sidebar-sublink" data-label="_resolve_max_tokens()">_resolve_max_tokens</a>
+      <a href="#_load_skill" class="sidebar-link sidebar-sublink" data-label="_load_skill()">_load_skill</a>
+      <a href="#_build_tools" class="sidebar-link sidebar-sublink" data-label="_build_tools()">_build_tools</a>
+      <a href="#_extract_json_block" class="sidebar-link sidebar-sublink" data-label="_extract_json_block()">_extract_json_block</a>
+      <a href="#_mask_overlap_label" class="sidebar-link sidebar-sublink" data-label="_mask_overlap_label()">_mask_overlap_label</a>
+      <a href="#_find_nearby_features" class="sidebar-link sidebar-sublink" data-label="_find_nearby_features()">_find_nearby_features</a>
+      <a href="#_build_cwt_features_table" class="sidebar-link sidebar-sublink" data-label="_build_cwt_features_table()">_build_cwt_features_table</a>
+      <a href="#_build_predictions_section" class="sidebar-link sidebar-sublink" data-label="_build_predictions_section()">_build_predictions_section</a>
+      <a href="#_build_user_message" class="sidebar-link sidebar-sublink" data-label="_build_user_message()">_build_user_message</a>
+      <a href="#run" class="sidebar-link sidebar-sublink" data-label="run()">run</a>
+      <a href="#arun" class="sidebar-link sidebar-sublink" data-label="arun()">arun</a>
+      <a href="#main" class="sidebar-link sidebar-sublink" data-label="main()">main</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#harness">Harness</a> / single_hypothesis
+</div>
+
+<h1><span class="section-label">Harness</span>single_hypothesis</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/harness/single_hypothesis.py</code></p>
+  <p>LLM-driven targeted line search harness. Equips an LLM with 5 spectrum-analysis tools and a methodology skill prompt. The LLM autonomously confirms or refutes predicted spectral lines at a given redshift hypothesis through targeted Gaussian fitting. Supports both synchronous and async/streaming execution with HTTP retry and truncation continuation.</p>
+  <div class="tag-row"><span class="tag">harness</span> <span class="tag">single-hypothesis</span> <span class="tag">LLM</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_is_retryable">_is_retryable(exc) -> bool</a></li>
+  <li><a href="#_resolve_max_tokens">_resolve_max_tokens() -> int | None</a></li>
+  <li><a href="#_load_skill">_load_skill(mode='nomad') -> str</a></li>
+  <li><a href="#_build_tools">_build_tools(mode='nomad', npz_path=None) -> list</a></li>
+  <li><a href="#_extract_json_block">_extract_json_block(text) -> dict | None</a></li>
+  <li><a href="#_mask_overlap_label">_mask_overlap_label(lo, hi, obs_wl, masked_regions) -> str</a></li>
+  <li><a href="#_find_nearby_features">_find_nearby_features(rest_wl, obs_wl, z_min, z_max, peaks, troughs) -> str</a></li>
+  <li><a href="#_build_cwt_features_table">_build_cwt_features_table(peaks, troughs) -> str</a></li>
+  <li><a href="#_build_predictions_section">_build_predictions_section(redshift, z_min, z_max, wl_min, wl_max, peaks, troughs, ...) -> str</a></li>
+  <li><a href="#_build_user_message">_build_user_message(redshift, fits_path, npz_path, ...) -> str</a></li>
+  <li><a href="#run">run(fits_path, redshift, npz_path, ...) -> dict</a></li>
+  <li><a href="#arun">arun(fits_path, redshift, npz_path, ...) -> dict</a></li>
+  <li><a href="#main">main()</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Configuration</h2>
+
+<div class="func-block" id="_is_retryable">
+  <h3>_is_retryable</h3>
+  <div class="sig"><code>_is_retryable(exc: Exception) -> bool</code></div>
+  <p>Check whether an HTTP exception is worth retrying. Scans the exception message for known retryable keywords such as 429, 5xx, timeout, connection, reset, refused, EOF, and broken pipe. Used by both <code>run</code> and <code>arun</code> to implement HTTP-level retry loops with exponential backoff.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>exc</code></td><td><code>Exception</code></td><td>—</td><td>The caught exception whose message is checked for retryable patterns</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>retryable</td><td><code>bool</code></td><td><code>True</code> if the lowercased exception message contains any retryable keyword</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_resolve_max_tokens">
+  <h3>_resolve_max_tokens</h3>
+  <div class="sig"><code>_resolve_max_tokens() -> int | None</code></div>
+  <p>Resolve the <code>max_tokens</code> parameter from the <code>LLM_MAX_TOKENS</code> environment variable. When the env var is unset or empty and the provider is DeepSeek (detected from <code>LLM_BASE_URL</code>), defaults to 65536 to prevent output truncation that causes "insufficient tool messages following tool_calls" errors.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>max_tokens</td><td><code>int | None</code></td><td>Parsed token limit, or 65536 for DeepSeek providers, or <code>None</code> if unset</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Skill &amp; Tools</h2>
+
+<div class="func-block" id="_load_skill">
+  <h3>_load_skill</h3>
+  <div class="sig"><code>_load_skill(mode: str = "nomad") -> str</code></div>
+  <p>Load the methodology skill prompt from the HypothesisAnalyst skill directory. Selects the file based on mode: <code>"single_hypothesis_redrock_skill.md"</code> for redrock mode, <code>"single_hypothesis_skill.md"</code> for nomad (classic BFM) mode.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Verification mode; either <code>"nomad"</code> or <code>"redrock"</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>prompt</td><td><code>str</code></td><td>Raw markdown content of the selected skill file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_tools">
+  <h3>_build_tools</h3>
+  <div class="sig"><code>_build_tools(mode: str = "nomad", npz_path: str = None) -> list</code></div>
+  <p>Return the tool list appropriate for the verification mode. In <code>"nomad"</code> mode, exposes only <code>write_report</code> and <code>write_lines_csv</code> (CWT evaluation). In <code>"redrock"</code> mode, adds <code>_fit_peak</code>, <code>_fit_doublet</code>, and <code>compute_redshift</code> tools; the spectrum arrays are captured via closure so the LLM passes only physical parameters.</p>
+
+  <p><strong>Closure tools (redrock mode):</strong></p>
+  <ul>
+    <li><code>_fit_peak(center_guess, width_3sigma, line_type="emission", window_half=200.0) -> dict</code> — Fit a single Gaussian + linear baseline around a predicted line position. Delegates to <code>_do_fit_peak</code>.</li>
+    <li><code>_fit_doublet(center_guess_1, center_guess_2, line_type="emission", width_3sigma=25.0, window_half=300.0, separation_rest=None, separation_tolerance=5.0, amp_ratio_expected=None) -> dict</code> — Fit two Gaussians + linear baseline for close line pairs (Ca H/K, [O III]a/b, [S II]a/b, [N II]a/b, Na D). Delegates to <code>_do_fit_doublet</code>.</li>
+  </ul>
+
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Verification mode; controls which tools are included</td></tr>
+    <tr><td><code>npz_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Path to cleaned spectrum .npz; required in redrock mode for closure-captured arrays</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>tools</td><td><code>list</code></td><td>List of LangChain <code>@tool</code>-decorated callable tools</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Message Building</h2>
+
+<div class="func-block" id="_extract_json_block">
+  <h3>_extract_json_block</h3>
+  <div class="sig"><code>_extract_json_block(text: str) -> dict | None</code></div>
+  <p>Extract the final JSON block from the LLM report text. First attempts to extract from a ```json ... ``` code fence. Falls back to searching for a bare JSON object containing a <code>"consensus_redshift"</code> key.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>text</code></td><td><code>str</code></td><td>—</td><td>Full LLM report text to parse</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>parsed</td><td><code>dict | None</code></td><td>Parsed JSON dict, or <code>None</code> if no valid JSON block is found</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_mask_overlap_label">
+  <h3>_mask_overlap_label</h3>
+  <div class="sig"><code>_mask_overlap_label(lo: float, hi: float, obs_wl: float, masked_regions: list | None) -> str</code></div>
+  <p>Return a label describing how the z-verification window [lo, hi] overlaps with masked spectral regions. Returns empty string if no overlap. Labels include <code>[fully masked]</code> when the entire window is masked, <code>[lambda_pred masked]</code> when the nominal line position is masked, and <code>[window partially masked]</code> for partial overlap.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>lo</code></td><td><code>float</code></td><td>—</td><td>Lower bound of the z-verification window in observed Angstroms</td></tr>
+    <tr><td><code>hi</code></td><td><code>float</code></td><td>—</td><td>Upper bound of the z-verification window</td></tr>
+    <tr><td><code>obs_wl</code></td><td><code>float</code></td><td>—</td><td>Nominal observed wavelength of the predicted line</td></tr>
+    <tr><td><code>masked_regions</code></td><td><code>list | None</code></td><td>—</td><td>List of [start, end] tuples for masked wavelength ranges</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>label</td><td><code>str</code></td><td>Mask overlap annotation or empty string if no overlap</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_find_nearby_features">
+  <h3>_find_nearby_features</h3>
+  <div class="sig"><code>_find_nearby_features(rest_wl: float, obs_wl: float, z_min: float, z_max: float, peaks: list, troughs: list) -> str</code></div>
+  <p>Find CWT-detected peaks and troughs whose wavelength falls within the z-verification window for a given rest-frame line. Results are sorted by distance to the observed line wavelength (closest first). Returns brief references like <code>peak@5001.2+-0.3(z=0.0085)</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>rest_wl</code></td><td><code>float</code></td><td>—</td><td>Rest-frame wavelength of the spectral line in Angstroms</td></tr>
+    <tr><td><code>obs_wl</code></td><td><code>float</code></td><td>—</td><td>Observed wavelength of the predicted line</td></tr>
+    <tr><td><code>z_min</code></td><td><code>float</code></td><td>—</td><td>Lower bound of redshift verification window</td></tr>
+    <tr><td><code>z_max</code></td><td><code>float</code></td><td>—</td><td>Upper bound of redshift verification window</td></tr>
+    <tr><td><code>peaks</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected emission peaks</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected absorption troughs</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>refs</td><td><code>str</code></td><td>Comma-separated feature references, or em-dash if none found</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_cwt_features_table">
+  <h3>_build_cwt_features_table</h3>
+  <div class="sig"><code>_build_cwt_features_table(peaks: list, troughs: list) -> str</code></div>
+  <p>Build a compact Markdown table of all CWT-detected features with columns: wavelength, wavelength error, amplitude, FWHM (Angstroms), FWHM (km/s), ridge length, and SNR. Emission and absorption features are listed in separate subsections.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>peaks</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected emission peak dicts</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected absorption trough dicts</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>table</td><td><code>str</code></td><td>Formatted Markdown table with CWT feature details</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_predictions_section">
+  <h3>_build_predictions_section</h3>
+  <div class="sig"><code>_build_predictions_section(redshift: float, z_min: float, z_max: float, wl_min: float, wl_max: float, peaks: list, troughs: list, masked_regions: list | None = None) -> str</code></div>
+  <p>Pre-compute predicted lines and cross-reference with CWT-detected features using the z-verification window for each line. Computes observed wavelengths from emission and absorption line atlases, filters by observed range, appends nearby CWT feature references and mask overlap annotations, and sorts by observed wavelength.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>—</td><td>Central redshift hypothesis</td></tr>
+    <tr><td><code>z_min</code></td><td><code>float</code></td><td>—</td><td>Lower bound of verification window</td></tr>
+    <tr><td><code>z_max</code></td><td><code>float</code></td><td>—</td><td>Upper bound of verification window</td></tr>
+    <tr><td><code>wl_min</code></td><td><code>float</code></td><td>—</td><td>Minimum observed wavelength; lines below this are excluded</td></tr>
+    <tr><td><code>wl_max</code></td><td><code>float</code></td><td>—</td><td>Maximum observed wavelength; lines above this are excluded</td></tr>
+    <tr><td><code>peaks</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected emission peak dicts</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list</code></td><td>—</td><td>List of CWT-detected absorption trough dicts</td></tr>
+    <tr><td><code>masked_regions</code></td><td><code>list | None</code></td><td><code>None</code></td><td>Optional list of [start, end] masked wavelength regions</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Formatted Markdown section with predicted lines table and cross-references</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_user_message">
+  <h3>_build_user_message</h3>
+  <div class="sig"><code>_build_user_message(redshift: float, fits_path: str, npz_path: str, *, mode="nomad", wavelength_min=None, wavelength_max=None, snr_median=None, peaks=None, troughs=None, z_min=None, z_max=None, masked_regions=None, report_path=None, csv_path=None) -> str</code></div>
+  <p>Build the complete user message sent to the LLM agent. Assembles the spectrum summary (wavelength range, median SNR, masked regions), CWT features table, predicted lines section with cross-references, mode-specific instructions (redrock fitting tools and doublet guidelines), and workflow directives.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>—</td><td>Central redshift hypothesis to verify</td></tr>
+    <tr><td><code>fits_path</code></td><td><code>str</code></td><td>—</td><td>Path to original FITS file (for context)</td></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to cleaned spectrum .npz file</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Verification mode: <code>"nomad"</code> or <code>"redrock"</code></td></tr>
+    <tr><td><code>wavelength_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Minimum observed wavelength for line filtering</td></tr>
+    <tr><td><code>wavelength_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Maximum observed wavelength for line filtering</td></tr>
+    <tr><td><code>snr_median</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Median SNR of the spectrum (included in summary if provided)</td></tr>
+    <tr><td><code>peaks</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected emission peaks</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected absorption troughs</td></tr>
+    <tr><td><code>z_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Lower verification window bound; defaults to redshift - 0.1</td></tr>
+    <tr><td><code>z_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Upper verification window bound; defaults to redshift + 0.1</td></tr>
+    <tr><td><code>masked_regions</code></td><td><code>list | None</code></td><td><code>None</code></td><td>List of [start, end] masked wavelength regions</td></tr>
+    <tr><td><code>report_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the LLM report file</td></tr>
+    <tr><td><code>csv_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the line CSV file</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>message</td><td><code>str</code></td><td>Complete user prompt with spectrum summary, CWT features table, predicted lines, and mode-specific instructions</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Public API</h2>
+
+<div class="func-block" id="run">
+  <h3>run</h3>
+  <div class="sig"><code>run(fits_path: str, redshift: float, npz_path: str, *, mode="nomad", hypothesis_idx=0, wavelength_min=None, wavelength_max=None, snr_median=None, peaks=None, troughs=None, z_min=None, z_max=None, masked_regions=None, report_path=None, csv_path=None, model=None, api_key=None, base_url=None, temperature=0.1, max_turns=500, verbose=False) -> dict</code></div>
+  <p>Synchronous entry point. Creates the LLM agent with the appropriate skill prompt and tools, builds the user message, invokes the agent with HTTP-level retry and truncation continuation, then extracts the structured JSON output and concatenated report from the full message history.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>fits_path</code></td><td><code>str</code></td><td>—</td><td>Path to the original FITS file (used for context / metadata)</td></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>—</td><td>Central redshift hypothesis to test</td></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum .npz (wavelength, flux, SNR arrays)</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Verification mode; <code>"nomad"</code> (CWT-only) or <code>"redrock"</code> (plus fitting tools)</td></tr>
+    <tr><td><code>hypothesis_idx</code></td><td><code>int</code></td><td><code>0</code></td><td>Hypothesis index for tracking in batch runs</td></tr>
+    <tr><td><code>wavelength_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Minimum observed wavelength for line filtering</td></tr>
+    <tr><td><code>wavelength_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Maximum observed wavelength for line filtering</td></tr>
+    <tr><td><code>snr_median</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Median SNR of the spectrum</td></tr>
+    <tr><td><code>peaks</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected emission peaks</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected absorption troughs</td></tr>
+    <tr><td><code>z_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Lower verification window; defaults to redshift - 0.1</td></tr>
+    <tr><td><code>z_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Upper verification window; defaults to redshift + 0.1</td></tr>
+    <tr><td><code>masked_regions</code></td><td><code>list | None</code></td><td><code>None</code></td><td>List of [start, end] masked wavelength ranges</td></tr>
+    <tr><td><code>report_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the LLM report file</td></tr>
+    <tr><td><code>csv_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the line CSV file</td></tr>
+    <tr><td><code>model</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Model name; defaults to <code>LLM_MODEL</code> env var or <code>"deepseek-v4-pro"</code></td></tr>
+    <tr><td><code>api_key</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API key; defaults to <code>LLM_API_KEY</code> env var</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API base URL; defaults to <code>LLM_BASE_URL</code> env var or DeepSeek endpoint</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.1</code></td><td>LLM temperature for generation</td></tr>
+    <tr><td><code>max_turns</code></td><td><code>int</code></td><td><code>500</code></td><td>Maximum agent turns (recursion limit for LangGraph agent)</td></tr>
+    <tr><td><code>verbose</code></td><td><code>bool</code></td><td><code>False</code></td><td>If <code>True</code>, enables DEBUG-level logging</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Dictionary with keys: <code>hypothesis_idx</code> (int), <code>redshift</code> (float), <code>report</code> (str), <code>structured_output</code> (dict | None), <code>feature_catalog</code> (list), <code>messages</code> (list)</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="arun">
+  <h3>arun</h3>
+  <div class="sig"><code>async arun(fits_path: str, redshift: float, npz_path: str, *, mode="nomad", hypothesis_idx=0, wavelength_min=None, wavelength_max=None, snr_median=None, peaks=None, troughs=None, z_min=None, z_max=None, masked_regions=None, report_path=None, csv_path=None, model=None, api_key=None, base_url=None, temperature=0.1, max_turns=100, verbose=False, stream_md_path=None) -> dict</code></div>
+  <p>Async entry point with optional streaming support. Behaves identically to <code>run</code> but supports a <code>stream_md_path</code> parameter: if set, streams the full conversation (system prompt, every LLM turn, tool calls, tool results) to a Markdown file in real time using <code>agent.astream</code> with <code>stream_mode="updates"</code>. HTTP retry and truncation continuation are handled identically to the sync path. When not streaming, uses <code>agent.ainvoke</code> as the async counterpart of <code>agent.invoke</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>fits_path</code></td><td><code>str</code></td><td>—</td><td>Path to the original FITS file</td></tr>
+    <tr><td><code>redshift</code></td><td><code>float</code></td><td>—</td><td>Central redshift hypothesis to test</td></tr>
+    <tr><td><code>npz_path</code></td><td><code>str</code></td><td>—</td><td>Path to the cleaned spectrum .npz</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>"nomad"</code></td><td>Verification mode; <code>"nomad"</code> or <code>"redrock"</code></td></tr>
+    <tr><td><code>hypothesis_idx</code></td><td><code>int</code></td><td><code>0</code></td><td>Hypothesis index for batch tracking</td></tr>
+    <tr><td><code>wavelength_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Minimum observed wavelength</td></tr>
+    <tr><td><code>wavelength_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Maximum observed wavelength</td></tr>
+    <tr><td><code>snr_median</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Median SNR of the spectrum</td></tr>
+    <tr><td><code>peaks</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected emission peaks</td></tr>
+    <tr><td><code>troughs</code></td><td><code>list | None</code></td><td><code>None</code></td><td>CWT-detected absorption troughs</td></tr>
+    <tr><td><code>z_min</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Lower verification window; defaults to redshift - 0.1</td></tr>
+    <tr><td><code>z_max</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Upper verification window; defaults to redshift + 0.1</td></tr>
+    <tr><td><code>masked_regions</code></td><td><code>list | None</code></td><td><code>None</code></td><td>List of [start, end] masked wavelength ranges</td></tr>
+    <tr><td><code>report_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the LLM report</td></tr>
+    <tr><td><code>csv_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the line CSV</td></tr>
+    <tr><td><code>model</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Model name; defaults to <code>LLM_MODEL</code> env var</td></tr>
+    <tr><td><code>api_key</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API key; defaults to <code>LLM_API_KEY</code> env var</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API base URL; defaults to <code>LLM_BASE_URL</code> env var</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.1</code></td><td>LLM temperature</td></tr>
+    <tr><td><code>max_turns</code></td><td><code>int</code></td><td><code>100</code></td><td>Maximum agent turns (recursion limit)</td></tr>
+    <tr><td><code>verbose</code></td><td><code>bool</code></td><td><code>False</code></td><td>If <code>True</code>, enables DEBUG-level logging</td></tr>
+    <tr><td><code>stream_md_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>If set, streams the full conversation to this .md file in real time</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>result</td><td><code>dict</code></td><td>Dictionary with keys: <code>hypothesis_idx</code> (int), <code>redshift</code> (float), <code>report</code> (str), <code>structured_output</code> (dict | None), <code>feature_catalog</code> (list), <code>messages</code> (list)</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="main">
+  <h3>main</h3>
+  <div class="sig"><code>main()</code></div>
+  <p>CLI entry point. Parses command-line arguments with argparse: positional <code>fits_path</code> and <code>redshift</code>, required <code>--npz</code>, optional <code>--model</code>, <code>--json</code> (output structured JSON only), and <code>--verbose</code>/<code>-v</code>. Calls <code>run()</code> synchronously and prints the report or JSON output to stdout.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td colspan="4">(no function parameters — reads CLI arguments via argparse)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>—</td><td>—</td><td>Prints report or JSON to stdout; no return value</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="hypothesis_synthesis.html">hypothesis_synthesis &rarr;</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-07-03</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_is_retryable','_resolve_max_tokens','_load_skill','_build_tools','_extract_json_block','_mask_overlap_label','_find_nearby_features','_build_cwt_features_table','_build_predictions_section','_build_user_message','run','arun','main'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "verdict": "NEEDS_REVISION",
+  "calibrated_confidence": "LOW",
+  "spectrum_quality": "high-quality",
+  "has_real_peak": true,
+  "confirmed_lines": [
+    [
+      "C IV",
+      6072.8
+    ],
+    [
+      "C III]",
+      7479.2
+    ]
+  ],
+  "line_revisions": [
+    {
+      "line": "Lyα",
+      "action": "FLAG",
+      "reason": "Lyα is NOT_FOUND at 4767.3 Å — well within the observable range. Spectrum read confirms no Lyα emission or Lyα forest. This is a fatal problem for Type 1 QSO classification per kb/classification.md."
+    }
+  ],
+  "spectrum_issues": [
+    "Fatal: Lyα missing at 4767.3 Å (within observable range) — Type 1 QSO classification is physically unsupported",
+    "Only 2/7 verified features explained (29%) — 4 unexplained features are visually real and strong (3932.8 deep absorption, 4266.4 narrow emission, 4280.0 deep absorption, 7714.4 narrow emission)",
+    "The 4266.4/4280.0 spike-valley pair and 3932.8 deep absorption (flux drops to 0.017) are major spectral features in clean parts of the spectrum that demand explanation",
+    "Line inventory is extremely sparse for a claimed QSO at z=2.92 — only 2 broad lines with no supporting diagnostics"
+  ],
+  "reobserve": false,
+  "reobserve_reason": null
+}

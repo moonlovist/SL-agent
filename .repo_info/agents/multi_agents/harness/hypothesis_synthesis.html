@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hypothesis_synthesis — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_resolve_max_tokens" class="sidebar-link sidebar-sublink" data-label="_resolve_max_tokens()">_resolve_max_tokens</a>
+      <a href="#_load_skill" class="sidebar-link sidebar-sublink" data-label="_load_skill()">_load_skill</a>
+      <a href="#_extract_json_block" class="sidebar-link sidebar-sublink" data-label="_extract_json_block()">_extract_json_block</a>
+      <a href="#_clean_rec" class="sidebar-link sidebar-sublink" data-label="_clean_rec()">_clean_rec</a>
+      <a href="#_build_feature_audit_summary" class="sidebar-link sidebar-sublink" data-label="_build_feature_audit_summary()">_build_feature_audit_summary</a>
+      <a href="#_filter_contradiction_matrix" class="sidebar-link sidebar-sublink" data-label="_filter_contradiction_matrix()">_filter_contradiction_matrix</a>
+      <a href="#_build_verified_matrix_section" class="sidebar-link sidebar-sublink" data-label="_build_verified_matrix_section()">_build_verified_matrix_section</a>
+      <a href="#_build_surviving_doublets_section" class="sidebar-link sidebar-sublink" data-label="_build_surviving_doublets_section()">_build_surviving_doublets_section</a>
+      <a href="#_build_oii_morphology_section" class="sidebar-link sidebar-sublink" data-label="_build_oii_morphology_section()">_build_oii_morphology_section</a>
+      <a href="#_build_lyalpha_forest_section" class="sidebar-link sidebar-sublink" data-label="_build_lyalpha_forest_section()">_build_lyalpha_forest_section</a>
+      <a href="#_build_composite_profile_section" class="sidebar-link sidebar-sublink" data-label="_build_composite_profile_section()">_build_composite_profile_section</a>
+      <a href="#_build_verified_task" class="sidebar-link sidebar-sublink" data-label="_build_verified_task()">_build_verified_task</a>
+      <a href="#_build_user_message" class="sidebar-link sidebar-sublink" data-label="_build_user_message()">_build_user_message</a>
+      <a href="#arun" class="sidebar-link sidebar-sublink" data-label="arun()">arun</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#harness">Harness</a> / hypothesis_synthesis
+</div>
+
+<h1><span class="section-label">Harness</span>hypothesis_synthesis</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/harness/hypothesis_synthesis.py</code></p>
+  <p>LLM-driven redshift hypothesis synthesis. Cross-compares multiple harness reports (one per redshift hypothesis), optionally reads raw spectrum regions, and delivers a final combined verdict. This is Phase 2 of the HypothesisAnalyst pipeline (Phase 1 = per-hypothesis runs via <code>single_hypothesis.py</code>).</p>
+  <p><strong>Dependencies:</strong> <a href="tools.html">tools</a> &middot; <a href="continuation.html">continuation</a> &middot; <a href="../utils/HA.html">HA</a> &middot; <a href="../AnalysisAuditor.html">AnalysisAuditor</a></p>
+  <div class="tag-row"><span class="tag">harness</span> <span class="tag">LLM agent</span> <span class="tag">synthesis</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_resolve_max_tokens">_resolve_max_tokens()</a></li>
+  <li><a href="#_load_skill">_load_skill()</a></li>
+  <li><a href="#_extract_json_block">_extract_json_block(text)</a></li>
+  <li><a href="#_clean_rec">_clean_rec(rec)</a></li>
+  <li><a href="#_build_feature_audit_summary">_build_feature_audit_summary(feature_audit_verdict)</a></li>
+  <li><a href="#_filter_contradiction_matrix">_filter_contradiction_matrix(...)</a></li>
+  <li><a href="#_build_verified_matrix_section">_build_verified_matrix_section(matrix_rows, stats, harness_results)</a></li>
+  <li><a href="#_build_surviving_doublets_section">_build_surviving_doublets_section(doublet_annotations, ...)</a></li>
+  <li><a href="#_build_oii_morphology_section">_build_oii_morphology_section(feature_audit_verdict)</a></li>
+  <li><a href="#_build_lyalpha_forest_section">_build_lyalpha_forest_section(feature_audit_verdict)</a></li>
+  <li><a href="#_build_composite_profile_section">_build_composite_profile_section(feature_audit_verdict)</a></li>
+  <li><a href="#_build_verified_task">_build_verified_task(surviving=True)</a></li>
+  <li><a href="#_build_user_message">_build_user_message(...)</a></li>
+  <li><a href="#arun">arun(...) &mdash; async</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Helpers</h2>
+
+<div class="func-block" id="_resolve_max_tokens">
+  <h3>_resolve_max_tokens</h3>
+  <div class="sig"><code>_resolve_max_tokens() -> int | None</code></div>
+  <p>Resolve <code>max_tokens</code> from environment variable <code>LLM_MAX_TOKENS</code>. When the env var is empty / unset and the provider is DeepSeek, defaults to the maximum supported value (65 536) to minimise output truncation.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>max_tokens</td><td><code>int | None</code></td><td>Resolved token limit, or <code>None</code> if not configured and not DeepSeek</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_load_skill">
+  <h3>_load_skill</h3>
+  <div class="sig"><code>_load_skill() -> str</code></div>
+  <p>Load the hypothesis synthesis skill prompt from <code>skills/HypothesisAnalyst/hypothesis_synthesis_skill.md</code>. The skill equips the LLM with a cross-comparison methodology and step-by-step synthesis instructions.</p>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>content</td><td><code>str</code></td><td>Raw markdown content of the skill prompt file</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_extract_json_block">
+  <h3>_extract_json_block</h3>
+  <div class="sig"><code>_extract_json_block(text: str) -> dict | None</code></div>
+  <p>Extract the final JSON verdict block from the LLM response. First attempts a fenced <code>```json ... ```</code> block, then falls back to a bare <code>{...}</code> containing a <code>"redshift"</code> key at the end of the text.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>text</code></td><td><code>str</code></td><td>&mdash;</td><td>Raw LLM response text</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>verdict</td><td><code>dict | None</code></td><td>Parsed JSON verdict dict, or <code>None</code> if extraction fails</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_clean_rec">
+  <h3>_clean_rec</h3>
+  <div class="sig"><code>_clean_rec(rec: str) -> str</code></div>
+  <p>Normalise an LLM-generated recommendation string. Strips surrounding quotes or backticks and uppercases the result. Used to canonicalise KEEP / REMOVE / FLAG recommendations from the FeatureAuditor verdict.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>rec</code></td><td><code>str</code></td><td>&mdash;</td><td>Raw recommendation string from LLM verdict</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>cleaned</td><td><code>str</code></td><td>Normalised uppercase recommendation (<code>KEEP</code>, <code>REMOVE</code>, or <code>FLAG</code>)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Feature Audit Section Builders</h2>
+
+<div class="func-block" id="_build_feature_audit_summary">
+  <h3>_build_feature_audit_summary</h3>
+  <div class="sig"><code>_build_feature_audit_summary(feature_audit_verdict: dict) -> str</code></div>
+  <p>Build a &quot;Feature Audit Results&quot; section from the FeatureAuditor verdict. Shows spectrum quality, KEEP / REMOVE / FLAG counts, REMOVED list with reasons, FLAGGED list with concerns, and global issues.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict JSON with <code>feature_verdicts</code>, <code>spectrum_quality</code>, <code>spectrum_quality_justification</code>, and <code>global_issues</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or empty string if no verdicts present</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_filter_contradiction_matrix">
+  <h3>_filter_contradiction_matrix</h3>
+  <div class="sig"><code>_filter_contradiction_matrix(matrix_rows: list, doublet_annotations: list, stats: dict, feature_audit_verdict: dict) -> tuple</code></div>
+  <p>Filter the contradiction matrix and doublet annotations to keep only KEEP + FLAG features. Augments surviving rows with <code>confidence</code>, <code>issues</code>, and <code>is_flagged</code> from the verdict, annotates doublet components with per-component FA status, and recomputes statistics (n_rows, median_amplitude, top_quartile_amplitude, n_removed, etc.) for the filtered set.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>matrix_rows</code></td><td><code>list</code></td><td>&mdash;</td><td>Full contradiction matrix rows from <code>build_contradiction_matrix</code></td></tr>
+    <tr><td><code>doublet_annotations</code></td><td><code>list</code></td><td>&mdash;</td><td>Full doublet annotation list (complete pairs and orphans)</td></tr>
+    <tr><td><code>stats</code></td><td><code>dict</code></td><td>&mdash;</td><td>Full contradiction statistics dict with <code>hypothesis_indices</code></td></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict JSON with <code>feature_verdicts</code></td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>filtered_rows</td><td><code>list</code></td><td>Surviving matrix rows (KEEP + FLAG only)</td></tr>
+    <tr><td>filtered_doublets</td><td><code>list</code></td><td>Doublet annotations with per-component FA status annotations</td></tr>
+    <tr><td>filtered_stats</td><td><code>dict</code></td><td>Recomputed statistics for the filtered feature set</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_verified_matrix_section">
+  <h3>_build_verified_matrix_section</h3>
+  <div class="sig"><code>_build_verified_matrix_section(matrix_rows: list, stats: dict, harness_results: list) -> str</code></div>
+  <p>Build a &quot;Verified Feature Contradiction Matrix&quot; section using the same <code>|lambda_obs|Type|Amp|Width|...|</code> format as the FeatureAuditor matrix, with an added Confidence column. Shows only surviving (KEEP + FLAG) features with edge-zone markers (blue/red) and flagged warnings.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>matrix_rows</code></td><td><code>list</code></td><td>&mdash;</td><td>Filtered matrix rows from <code>_filter_contradiction_matrix</code></td></tr>
+    <tr><td><code>stats</code></td><td><code>dict</code></td><td>&mdash;</td><td>Filtered statistics with <code>n_rows</code>, <code>n_removed</code>, <code>hypothesis_indices</code></td></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>&mdash;</td><td>Per-hypothesis harness results for redshift label lookup</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or fallback message if no surviving features</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_surviving_doublets_section">
+  <h3>_build_surviving_doublets_section</h3>
+  <div class="sig"><code>_build_surviving_doublets_section(doublet_annotations: list, feature_audit_verdict: dict | None = None) -> str</code></div>
+  <p>Build a &quot;Surviving Doublets&quot; section showing doublet pairs and orphans. Merges pre-computed separation / ratio data with FeatureAuditor&apos;s visual verification from <code>doublet_verdicts</code>. Components removed by FA are displayed with strikethrough and noted.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>doublet_annotations</code></td><td><code>list</code></td><td>&mdash;</td><td>Doublet annotations with per-component FA status</td></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict | None</code></td><td><code>None</code></td><td>FeatureAuditor verdict with <code>doublet_verdicts</code> for ratio verification</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or empty string if no doublets exist</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>FA Morphology Forwarders</h2>
+
+<div class="func-block" id="_build_oii_morphology_section">
+  <h3>_build_oii_morphology_section</h3>
+  <div class="sig"><code>_build_oii_morphology_section(feature_audit_verdict: dict) -> str</code></div>
+  <p>Build an &quot;O II Morphology Results (from FeatureAuditor)&quot; section. Forwards FA&apos;s slope-change test results so the Synthesis agent can reference them without re-calling <code>detect_oii_slope_change</code>. Includes detected status, signature type, dip ratio, FWHM, and peak prominence per hypothesis.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict with <code>oii_morphology_verdicts</code> list</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or empty string if no verdicts present</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_lyalpha_forest_section">
+  <h3>_build_lyalpha_forest_section</h3>
+  <div class="sig"><code>_build_lyalpha_forest_section(feature_audit_verdict: dict) -> str</code></div>
+  <p>Build a &quot;Ly-alpha Forest Results (from FeatureAuditor)&quot; section. Forwards FA&apos;s Ly-alpha forest assessment so the Synthesis agent does not need to re-read +/-300 Angstrom around every Ly-alpha claim. Includes forest visibility, observability, and DLA detection per hypothesis.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict with <code>lyalpha_forest_verdicts</code> list</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or empty string if no verdicts present</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_composite_profile_section">
+  <h3>_build_composite_profile_section</h3>
+  <div class="sig"><code>_build_composite_profile_section(feature_audit_verdict: dict) -> str</code></div>
+  <p>Build a &quot;Composite Profile Results (from FeatureAuditor)&quot; section. Forwards FA&apos;s emission-absorption composite profile verdicts for co-located features of the same species, including morphology classification and notes.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict with <code>composite_profile_verdicts</code> list</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>section</td><td><code>str</code></td><td>Markdown section string, or empty string if no verdicts present</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Task &amp; Prompt Builders</h2>
+
+<div class="func-block" id="_build_verified_task">
+  <h3>_build_verified_task</h3>
+  <div class="sig"><code>_build_verified_task(surviving: bool = True) -> str</code></div>
+  <p>Construct task instructions for the post-FeatureAuditor synthesis path. When surviving features exist, guides the LLM through Phase 1 (review verified features), Phase 2 (targeted spectrum investigation), and Phases 3-4 (CSV/report/verdict). When no features survive, instructs the LLM to deliver a null redshift verdict directly.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>surviving</code></td><td><code>bool</code></td><td><code>True</code></td><td>Whether any features survived FeatureAuditor filtering</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>instructions</td><td><code>str</code></td><td>Markdown task instructions for the LLM synthesis agent</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_build_user_message">
+  <h3>_build_user_message</h3>
+  <div class="sig"><code>_build_user_message(harness_results: list, harness_dir: str, wl: ndarray, fl: ndarray, feature_audit_verdict: dict, snr: ndarray | None = None, summaries: list[str] | None = None, mode: str = &quot;nomad&quot;, report_path: str | None = None, csv_path: str | None = None) -> str</code></div>
+  <p>Build the full user prompt sent to the LLM, including spectrum metadata, per-hypothesis harness report summaries, pre-computed Dn4000 diagnostics, FeatureAuditor results (feature audit summary, verified contradiction matrix, surviving doublets, O II morphology, Ly-alpha forest, composite profiles), per-hypothesis full line tables, and the task instructions.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>&mdash;</td><td>Per-hypothesis harness results with <code>hypothesis_idx</code>, <code>redshift</code>, <code>report</code>, <code>structured_output</code></td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>&mdash;</td><td>Directory containing per-hypothesis output files</td></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray</code></td><td>&mdash;</td><td>Wavelength array for the spectrum</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray</code></td><td>&mdash;</td><td>Flux array for the spectrum</td></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict JSON (or empty verdict if None)</td></tr>
+    <tr><td><code>snr</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>SNR-per-pixel array; used for median SNR statistic</td></tr>
+    <tr><td><code>summaries</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Pre-built markdown summaries (one per hypothesis); built on the fly if None</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>&quot;nomad&quot;</code></td><td><code>&quot;nomad&quot;</code> or <code>&quot;redrock&quot;</code>; affects notes on fit-derived measurements</td></tr>
+    <tr><td><code>report_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the synthesis report (included in prompt)</td></tr>
+    <tr><td><code>csv_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the synthesis CSV (included in prompt)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>prompt</td><td><code>str</code></td><td>Complete user prompt with spectrum metadata, all reports, FA results, and task</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Public API</h2>
+
+<div class="func-block" id="arun">
+  <h3>arun</h3>
+  <div class="sig"><code>async arun(harness_results: list, wl: ndarray, fl: ndarray, harness_dir: str, *, snr: ndarray | None = None, model: str | None = None, api_key: str | None = None, base_url: str | None = None, temperature: float = 0.1, max_turns: int = 150, stream_md_path: str | None = None, summaries: list[str] | None = None, mode: str = &quot;nomad&quot;, report_path: str | None = None, csv_path: str | None = None, feature_audit_verdict: dict) -> dict</code></div>
+  <p>Main entry point. Runs the LLM synthesis agent over multiple harness reports. Loads the skill prompt, builds the user message with FeatureAuditor results, constructs an agent with <code>read_spectrum_region</code>, <code>grep_kb</code>, <code>write_report</code>, and <code>write_synthesis_csv</code> tools, and executes the agent. Supports a streaming mode that writes the full conversation (system prompt, every LLM turn, tool calls, tool results) to a markdown file in real time. Detects truncation and runs continuation loops to gather partial responses. Parses the final JSON verdict block from the accumulated LLM output.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>harness_results</code></td><td><code>list</code></td><td>&mdash;</td><td>Results from per-hypothesis harness runs. Each dict has keys: hypothesis_idx, redshift, report, structured_output, feature_catalog, and optionally error</td></tr>
+    <tr><td><code>wl</code></td><td><code>ndarray</code></td><td>&mdash;</td><td>Wavelength array for the spectrum</td></tr>
+    <tr><td><code>fl</code></td><td><code>ndarray</code></td><td>&mdash;</td><td>Flux array for the spectrum</td></tr>
+    <tr><td><code>harness_dir</code></td><td><code>str</code></td><td>&mdash;</td><td>Directory containing per-hypothesis <code>{idx}_report.md</code> files (fallback if report text not in harness_results)</td></tr>
+    <tr><td><code>snr</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>SNR array; used for median SNR line in the user prompt</td></tr>
+    <tr><td><code>model</code></td><td><code>str | None</code></td><td><code>None</code></td><td>LLM model name; defaults to <code>LLM_MODEL</code> env var or <code>&quot;deepseek-v4-pro&quot;</code></td></tr>
+    <tr><td><code>api_key</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API key; defaults to <code>LLM_API_KEY</code> env var</td></tr>
+    <tr><td><code>base_url</code></td><td><code>str | None</code></td><td><code>None</code></td><td>API base URL; defaults to <code>LLM_BASE_URL</code> env var or DeepSeek endpoint</td></tr>
+    <tr><td><code>temperature</code></td><td><code>float</code></td><td><code>0.1</code></td><td>LLM temperature</td></tr>
+    <tr><td><code>max_turns</code></td><td><code>int</code></td><td><code>150</code></td><td>Maximum agent turns / recursion limit</td></tr>
+    <tr><td><code>stream_md_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>If set, stream the full conversation (system prompt + all LLM turns + tool calls + results) to this .md file in real time</td></tr>
+    <tr><td><code>summaries</code></td><td><code>list[str] | None</code></td><td><code>None</code></td><td>Pre-built markdown summaries (one per hypothesis); built via <code>extract_harness_summary</code> if None</td></tr>
+    <tr><td><code>mode</code></td><td><code>str</code></td><td><code>&quot;nomad&quot;</code></td><td><code>&quot;nomad&quot;</code> or <code>&quot;redrock&quot;</code>; controls mode-specific notes in the prompt</td></tr>
+    <tr><td><code>report_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the synthesis report markdown</td></tr>
+    <tr><td><code>csv_path</code></td><td><code>str | None</code></td><td><code>None</code></td><td>Output path for the synthesis CSV</td></tr>
+    <tr><td><code>feature_audit_verdict</code></td><td><code>dict</code></td><td>&mdash;</td><td>FeatureAuditor verdict JSON (keyword-only, required)</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>verdict</td><td><code>dict</code></td><td>Parsed synthesis verdict with keys: redshift, anchor_line, anchor_wavelength, wavelength_error, classification, confidence, best_hypothesis_idx, primary_evidence, excluded_hypotheses, caveats. On failure, returns a fallback dict with null redshift and LOW confidence.</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_resolve_max_tokens','_load_skill','_extract_json_block','_clean_rec','_build_feature_audit_summary','_filter_contradiction_matrix','_build_verified_matrix_section','_build_surviving_doublets_section','_build_oii_morphology_section','_build_lyalpha_forest_section','_build_composite_profile_section','_build_verified_task','_build_user_message','arun'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

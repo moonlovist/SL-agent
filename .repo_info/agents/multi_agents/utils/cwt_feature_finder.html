@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cwt_feature_finder — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#_local_noise_mad" class="sidebar-link sidebar-sublink" data-label="_local_noise_mad()">_local_noise_mad</a>
+      <a href="#_cwt_ridge_detection" class="sidebar-link sidebar-sublink" data-label="_cwt_ridge_detection()">_cwt_ridge_detection</a>
+      <a href="#find_features_cwt" class="sidebar-link sidebar-sublink" data-label="find_features_cwt()">find_features_cwt</a>
+      <a href="#run_cwt_feature_detection" class="sidebar-link sidebar-sublink" data-label="run_cwt_feature_detection()">run_cwt_feature_detection</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../../index.html">Home</a> / <a href="../../../index.html#utils">Utils</a> / cwt_feature_finder
+</div>
+
+<h1><span class="section-label">Utils</span>cwt_feature_finder.py</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/multi_agents/utils/cwt_feature_finder.py</code></p>
+  <p>CWT-based feature detector using Ricker (Mexican hat) wavelet. Multi-scale ridge detection identifies emission peaks and absorption troughs that persist across wavelet scales, with local MAD noise estimation for robust SNR thresholding.</p>
+  <div class="tag-row"><span class="tag">utils</span> <span class="tag">CWT</span> <span class="tag">feature-detection</span> <span class="tag">Ricker</span> <span class="tag">signal-processing</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#_local_noise_mad">_local_noise_mad(signal, half_window=50)</a></li>
+  <li><a href="#_cwt_ridge_detection">_cwt_ridge_detection(signal, wavelength, scales, ...)</a></li>
+  <li><a href="#find_features_cwt">find_features_cwt(wavelength, flux, ...)</a></li>
+  <li><a href="#run_cwt_feature_detection">run_cwt_feature_detection(output_dir, file_name, ...)</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2>Internal Helpers</h2>
+
+<div class="func-block" id="_local_noise_mad">
+  <h3>_local_noise_mad</h3>
+  <div class="sig"><code>_local_noise_mad(signal, half_window=50) -> ndarray</code></div>
+  <p>Sliding-window MAD (Median Absolute Deviation) noise estimate, robust against spectral line features. Computes a per-pixel noise estimate by taking the MAD within a ±half_window sliding window.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>signal</code></td><td><code>ndarray</code></td><td>—</td><td>1-D input signal (typically flux or residual)</td></tr>
+    <tr><td><code>half_window</code></td><td><code>int</code></td><td><code>50</code></td><td>Half-width of sliding window in pixels</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>noise</td><td><code>ndarray</code></td><td>Per-pixel noise estimate, same length as input</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_cwt_ridge_detection">
+  <h3>_cwt_ridge_detection</h3>
+  <div class="sig"><code>_cwt_ridge_detection(signal, wavelength, scales, snr_thresh=5.0, min_ridge_length=2, tol_pix=10) -> (list[dict], list[dict])</code></div>
+  <p>Multi-scale ridge line detection in CWT coefficient space. At each scale, detects local maxima (emission) and minima (absorption) in the wavelet coefficient array, then links them across scales into ridge lines. A ridge must span at least <code>min_ridge_length</code> scales. Ridges within <code>tol_pix</code> pixels across scales are linked.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>signal</code></td><td><code>ndarray</code></td><td>—</td><td>1-D input signal (continuum-subtracted flux)</td></tr>
+    <tr><td><code>wavelength</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>scales</code></td><td><code>ndarray</code></td><td>—</td><td>CWT scale array (controls feature width sensitivity)</td></tr>
+    <tr><td><code>snr_thresh</code></td><td><code>float</code></td><td><code>5.0</code></td><td>SNR threshold for ridge detection at each scale</td></tr>
+    <tr><td><code>min_ridge_length</code></td><td><code>int</code></td><td><code>2</code></td><td>Minimum number of scales a ridge must span</td></tr>
+    <tr><td><code>tol_pix</code></td><td><code>int</code></td><td><code>10</code></td><td>Pixel tolerance for linking ridges across adjacent scales</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(peaks, troughs)</td><td><code>(list[dict], list[dict])</code></td><td>Detected ridge features with wavelength, scale_range, snr, amplitude</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Public API</h2>
+
+<div class="func-block" id="find_features_cwt">
+  <h3>find_features_cwt</h3>
+  <div class="sig"><code>find_features_cwt(wavelength, flux, snr_thresh=5.0, min_ridge_length=2, n_scales=24, min_scale=1.0, max_scale=80.0, verbose=True) -> (DataFrame, DataFrame)</code></div>
+  <p>Main entry point for CWT feature detection. Computes the Ricker wavelet transform across <code>n_scales</code> scales, detects ridge lines in scale-space, classifies them as emission (positive CWT coefficients) or absorption (negative), estimates local noise via MAD, and returns DataFrames with wavelength, amplitude, SNR, and scale range for each detected feature.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>wavelength</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>flux</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values (typically continuum-subtracted)</td></tr>
+    <tr><td><code>snr_thresh</code></td><td><code>float</code></td><td><code>5.0</code></td><td>SNR threshold for ridge detection</td></tr>
+    <tr><td><code>min_ridge_length</code></td><td><code>int</code></td><td><code>2</code></td><td>Minimum ridge length in scale steps</td></tr>
+    <tr><td><code>n_scales</code></td><td><code>int</code></td><td><code>24</code></td><td>Number of CWT scales (log-spaced)</td></tr>
+    <tr><td><code>min_scale</code></td><td><code>float</code></td><td><code>1.0</code></td><td>Minimum CWT scale in pixels</td></tr>
+    <tr><td><code>max_scale</code></td><td><code>float</code></td><td><code>80.0</code></td><td>Maximum CWT scale in pixels</td></tr>
+    <tr><td><code>verbose</code></td><td><code>bool</code></td><td><code>True</code></td><td>Print detection summary statistics</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(peaks_df, troughs_df)</td><td><code>(DataFrame, DataFrame)</code></td><td>Detected emission peaks and absorption troughs with wavelength, amplitude, SNR, scale_range</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="run_cwt_feature_detection">
+  <h3>run_cwt_feature_detection</h3>
+  <div class="sig"><code>run_cwt_feature_detection(output_dir, file_name, wavelength, flux, ivar=None, effective_snr=None, ...) -> (DataFrame, DataFrame)</code></div>
+  <p>High-level runner. Computes continuum-subtracted residual, calls <code>find_features_cwt</code>, saves results as CSV (<code>{file_name}_cwt_peaks.csv</code>, <code>{file_name}_cwt_troughs.csv</code>), and returns the feature DataFrames.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>str</code></td><td>—</td><td>Directory for output CSV files</td></tr>
+    <tr><td><code>file_name</code></td><td><code>str</code></td><td>—</td><td>Base file name for output CSVs</td></tr>
+    <tr><td><code>wavelength</code></td><td><code>ndarray</code></td><td>—</td><td>Wavelength grid</td></tr>
+    <tr><td><code>flux</code></td><td><code>ndarray</code></td><td>—</td><td>Flux values</td></tr>
+    <tr><td><code>ivar</code></td><td><code>ndarray | None</code></td><td><code>None</code></td><td>Inverse variance for weighting</td></tr>
+    <tr><td><code>effective_snr</code></td><td><code>float | None</code></td><td><code>None</code></td><td>Pre-computed SNR; estimated from data if None</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>(peaks_df, troughs_df)</td><td><code>(DataFrame, DataFrame)</code></td><td>Saved as CSV + returned for downstream use</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),
+subIds=['contents','_local_noise_mad','_cwt_ridge_detection','find_features_cwt','run_cwt_feature_detection'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

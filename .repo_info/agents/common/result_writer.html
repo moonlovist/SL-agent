@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResultWriter — LLM-Spectro-Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../common.css">
+</head>
+<body>
+<nav class="sidebar" id="sidebar">
+  <a href="#" class="sidebar-link" data-label="Page top" id="sidebar-link-top">TOP</a>
+  <div class="sidebar-section" id="sidebar-section-contents">
+    <a href="#contents" class="sidebar-link sidebar-section-toggle" data-label="Contents">Contents</a>
+    <div class="sidebar-sublist" id="sidebar-sublist-contents">
+      <a href="#ResultWriter" class="sidebar-link sidebar-sublink" data-label="ResultWriter">ResultWriter</a>
+      <a href="#__init__" class="sidebar-link sidebar-sublink" data-label="__init__()">__init__</a>
+      <a href="#write_redshift_hypotheses" class="sidebar-link sidebar-sublink" data-label="write_redshift_hypotheses()">write_redshift_hypotheses</a>
+      <a href="#write_hypothesis_analysis" class="sidebar-link sidebar-sublink" data-label="write_hypothesis_analysis()">write_hypothesis_analysis</a>
+      <a href="#_resolve_output_dir" class="sidebar-link sidebar-sublink" data-label="_resolve_output_dir()">_resolve_output_dir</a>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="spectral-edge" aria-hidden="true"></div>
+<div class="container">
+
+<div class="breadcrumb">
+  <a href="../../index.html">Home</a> / <a href="../../index.html#core">Core</a> / ResultWriter
+</div>
+
+<h1><span class="section-label">Core</span>ResultWriter</h1>
+
+<div class="overview-box">
+  <p><strong>Path:</strong> <code>src/FORMA/agents/common/result_writer.py</code></p>
+  <p>Result persistence layer — writes redshift hypotheses and hypothesis analysis results from <code>SpectroState</code> to disk. Read-only, safe for repeated calls in a processing loop.</p>
+  <p><strong>Classes:</strong> <code>ResultWriter</code></p>
+  <p><strong>Dependencies:</strong> <a href="state.html">SpectroState</a></p>
+  <div class="tag-row"><span class="tag">core</span> <span class="tag">IO</span> <span class="tag">persistence</span></div>
+</div>
+
+<h2 id="contents">Contents</h2>
+<ol class="toc">
+  <li><a href="#ResultWriter">class ResultWriter</a></li>
+  <li><a href="#__init__">__init__()</a></li>
+  <li><a href="#write_redshift_hypotheses">write_redshift_hypotheses()</a></li>
+  <li><a href="#write_hypothesis_analysis">write_hypothesis_analysis()</a></li>
+</ol>
+
+<h2 id="ResultWriter"><span class="class-badge">class</span> ResultWriter</h2>
+<p class="desc">Centralised result output manager. Two public write methods — read-only, safe for repeated calls in a processing loop.</p>
+
+<div class="func-block" id="__init__">
+  <h3>__init__</h3>
+  <div class="sig"><code>__init__(self, output_dir=None, overwrite=True, encoding="utf-8")</code></div>
+  <p>Store output directory, overwrite flag, and encoding. No files created at construction.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>output_dir</code></td><td><code>Optional[str]</code></td><td><code>None</code></td><td>Override output directory; falls back to <code>state["output_dir"]</code> if None</td></tr>
+    <tr><td><code>overwrite</code></td><td><code>bool</code></td><td><code>True</code></td><td>Whether to overwrite existing output files</td></tr>
+    <tr><td><code>encoding</code></td><td><code>str</code></td><td><code>"utf-8"</code></td><td>File encoding for all text output</td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="write_redshift_hypotheses">
+  <h3>write_redshift_hypotheses</h3>
+  <div class="sig"><code>write_redshift_hypotheses(self, state: SpectroState) -> None</code></div>
+  <p>Write redshift hypotheses to a formatted <code>.txt</code> file. Handles both new dict format (with <code>zmedian</code>, <code>z</code>, <code>hypotheses</code>) and legacy list format. Outputs key fields per hypothesis in a defined order.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Workflow state containing <code>redshift_hypotheses</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="write_hypothesis_analysis">
+  <h3>write_hypothesis_analysis</h3>
+  <div class="sig"><code>write_hypothesis_analysis(self, state: SpectroState) -> None</code></div>
+  <p>Write harness-based rule analysis results. Outputs synthesis verdict as JSON and per-hypothesis reports to a single <code>.txt</code> file.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Workflow state containing <code>hypothesis_analysis</code> and <code>hypothesis_results</code></td></tr>
+  </table>
+</div>
+
+<div class="func-block" id="_resolve_output_dir">
+  <h3>_resolve_output_dir</h3>
+  <div class="sig"><code>_resolve_output_dir(self, state: SpectroState) -> str</code></div>
+  <p>Resolve output directory: returns <code>self.output_dir</code> if set, otherwise falls back to <code>state["output_dir"]</code> or <code>"outputs"</code>.</p>
+  <table class="table-params">
+  <colgroup><col class="col-name"><col class="col-type"><col class="col-def"><col></colgroup>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>state</code></td><td><code>SpectroState</code></td><td>—</td><td>Workflow state</td></tr>
+  </table>
+  <table class="table-output">
+  <colgroup><col class="col-name"><col class="col-out"><col></colgroup>
+    <tr><th>Output</th><th>Type</th><th>Description</th></tr>
+    <tr><td>dir</td><td><code>str</code></td><td>Resolved output directory path</td></tr>
+  </table>
+</div>
+
+<div class="prev-next">
+  <span style="margin-left:auto;"><a href="../../index.html#dir-tree">Source tree</a></span>
+</div>
+
+<div class="footer">
+  <p><a href="../../index.html">Home</a> &middot; LLM-Spectro-Agent &middot; 2026-06-11</p>
+</div>
+
+</div>
+<script src="../../common.js"></script>
+<script>
+(function(){'use strict';
+var s=document.getElementById('sidebar'),t=document.getElementById('sidebar-toggle'),o=document.getElementById('sidebar-overlay'),
+l=s.querySelectorAll('.sidebar-link'),top=document.getElementById('sidebar-link-top'),
+sub=document.getElementById('sidebar-sublist-contents'),subIds=['contents','ResultWriter','__init__','write_redshift_hypotheses','write_hypothesis_analysis','_resolve_output_dir'];
+var sec=[];l.forEach(function(a){var h=a.getAttribute('href');if(!h||!h.startsWith('#'))return;var e=document.getElementById(h.slice(1));if(e)sec.push({link:a,target:e,id:e.id});});
+var tick=false;function upd(){var a=null,id=null,atB=(window.innerHeight+window.scrollY)>=document.documentElement.scrollHeight-10;
+for(var i=sec.length-1;i>=0;i--){var tp=sec[i].target.getBoundingClientRect().top;if(tp<=120||(atB&&tp<window.innerHeight)){a=sec[i].link;id=sec[i].id;break;}}
+if(!a)a=top;l.forEach(function(x){x.classList.remove('active');});if(a)a.classList.add('active');
+if(id&&subIds.indexOf(id)!==-1)sub.classList.add('expanded');else sub.classList.remove('expanded');}
+window.addEventListener('scroll',function(){if(!tick){requestAnimationFrame(function(){upd();tick=false;});tick=true;}},{passive:true});upd();
+function open(){l.forEach(function(a){var f=a.getAttribute('data-label');if(f&&!a._s)a._s=a.textContent;if(f)a.textContent=f;});s.classList.add('open');o.classList.add('open');t.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
+function close(){l.forEach(function(a){if(a._s)a.textContent=a._s;});s.classList.remove('open');o.classList.remove('open');t.setAttribute('aria-expanded','false');document.body.style.overflow='';}
+t.addEventListener('click',function(){s.classList.contains('open')?close():open();});o.addEventListener('click',close);
+l.forEach(function(a){a.addEventListener('click',function(){if(window.innerWidth<=768)close();setTimeout(upd,120);setTimeout(upd,400);});});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&s.classList.contains('open'))close();});
+var ct=s.querySelector('.sidebar-section-toggle');if(ct)ct.addEventListener('click',function(){sub.classList.add('expanded');});
+document.querySelectorAll('a[href]:not([href^="#"]):not([target])').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>
