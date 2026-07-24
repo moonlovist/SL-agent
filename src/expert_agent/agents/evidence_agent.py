@@ -6,15 +6,14 @@ from ..core.state import ExpertState
 
 class EvidenceAgent(BaseAgent):
     """
-    证据分析 Agent。
+    Evidence evaluation Agent.
 
-    模拟专家验证：
+    Simulates expert evaluation:
 
-    "为什么这个假设可能成立？"
+    "Why does this hypothesis have support?"
 
-    注意：
-    不负责最终判断。
-    只负责整理支持证据。
+    This stage does not make final judgement.
+    It only evaluates supporting evidence.
     """
 
     def __init__(self):
@@ -26,13 +25,31 @@ class EvidenceAgent(BaseAgent):
         state: ExpertState
     ) -> ExpertState:
 
-        self.log("开始分析支持证据")
+        self.log(
+            "开始专家证据评估阶段"
+        )
 
 
-        evidence = {}
+        # Load expert evidence rules
+        skill = self.load_skill(
+            "evidence_evaluation_skill"
+        )
 
 
-        for hypothesis in state.hypotheses:
+        observations = (
+            state.observations
+        )
+
+
+        hypotheses = (
+            state.hypotheses
+        )
+
+
+        evidence: Dict[str, List[Dict[str, Any]]] = {}
+
+
+        for hypothesis in hypotheses:
 
             hypothesis_id = hypothesis["id"]
 
@@ -40,11 +57,30 @@ class EvidenceAgent(BaseAgent):
             evidence[hypothesis_id] = [
 
                 {
-                    "feature": "待视觉分析",
+                    "feature": "observation_based_feature",
+
+                    "observation": observations,
+
+                    "related_hypothesis":
+                        hypothesis["name"],
+
                     "description":
-                        "需要根据观测数据寻找支持该假设的特征",
+                        (
+                            "Evidence evaluation requires "
+                            "visual analysis of observed features."
+                        ),
+
+                    "reliability": None,
+
+                    "specificity": None,
+
                     "strength": None,
-                    "confidence": None
+
+                    "reasoning":
+                        (
+                            "Evidence should be evaluated "
+                            "according to expert evidence rules."
+                        )
                 }
 
             ]
@@ -56,8 +92,16 @@ class EvidenceAgent(BaseAgent):
         self.record_reasoning(
             state,
             action="evidence_analysis",
+
             content={
-                "evidence": evidence
+                "skill_used":
+                    "evidence_evaluation_skill",
+
+                "number_of_hypotheses":
+                    len(hypotheses),
+
+                "evidence":
+                    evidence
             }
         )
 

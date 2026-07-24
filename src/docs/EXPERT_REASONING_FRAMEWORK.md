@@ -1,390 +1,993 @@
-# Expert Reasoning Framework for Strong Gravitational Lens Analysis Agent
+# Strong Gravitational Lens Expert Reasoning Framework v1.1
 
-## 0. Core Objective
+## Expert Reasoning Framework for Strong Gravitational Lens Analysis Agent
 
-The goal of this Agent is not to directly classify an astronomical image.
-
-The goal is to reproduce the reasoning process of a human expert analyzing a possible strong gravitational lens system.
-
-The Agent must:
-
-* observe before judging;
-* generate multiple hypotheses;
-* evaluate supporting evidence;
-* search for contradictory evidence;
-* revise its confidence;
-* provide an explainable final assessment.
-
-The Agent should behave like an expert researcher, not a pattern classifier.
 
 ---
 
-# Level 0: Data Reliability Assessment
+# 0. Core Objective
 
-Before scientific interpretation, the expert evaluates whether the observation is trustworthy.
+
+The goal of this project is not to build a simple image classifier, nor to let the model directly answer:
+
+> "Is this a gravitational lens?"
+
+
+Instead, this project aims to build an intelligent agent system that simulates the reasoning process of human astronomical experts when analyzing unknown targets.
+
+
+The agent should reproduce the expert workflow:
+
+
+```
+
+Data Reliability Assessment
+↓
+Observation Extraction
+↓
+Candidate Hypothesis Generation
+↓
+Evidence Planning
+↓
+Evidence Evaluation
+↓
+Contradiction Search and Alternative Explanation Analysis
+↓
+Confidence Calibration
+↓
+Final Expert Judgement
+
+```
+
+
+The final output should not only include the conclusion, but also:
+
+
+* Why this judgement was made;
+* Which evidence supports it;
+* What uncertainties remain;
+* Why alternative explanations are weakened.
+
+
+---
+
+# 1. Data Reliability Assessment Stage
+
 
 ## Expert Question:
 
-"Can this image support a reliable conclusion?"
 
-The Agent checks:
+> "Is this image reliable enough to support scientific judgement?"
 
-### Image Quality
 
-Evaluate:
+Before analyzing gravitational lensing, experts first evaluate data quality.
 
-* noise level
-* saturation
-* missing pixels
-* observational artifacts
-* signal-to-noise quality
+
+---
+
+## Image Quality
+
+
+Check:
+
+
+* Noise level;
+* Overexposure;
+* Bad pixels;
+* Observational artifacts;
+* Signal-to-noise ratio.
+
 
 Output:
 
-```
-usable / partially usable / unreliable
-```
 
-Important:
+* Suitable for analysis;
+* Partially suitable;
+* Unreliable.
 
-Poor-quality data should reduce confidence rather than force a conclusion.
 
----
+Principle:
 
-# Level 1: Observation Stage
 
-## Goal:
+When data quality is poor:
 
-Describe what is visible without interpretation.
+The system should not force a conclusion.
 
-The Agent must separate:
+Instead, confidence should be reduced.
 
-Observation ≠ Explanation
-
-Example:
-
-Incorrect:
-
-> "This is an Einstein ring."
-
-Correct:
-
-> "A curved luminous structure is observed around the central galaxy."
 
 ---
 
-The Agent records:
+## Image Scale
 
-## 1.1 Morphological Features
 
-Observe:
+Check:
 
-* arc-like structures
-* ring-like structures
-* multiple bright components
-* elongated structures
-* asymmetric features
+
+* Whether the complete galaxy system is included;
+* Whether the image is too small for structural analysis.
+
+
+---
+
+## Environmental Information
+
+
+If the system contains:
+
+
+* Multiple galaxies;
+* Dense galaxy environments;
+
+
+Consider:
+
+
+* Group-scale lensing;
+* Cluster-scale lensing.
+
+
+---
+
+# 2. Observation Stage
+
+
+## Core Principle:
+
+
+Observation ≠ Interpretation
+
+
+Experts first answer:
+
+
+> "What do I observe?"
+
+
+Not:
+
+
+> "What is this object?"
+
+
+---
+
+# 2.1 Morphological Observation
+
 
 Record:
 
-* location
-* shape
-* brightness
-* continuity
-* confidence
+
+* Arc-like structures;
+* Ring-like structures;
+* Multiple bright components;
+* Elongated structures;
+* Irregular structures.
+
+
+Record:
+
+
+* Position;
+* Shape;
+* Brightness;
+* Continuity;
+* Confidence.
+
 
 ---
 
-## 1.2 Lens Galaxy Candidate Observation
+# 2.2 Foreground Lens Candidate
 
-Check:
-
-Possible foreground lens:
-
-* near geometric center
-* brighter than surrounding structure
-* red/yellow color
-* elliptical or early-type morphology
-
-Do not assume it is the lens.
-
-Record as:
-
-"lens galaxy candidate"
-
----
-
-## 1.3 Background Source Candidate Observation
 
 Search for:
 
-* blue structures
-* arcs
-* rings
-* repeated bright regions
 
-Record as:
+Possible Lens Galaxy:
 
-"source candidate"
+
+* Located near the geometric center;
+* Relatively bright;
+* Red/yellow color;
+* Elliptical galaxy morphology.
+
+
+Important:
+
+
+Do not directly call it a lens.
+
+
+Use:
+
+
+> lens candidate
+
 
 ---
 
-# Level 2: Hypothesis Generation Stage
+# 2.3 Background Source Candidate
 
-After observations, the expert generates competing explanations.
 
-The Agent must not immediately choose lensing.
+Search for:
 
-Possible hypotheses:
 
-## H1 Strong gravitational lens
+* Blue structures;
+* Arc structures;
+* Ring structures;
+* Multiple bright components.
+
+
+Record:
+
+
+> source candidate
+
+
+---
+
+# 3. Hypothesis Generation Stage
+
+
+## Core Principle
+
+
+Experts do not immediately conclude:
+
+
+> "This is a lens."
+
+
+when they observe an arc-like structure.
+
+
+Instead, they construct competing explanations.
+
+
+However, experts also do not enumerate every possible explanation.
+
+
+In real analysis, experts select a small number of the most relevant competing hypotheses based on current observations.
+
+
+---
+
+## Hypothesis Generation Objective
+
+
+Generate:
+
+
+* A small number of competing hypotheses;
+* Initial confidence estimates;
+* Questions that require further verification.
+
+
+The goal is not to select the answer immediately.
+
+
+The goal is to determine:
+
+
+> "Which explanations are most worth testing?"
+
+
+---
+
+# H1: Strong Gravitational Lens
+
+
+Possible forms:
+
+
+## Giant Arc
+
 
 Expected:
 
-* centered arc/ring
-* consistent geometry
-* multiple images
-* source-lens separation
+
+* Long curved structure;
+* Located around lens candidate;
+* Tangential alignment.
+
 
 ---
 
-## H2 Spiral galaxy structure
+## Einstein Ring
+
 
 Expected:
 
-* structure connected to galaxy disk
-* spiral pattern
-* rotation-like morphology
+
+* Complete ring;
+* Partial ring;
+* Ring-like structure.
+
 
 ---
 
-## H3 Galaxy merger
+## Multiple Images
+
 
 Expected:
 
-* multiple cores
-* tidal tails
-* irregular morphology
+
+* Double images;
+* Quad images;
+* Multiple similar structures.
+
+
+Compare:
+
+
+* Color;
+* Morphology;
+* Source consistency.
+
 
 ---
 
-## H4 Imaging artifact
+## Galaxy-Galaxy Lens
+
 
 Expected:
 
-* isolated abnormal pixels
-* PSF effects
-* diffraction spikes
+
+* Foreground lens galaxy;
+* Background source distortion.
+
 
 ---
 
-The expert keeps multiple hypotheses until evidence distinguishes them.
+## Cluster / Group Scale Lens
+
+
+Expected:
+
+
+* Multiple galaxy environment;
+* Large-scale lensing effects.
+
 
 ---
 
-# Level 3: Evidence Evaluation
+# H2: Intrinsic Galaxy Morphology
 
-For each hypothesis:
 
-The Agent asks:
+Possible forms:
 
-"What observations support this explanation?"
 
----
+## Spiral Arm
 
-## Lens Evidence
 
-Evaluate:
+Expected:
 
-### Arc structure
 
-Check:
+* Structure connected to galaxy center;
+* Rotational pattern.
 
-* elongated curved structure
-* curvature center approximately matches lens center
-* continuous light distribution
 
 ---
 
-### Einstein Ring
+## Disk Structure
 
-Check:
 
-* full ring
-* partial ring
-* semi-ring
+Expected:
 
-Confidence order:
+
+* Structure belongs to galaxy disk.
+
+
+---
+
+## Irregular Morphology
+
+
+Expected:
+
+
+* Complex internal structure;
+* Asymmetric brightness distribution.
+
+
+---
+
+# H3: Galaxy Interaction
+
+
+Possible forms:
+
+
+## Merger
+
+
+Expected:
+
+
+* Multiple cores;
+* Disturbed morphology.
+
+
+---
+
+## Tidal Feature
+
+
+Expected:
+
+
+* Tidal tails;
+* Elongated structures;
+* Asymmetric distribution.
+
+
+---
+
+# H4: Observation Artifact
+
+
+Possible forms:
+
+
+## Noise
+
+
+Expected:
+
+
+* Random bright points;
+* Lack of continuous structure.
+
+
+---
+
+## PSF Artifact
+
+
+Expected:
+
+
+* Structure related to point spread function effects.
+
+
+---
+
+## Bad Pixel / Detector Issue
+
+
+Expected:
+
+
+* Local anomalies;
+* Non-astronomical structures.
+
+
+---
+
+# Hypothesis Generation Principles
+
+
+1. Do not lock onto a conclusion too early.
+
+2. Maintain competing explanations.
+
+3. Do not infer conclusions from a single feature.
+
+4. Prioritize hypotheses that can be distinguished through observations.
+
+
+---
+
+# 4. Evidence Planning Stage
+
+
+## Core Question:
+
+
+> "What should we check next?"
+
+
+Experts do not perform unlimited feature searches.
+
+
+When facing multiple hypotheses, experts first identify:
+
+
+> The evidence that provides the strongest discrimination between competing explanations.
+
+
+This is called:
+
+
+> Discriminative Evidence
+
+
+---
+
+## Objective
+
+
+Based on current hypotheses, determine:
+
+
+* Which observations are most valuable;
+* Which checks can eliminate alternatives;
+* Which analysis should be prioritized.
+
+
+---
+
+## Example 1: Lens vs Spiral Arm
+
+
+Current hypotheses:
+
 
 ```
-Full ring
->
+
+H1: Strong gravitational lens
+
+H2: Spiral arm structure
+
+````
+
+
+Important questions:
+
+
+### Question 1:
+
+Does the arc-like structure share the same center as the lens candidate?
+
+
+Purpose:
+
+
+Distinguish:
+
+
+* Lensing geometry;
+* Intrinsic galaxy structure.
+
+
+---
+
+### Question 2:
+
+Is the structure connected to the galaxy disk?
+
+
+Purpose:
+
+
+Evaluate spiral arm explanation.
+
+
+---
+
+## Example 2: Lens vs Merger
+
+
+Important questions:
+
+
+Check:
+
+
+* Multiple cores;
+* Tidal features;
+* Irregular brightness distribution.
+
+
+If these features are significant:
+
+
+Increase merger possibility.
+
+
+If absent:
+
+
+Decrease merger possibility.
+
+
+---
+
+## Evidence Planning Output
+
+
+Each verification question should contain:
+
+
+```json
+{
+    "question": "",
+    "purpose": "",
+    "related_hypotheses": []
+}
+````
+
+Example:
+
+```json
+{
+    "question":
+    "Does the arc share the same center as the lens candidate?",
+
+    "purpose":
+    "Distinguish gravitational lensing geometry from intrinsic galaxy structure",
+
+    "related_hypotheses":
+    [
+        "strong_lens",
+        "spiral_arm"
+    ]
+}
+```
+
+---
+
+# 5. Evidence Evaluation Stage
+
+## Core Question:
+
+> "Which observations support or weaken each hypothesis?"
+
+Evidence evaluation is not simply collecting reasons that support one answer.
+
+It compares competing explanations based on planned questions.
+
+---
+
+## Each Evidence Item Should Record:
+
+* Observation;
+* Related hypothesis;
+* Reliability;
+* Specificity;
+* Reasoning.
+
+Format:
+
+```json
+{
+    "feature": "",
+    "related_hypothesis": "",
+    "reliability": "",
+    "specificity": "",
+    "reasoning": ""
+}
+```
+
+---
+
+# 5.1 Strong Gravitational Lens Evidence
+
+## Arc Structure
+
+Check:
+
+* Long curved structure;
+* Central alignment;
+* Curvature center;
+* Continuity.
+
+Important:
+
+Arc structure alone is not absolute evidence.
+
+Spiral arms and merger structures may create similar appearances.
+
+---
+
+## Einstein Ring
+
+Check:
+
+* Complete ring;
+* Partial ring;
+* Half ring.
+
+Confidence:
+
+```
+Complete ring
+ >
 Partial ring
->
+ >
 No ring
 ```
 
 ---
 
-### Multiple Images
+## Multiple Images
 
 Check:
 
-* double images
-* quad images
-* repeated source morphology
+* Double;
+* Quad;
+* Multiple similar structures.
 
-Evaluate:
+Compare:
 
-* similar color
-* similar shape
-* consistent origin
+* Color;
+* Morphology;
+* Brightness;
+* Spatial position.
+
+Important:
+
+Multiple bright components are not automatically multiple images.
+
+They must be consistent with the same background source.
 
 ---
 
-### Geometry Consistency
+## Geometric Consistency
 
 Check:
 
-* common center
-* similar Einstein radius
-* tangential alignment
-* non-random distribution
+* Shared center;
+* Einstein radius consistency;
+* Tangential alignment;
+* Random distribution.
 
 ---
 
-# Level 4: Alternative Explanation and Contradiction Search
+# 5.2 Alternative Explanation Evidence
 
-The expert must actively challenge its own hypothesis.
+Evidence evaluation must also test alternatives.
 
-Question:
-
-"What would make my current interpretation wrong?"
-
----
-
-For strong lens hypothesis:
+## Intrinsic Galaxy Structure
 
 Check:
 
-## Spiral Galaxy False Positive
+* Connection to galaxy center;
+* Spiral pattern;
+* Disk structure.
 
-Signs:
-
-* arc connected to disk
-* spiral pattern
-* rotation structure
+---
 
 ## Galaxy Merger
 
-Signs:
+Check:
 
-* irregular morphology
-* multiple cores
-* tidal tails
+* Multiple cores;
+* Tidal tails;
+* Disturbed morphology.
 
 ---
 
-## Cluster Member Confusion
+## Observation Artifact
 
 Check:
 
-* are these actually independent galaxies?
-* do they share the same center?
-* are colors and morphology consistent?
+* Isolated bright points;
+* Lack of continuous structure;
+* Possible instrumental origin.
 
 ---
 
-## Artifact
+# 6. Contradiction Search and Alternative Explanation Stage
+
+## Core Question:
+
+> "If my current judgement is wrong, what is the most likely alternative?"
+
+This is the major difference between experts and ordinary classifiers.
+
+A classifier:
+
+```
+Find supporting evidence
+        ↓
+Increase confidence
+```
+
+An expert:
+
+```
+Find supporting evidence
+        ↓
+Search for contradictions
+        ↓
+Check whether the conclusion still holds
+```
+
+---
+
+# False Positive Analysis
+
+## 6.1 Lens vs Spiral Arm
+
+If it is lensing:
+
+* Arc exists independently;
+* Structure surrounds center;
+* Not connected to galaxy disk.
+
+If it is spiral arm:
+
+* Connected to center;
+* Rotational pattern;
+* Part of galaxy morphology.
+
+---
+
+## 6.2 Lens vs Galaxy Merger
+
+Merger indicators:
+
+* Multiple cores;
+* Tidal tails;
+* Asymmetric structures.
+
+If strong:
+
+Decrease lensing confidence.
+
+---
+
+## 6.3 Multiple Images vs Independent Galaxies
+
+Check whether components have:
+
+* Similar colors;
+* Similar morphology;
+* Consistent geometry.
+
+Otherwise:
+
+They may simply be separate objects.
+
+---
+
+## 6.4 Real Structure vs Observation Artifact
 
 Check:
 
-* isolated bright points
-* broken structures
-* PSF effects
+* Continuity;
+* Repeatability;
+* Astronomical consistency.
 
 ---
 
-# Level 5: Confidence Calibration
+# 7. Confidence Calibration Stage
 
-The Agent should not output only:
+## Core Question:
 
-"lens / not lens"
+> "How strongly should this conclusion be trusted?"
 
-Instead:
-
-Output:
+Experts do not output only:
 
 ```
-classification:
-candidate strong lens
-
-confidence:
-high / medium / low
-
-reasoning:
-...
-
-remaining uncertainty:
-...
+Yes
+No
 ```
 
-Confidence must depend on:
+They output:
 
-* evidence strength
-* evidence consistency
-* contradiction severity
-* data quality
+```
+Candidate: Strong gravitational lens
+
+Confidence:
+High / Medium / Low
+
+Reasons:
+...
+
+Supporting evidence:
+...
+
+Remaining uncertainty:
+...
+```
 
 ---
 
-# Level 6: Expert Final Decision
+# Factors Increasing Confidence
 
-Final output must contain:
+Including:
 
-## Observation Summary
+* Multiple independent supporting evidence;
+* Consistent geometry;
+* Weak alternatives;
+* High data quality.
+
+---
+
+# Factors Reducing Confidence
+
+Including:
+
+* Poor data quality;
+* Ambiguous structure;
+* Strong alternative explanations;
+* Missing key evidence.
+
+---
+
+# Confidence Updating Principle
+
+Confidence should not be fixed.
+
+It should update with:
+
+* New evidence;
+* New contradictions;
+* Data quality assessment.
+
+---
+
+# 8. Final Expert Report Stage
+
+The final report must include:
+
+---
+
+## 1. Data Reliability
+
+Whether the data supports analysis.
+
+---
+
+## 2. Observation Summary
 
 What was observed.
 
-## Competing Hypotheses
+---
 
-What explanations were considered.
+## 3. Candidate Explanation Comparison
 
-## Evidence Comparison
-
-Why one explanation is preferred.
-
-## Remaining Uncertainty
-
-What prevents certainty.
-
-## Final Assessment
-
-Example:
-
-```
-The system is a strong lens candidate.
-
-Confidence: Medium-high.
-
-Supporting evidence:
-- arc structure centered around lens candidate
-- tangential alignment
-
-Uncertainty:
-- insufficient confirmation of multiple images
-```
+Which explanations were considered.
 
 ---
 
-# Fundamental Rules
+## 4. Evidence Analysis
 
-1. Never jump from feature to conclusion.
+Why certain explanations are supported.
+
+---
+
+## 5. Contradiction Analysis
+
+Why alternatives are weakened.
+
+---
+
+## 6. Final Judgement
+
+Example:
+
+> This system is a strong gravitational lens candidate.
+>
+> Confidence: Medium-high.
+>
+> Supporting evidence:
+>
+> * Arc structure around the center;
+> * Geometry consistent with lensing.
+>
+> Remaining uncertainty:
+>
+> * Lack of confirmed multiple images.
+
+---
+
+# Project Principles
+
+1. Conclusions must not be directly inferred from single features.
 
 2. Every conclusion must have evidence.
 
-3. Every preferred hypothesis must face alternative explanations.
+3. Every judgement must consider alternative explanations.
 
-4. Uncertainty is part of expert judgement.
+4. Uncertainty must always be recorded.
 
-5. The reasoning process is as important as the final answer.
+5. Reasoning process is as important as the final result.
+
+6. The agent should not search every possible explanation. It should simulate expert prioritization of the most valuable information.
+
+7. High-quality reasoning does not mean generating more hypotheses. It means finding the most important evidence under limited information.
+
+---

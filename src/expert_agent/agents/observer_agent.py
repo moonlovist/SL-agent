@@ -6,15 +6,13 @@ from ..core.state import ExpertState
 
 class ObserverAgent(BaseAgent):
     """
-    专家观察 Agent。
+    Expert observation agent.
 
-    模拟人类专家拿到天文图像后的第一轮观察。
-
-    规则：
-    1. 只描述事实
-    2. 不进行分类
-    3. 不提前给结论
-    4. 保留不确定性
+    Responsibilities:
+    - follow observation skill
+    - describe observable facts
+    - avoid premature classification
+    - preserve uncertainty
     """
 
     def __init__(self):
@@ -26,33 +24,68 @@ class ObserverAgent(BaseAgent):
         state: ExpertState
     ) -> ExpertState:
 
-        self.log("开始观察目标")
+        self.log(
+            "开始专家观察阶段"
+        )
 
 
-        # 第一版先建立框架。
-        # 后续这里接入：
-        # - 图像模型
-        # - 视觉LLM
-        # - 天文测量工具
+        # Load expert observation rules
+        skill = self.load_skill(
+            "observation_skill"
+        )
+
+
+        task = """
+Analyze the astronomical target.
+
+Follow the observation procedure.
+
+Only describe observable facts.
+
+Do not classify the object.
+
+Record:
+- morphology
+- possible lens candidate
+- possible source candidate
+- geometric features
+- uncertainty
+"""
+
+
+        prompt = self.build_prompt(
+            skill,
+            task
+        )
+
+
+        # Current stage:
+        # LLM/VLM connection will be added later.
+        # Keep reasoning trace.
+
+        self.record_reasoning(
+            state,
+            action="observation_prompt_generation",
+            content={
+                "skill": "observation_skill",
+                "prompt": prompt
+            }
+        )
 
 
         observation = {
-            "type": "morphology",
-            "description": "待视觉模型分析",
+            "type": "expert_observation",
+            "description": (
+                "Observation task generated. "
+                "Waiting for vision model."
+            ),
             "confidence": None,
-            "source": "ObserverAgent"
+            "source": self.name
         }
 
 
         state.observations.append(
             observation
-        )
-
-
-        self.record_reasoning(
-            state,
-            action="observation",
-            content=observation
         )
 
 
