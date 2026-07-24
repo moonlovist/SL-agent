@@ -8,13 +8,17 @@ class EvidenceAgent(BaseAgent):
     """
     Evidence evaluation Agent.
 
-    Simulates expert evaluation:
+    Simulates expert evidence analysis.
 
-    "Why does this hypothesis have support?"
+    Responsibilities:
+
+    1. Read hypothesis requirements.
+    2. Create evidence evaluation tasks.
+    3. Record why evidence supports a hypothesis.
 
     This stage does not make final judgement.
-    It only evaluates supporting evidence.
     """
+
 
     def __init__(self):
         super().__init__("EvidenceAgent")
@@ -25,12 +29,12 @@ class EvidenceAgent(BaseAgent):
         state: ExpertState
     ) -> ExpertState:
 
+
         self.log(
             "开始专家证据评估阶段"
         )
 
 
-        # Load expert evidence rules
         skill = self.load_skill(
             "evidence_evaluation_skill"
         )
@@ -51,39 +55,93 @@ class EvidenceAgent(BaseAgent):
 
         for hypothesis in hypotheses:
 
-            hypothesis_id = hypothesis["id"]
+
+            hypothesis_id = (
+                hypothesis["id"]
+            )
 
 
-            evidence[hypothesis_id] = [
+            hypothesis_name = (
+                hypothesis["name"]
+            )
 
-                {
-                    "feature": "observation_based_feature",
 
-                    "observation": observations,
+            required_evidence = (
+                hypothesis.get(
+                    "required_evidence",
+                    []
+                )
+            )
 
-                    "related_hypothesis":
-                        hypothesis["name"],
 
-                    "description":
-                        (
-                            "Evidence evaluation requires "
-                            "visual analysis of observed features."
-                        ),
+            evidence_items = []
 
-                    "reliability": None,
 
-                    "specificity": None,
+            for item in required_evidence:
 
-                    "strength": None,
 
-                    "reasoning":
-                        (
-                            "Evidence should be evaluated "
-                            "according to expert evidence rules."
-                        )
-                }
+                evidence_items.append(
 
-            ]
+                    {
+                        "feature":
+                            item,
+
+
+                        "evidence_type":
+                            "required_evidence",
+
+
+                        "observation":
+                            observations,
+
+
+                        "related_hypothesis":
+                            hypothesis_name,
+
+
+                        "description":
+                            (
+                                "This evidence item "
+                                "should be evaluated "
+                                "to determine whether "
+                                "it supports the hypothesis."
+                            ),
+
+
+                        "expected_result":
+                            item,
+
+
+                        "reliability":
+                            None,
+
+
+                        "specificity":
+                            None,
+
+
+                        "strength":
+                            None,
+
+
+                        "evaluation_status":
+                            "pending",
+
+
+                        "reasoning":
+                            (
+                                "Evidence evaluation "
+                                "requires analysis of "
+                                "observed astronomical features."
+                            )
+                    }
+
+                )
+
+
+            evidence[hypothesis_id] = (
+                evidence_items
+            )
 
 
         state.evidence = evidence
@@ -91,9 +149,11 @@ class EvidenceAgent(BaseAgent):
 
         self.record_reasoning(
             state,
+
             action="evidence_analysis",
 
             content={
+
                 "skill_used":
                     "evidence_evaluation_skill",
 

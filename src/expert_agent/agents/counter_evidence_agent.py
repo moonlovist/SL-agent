@@ -6,18 +6,21 @@ from ..core.state import ExpertState
 
 class CounterEvidenceAgent(BaseAgent):
     """
-    反证分析 Agent。
+    Counter evidence analysis Agent.
 
-    模拟专家：
+    Simulates expert reasoning:
 
-    "为什么我的判断可能是错的？"
+    "Why might my current judgement be wrong?"
 
-    职责：
+    Responsibilities:
 
-    1. 不寻找支持证据
-    2. 专门寻找反例
-    3. 提醒其他 Agent 注意风险
+    1. Search for contradictions.
+    2. Identify evidence that weakens hypotheses.
+    3. Reduce confirmation bias.
+
+    This stage does not make final decisions.
     """
+
 
     def __init__(self):
         super().__init__("CounterEvidenceAgent")
@@ -28,28 +31,77 @@ class CounterEvidenceAgent(BaseAgent):
         state: ExpertState
     ) -> ExpertState:
 
-        self.log("开始寻找反证")
+        self.log(
+            "开始寻找反证"
+        )
 
 
-        contradictions = {}
+        contradictions: Dict[
+            str,
+            List[Dict[str, Any]]
+        ] = {}
 
 
         for hypothesis in state.hypotheses:
 
-            hypothesis_id = hypothesis["id"]
+            hypothesis_id = (
+                hypothesis["id"]
+            )
 
 
-            contradictions[hypothesis_id] = [
+            hypothesis_name = (
+                hypothesis["name"]
+            )
 
-                {
-                    "type": "unknown",
-                    "description":
-                        "需要进一步检查该假设可能存在的问题",
-                    "severity": None,
-                    "confidence": None
-                }
 
-            ]
+            possible_contradictions = (
+                hypothesis.get(
+                    "possible_contradictions",
+                    []
+                )
+            )
+
+
+            contradiction_items = []
+
+
+            for item in possible_contradictions:
+
+                contradiction_items.append(
+
+                    {
+                        "type":
+                            "potential_contradiction",
+
+                        "related_hypothesis":
+                            hypothesis_name,
+
+                        "description":
+                            item,
+
+                        "reasoning":
+                            (
+                                "This observation "
+                                "may weaken the hypothesis "
+                                "if confirmed."
+                            ),
+
+                        "severity":
+                            None,
+
+                        "confidence":
+                            None,
+
+                        "evaluation_status":
+                            "pending"
+                    }
+
+                )
+
+
+            contradictions[hypothesis_id] = (
+                contradiction_items
+            )
 
 
         state.contradictions = contradictions
@@ -57,9 +109,15 @@ class CounterEvidenceAgent(BaseAgent):
 
         self.record_reasoning(
             state,
+
             action="counter_evidence_analysis",
+
             content={
-                "contradictions": contradictions
+                "number_of_hypotheses":
+                    len(state.hypotheses),
+
+                "contradictions":
+                    contradictions
             }
         )
 

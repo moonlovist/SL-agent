@@ -31,6 +31,7 @@ class HypothesisAgent(BaseAgent):
         )
 
 
+        # Load expert hypothesis rules
         skill = self.load_skill(
             "hypothesis_skill"
         )
@@ -42,9 +43,14 @@ class HypothesisAgent(BaseAgent):
 
 
         task = {
-            "role": "hypothesis_generation",
-            "skill": "hypothesis_skill",
-            "observation_input": observations
+            "role":
+                "hypothesis_generation",
+
+            "skill":
+                "hypothesis_skill",
+
+            "observation_input":
+                observations
         }
 
 
@@ -58,7 +64,9 @@ class HypothesisAgent(BaseAgent):
         hypotheses: List[Dict[str, Any]] = [
 
             {
-                "id": "H1",
+                "id":
+                    "H1",
+
                 "category":
                     "strong_gravitational_lens",
 
@@ -90,7 +98,9 @@ class HypothesisAgent(BaseAgent):
 
 
             {
-                "id": "H2",
+                "id":
+                    "H2",
+
                 "category":
                     "galaxy_morphology",
 
@@ -121,7 +131,9 @@ class HypothesisAgent(BaseAgent):
 
 
             {
-                "id": "H3",
+                "id":
+                    "H3",
+
                 "category":
                     "galaxy_interaction",
 
@@ -151,7 +163,9 @@ class HypothesisAgent(BaseAgent):
 
 
             {
-                "id": "H4",
+                "id":
+                    "H4",
+
                 "category":
                     "observation_artifact",
 
@@ -198,6 +212,7 @@ class HypothesisAgent(BaseAgent):
                     ]
             },
 
+
             {
                 "question":
                     "Is the structure connected to the galaxy disk?",
@@ -211,6 +226,7 @@ class HypothesisAgent(BaseAgent):
                         "H2"
                     ]
             },
+
 
             {
                 "question":
@@ -239,6 +255,7 @@ class HypothesisAgent(BaseAgent):
             action="hypothesis_generation",
 
             content={
+
                 "skill_used":
                     "hypothesis_skill",
 

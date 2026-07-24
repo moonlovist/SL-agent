@@ -6,19 +6,20 @@ from ..core.state import ExpertState
 
 class ReasoningAuditor(BaseAgent):
     """
-    推理审计 Agent。
+    Reasoning audit Agent.
 
-    模拟专家最后一次自我检查。
+    Simulates the final expert self-review.
 
-    它不产生新事实。
+    It does not create new facts.
 
-    它检查：
+    It checks:
 
-    1. 推理是否合理
-    2. 证据是否足够
-    3. 是否存在未解决矛盾
-    4. 结论是否过度确定
+    1. Whether reasoning follows the expert workflow.
+    2. Whether evidence supports hypotheses.
+    3. Whether contradictions are considered.
+    4. Whether confidence and uncertainty are properly recorded.
     """
+
 
     def __init__(self):
         super().__init__("ReasoningAuditor")
@@ -29,46 +30,140 @@ class ReasoningAuditor(BaseAgent):
         state: ExpertState
     ) -> ExpertState:
 
-        self.log("开始审查推理过程")
+
+        self.log(
+            "开始审查推理过程"
+        )
 
 
         issues = []
 
 
-        # 检查是否有假设
+        # Check hypothesis generation
+
         if len(state.hypotheses) == 0:
+
             issues.append(
                 "没有生成候选假设"
             )
 
 
-        # 检查是否有证据
+        # Check evidence evaluation
+
         if len(state.evidence) == 0:
+
             issues.append(
                 "没有进行证据分析"
             )
 
 
-        # 检查是否有反证
+        # Check contradiction analysis
+
         if len(state.contradictions) == 0:
+
             issues.append(
                 "没有进行反证检查"
             )
 
 
+        # Check confidence calibration
+
+        confidence_result = (
+            state.final_decision
+        )
+
+
+        if not confidence_result:
+
+            issues.append(
+                "没有进行可信度校准"
+            )
+
+
+        else:
+
+            if (
+                "confidence_level"
+                not in confidence_result
+            ):
+
+                issues.append(
+                    "缺少可信度等级"
+                )
+
+
+            if (
+                "remaining_uncertainties"
+                not in confidence_result
+            ):
+
+                issues.append(
+                    "没有记录不确定性"
+                )
+
+
+        # Check evidence completion
+
+        pending_evidence = []
+
+
+        for hypothesis_id, items in state.evidence.items():
+
+            for item in items:
+
+                if (
+                    item.get(
+                        "evaluation_status"
+                    )
+                    ==
+                    "pending"
+                ):
+
+                    pending_evidence.append(
+                        hypothesis_id
+                    )
+
+
+        if pending_evidence:
+
+            issues.append(
+                "部分证据仍未完成评估"
+            )
+
+
         audit_result = {
+
 
             "valid":
                 len(issues) == 0,
 
+
             "issues":
                 issues,
 
-            "confidence":
-                None,
+
+            "workflow_check":
+
+                {
+                    "hypothesis":
+                        len(state.hypotheses) > 0,
+
+                    "evidence":
+                        len(state.evidence) > 0,
+
+                    "contradiction":
+                        len(state.contradictions) > 0,
+
+                    "confidence":
+                        bool(confidence_result)
+                },
+
 
             "recommendation":
-                "需要根据完整证据进一步判断"
+                (
+                    "推理流程完整，但需要根据 "
+                    "证据质量和不确定性进一步判断。"
+                )
 
         }
 
@@ -78,7 +173,9 @@ class ReasoningAuditor(BaseAgent):
 
         self.record_reasoning(
             state,
+
             action="reasoning_audit",
+
             content=audit_result
         )
 
