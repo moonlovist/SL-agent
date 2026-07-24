@@ -69,7 +69,7 @@ class ReasoningAuditor(BaseAgent):
         # Check confidence calibration
 
         confidence_result = (
-            state.final_decision
+            state.confidence_assessment
         )
 
 

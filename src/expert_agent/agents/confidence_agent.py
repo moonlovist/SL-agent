@@ -38,42 +38,45 @@ class ConfidenceAgent(BaseAgent):
         )
 
 
-        skill = self.load_skill(
+        self.load_skill(
             "confidence_calibration_skill"
         )
 
 
-        hypotheses = (
-            state.hypotheses
-        )
+        hypotheses = state.hypotheses
 
-        evidence = (
-            state.evidence
-        )
+        evidence = state.evidence
 
-        contradictions = (
-            state.contradictions
-        )
+        contradictions = state.contradictions
 
 
-        supporting_factors = []
+        supporting_factors: List[Dict[str, Any]] = []
 
-        limiting_factors = []
+        limiting_factors: List[Dict[str, Any]] = []
 
-        remaining_uncertainties = []
+        remaining_uncertainties: List[str] = []
 
 
-        # 当前版本先选择已有候选中的最高优先级假设
-        # 后续接入模型评分后替换
+        # 当前版本：
+        # 使用候选列表中的第一个假设作为初始候选。
+        #
+        # 未来版本：
+        # 由 Evidence Planner / Decision Agent
+        # 根据证据强度动态选择。
 
         if hypotheses:
 
+            selected_hypothesis = hypotheses[0]
+
             final_hypothesis = (
-                hypotheses[0]["name"]
+                selected_hypothesis.get(
+                    "name",
+                    "unknown"
+                )
             )
 
-            initial_confidence = (
-                hypotheses[0].get(
+            previous_confidence = (
+                selected_hypothesis.get(
                     "initial_confidence",
                     "unknown"
                 )
@@ -81,13 +84,10 @@ class ConfidenceAgent(BaseAgent):
 
         else:
 
-            final_hypothesis = (
-                "unknown"
-            )
+            final_hypothesis = "unknown"
 
-            initial_confidence = (
-                "unknown"
-            )
+            previous_confidence = "unknown"
+
 
 
         # 收集支持因素
@@ -115,6 +115,7 @@ class ConfidenceAgent(BaseAgent):
                 )
 
 
+
         # 收集限制因素
 
         for hypothesis_id, items in contradictions.items():
@@ -140,26 +141,38 @@ class ConfidenceAgent(BaseAgent):
                 )
 
 
+
         remaining_uncertainties.extend(
             [
                 "Visual evidence requires further analysis.",
+
                 "Alternative explanations have not been fully excluded."
             ]
         )
 
 
-        confidence_level = (
-            "medium"
-        )
+
+        # 当前为框架版本。
+        # 后续根据真实证据评分动态调整。
+
+        confidence_level = "medium"
+
 
 
         confidence_result = {
 
+
             "final_hypothesis":
                 final_hypothesis,
 
+
+            "previous_confidence":
+                previous_confidence,
+
+
             "confidence_level":
                 confidence_level,
+
 
             "confidence_reasoning":
                 (
@@ -168,33 +181,42 @@ class ConfidenceAgent(BaseAgent):
                     "contradictions, and remaining uncertainty."
                 ),
 
+
             "supporting_factors":
                 supporting_factors,
+
 
             "limiting_factors":
                 limiting_factors,
 
+
             "remaining_uncertainties":
                 remaining_uncertainties
+
         }
 
 
-        state.final_decision = (
+
+        state.confidence_assessment = (
             confidence_result
         )
 
 
+
         self.record_reasoning(
+
             state,
 
             action="confidence_calibration",
 
             content={
+
                 "skill_used":
                     "confidence_calibration_skill",
 
                 "result":
                     confidence_result
+
             }
         )
 

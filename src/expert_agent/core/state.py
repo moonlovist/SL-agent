@@ -8,7 +8,9 @@ class ExpertState:
     Expert Reasoning Agent 的共享状态。
 
     目标：
+
     模拟人类专家分析过程。
+
 
     流程：
 
@@ -20,17 +22,22 @@ class ExpertState:
         ↓
     contradiction
         ↓
+    confidence
+        ↓
     audit
         ↓
     decision
     """
 
+
     # =========================
-    # 输入
+    # 输入信息
     # =========================
 
     image_path: Optional[str] = None
+
     object_id: Optional[str] = None
+
 
 
     # =========================
@@ -43,6 +50,7 @@ class ExpertState:
     )
 
 
+
     # =========================
     # 第二阶段：
     # 候选解释
@@ -51,6 +59,7 @@ class ExpertState:
     hypotheses: List[Dict[str, Any]] = field(
         default_factory=list
     )
+
 
 
     # =========================
@@ -63,9 +72,10 @@ class ExpertState:
     )
 
 
+
     # =========================
     # 第四阶段：
-    # 反证 / 异常
+    # 反证 / 替代解释
     # =========================
 
     contradictions: Dict[str, List[Dict[str, Any]]] = field(
@@ -73,23 +83,47 @@ class ExpertState:
     )
 
 
+
     # =========================
     # 第五阶段：
+    # 可信度校准
+    #
+    # ConfidenceAgent输出：
+    # - 最终候选解释
+    # - 可信度等级
+    # - 支持因素
+    # - 限制因素
+    # - 剩余不确定性
+    # =========================
+
+    confidence_assessment: Optional[Dict[str, Any]] = None
+
+
+
+    # =========================
+    # 第六阶段：
     # 推理审计
     # =========================
 
     audit_result: Optional[Dict[str, Any]] = None
 
 
+
     # =========================
-    # 最终判断
+    # 第七阶段：
+    # 最终专家报告
+    #
+    # ReportWriter最终输出
     # =========================
 
     final_decision: Optional[Dict[str, Any]] = None
 
 
+
     # =========================
     # 推理历史
+    #
+    # 保存每个Agent执行记录
     # =========================
 
     reasoning_trace: List[Dict[str, Any]] = field(
