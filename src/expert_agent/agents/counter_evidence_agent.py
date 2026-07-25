@@ -14,8 +14,8 @@ class CounterEvidenceAgent(BaseAgent):
 
     Responsibilities:
 
-    1. Search for contradictions.
-    2. Identify evidence that weakens hypotheses.
+    1. Search for important contradictions.
+    2. Identify risks for current hypotheses.
     3. Reduce confirmation bias.
 
     This stage does not make final decisions.
@@ -26,13 +26,25 @@ class CounterEvidenceAgent(BaseAgent):
         super().__init__("CounterEvidenceAgent")
 
 
+
     def run(
         self,
         state: ExpertState
     ) -> ExpertState:
 
+
         self.log(
             "开始寻找反证"
+        )
+
+
+        hypotheses = (
+            state.hypotheses
+        )
+
+
+        evidence_plan = (
+            state.evidence_plan
         )
 
 
@@ -42,7 +54,23 @@ class CounterEvidenceAgent(BaseAgent):
         ] = {}
 
 
-        for hypothesis in state.hypotheses:
+
+        planned_questions = []
+
+
+        if evidence_plan:
+
+            planned_questions = (
+                evidence_plan.get(
+                    "priority_questions",
+                    []
+                )
+            )
+
+
+
+        for hypothesis in hypotheses:
+
 
             hypothesis_id = (
                 hypothesis["id"]
@@ -54,49 +82,129 @@ class CounterEvidenceAgent(BaseAgent):
             )
 
 
-            possible_contradictions = (
-                hypothesis.get(
-                    "possible_contradictions",
-                    []
-                )
-            )
-
-
             contradiction_items = []
 
 
-            for item in possible_contradictions:
 
-                contradiction_items.append(
+            # =========================
+            # v2.1:
+            # 根据优先证据规划寻找风险
+            # =========================
 
-                    {
-                        "type":
-                            "potential_contradiction",
+            if planned_questions:
 
-                        "related_hypothesis":
-                            hypothesis_name,
 
-                        "description":
-                            item,
+                for question in planned_questions:
 
-                        "reasoning":
-                            (
-                                "This observation "
-                                "may weaken the hypothesis "
-                                "if confirmed."
-                            ),
 
-                        "severity":
-                            None,
+                    if hypothesis_id in (
+                        question.get(
+                            "target_hypotheses",
+                            []
+                        )
+                    ):
 
-                        "confidence":
-                            None,
 
-                        "evaluation_status":
-                            "pending"
-                    }
+                        contradiction_items.append(
 
+                            {
+                                "type":
+                                    "planned_contradiction",
+
+
+                                "related_hypothesis":
+                                    hypothesis_name,
+
+
+                                "description":
+                                    (
+                                        "Failure of planned evidence: "
+                                        +
+                                        question["question"]
+                                    ),
+
+
+                                "reasoning":
+                                    (
+                                        "This missing or negative "
+                                        "evidence may weaken "
+                                        "the hypothesis."
+                                    ),
+
+
+                                "severity":
+                                    None,
+
+
+                                "confidence":
+                                    None,
+
+
+                                "evaluation_status":
+                                    "pending"
+
+                            }
+
+                        )
+
+
+
+            # =========================
+            # fallback:
+            # 保留v2.0行为
+            # =========================
+
+            else:
+
+
+                possible_contradictions = (
+                    hypothesis.get(
+                        "possible_contradictions",
+                        []
+                    )
                 )
+
+
+                for item in possible_contradictions:
+
+
+                    contradiction_items.append(
+
+                        {
+                            "type":
+                                "potential_contradiction",
+
+
+                            "related_hypothesis":
+                                hypothesis_name,
+
+
+                            "description":
+                                item,
+
+
+                            "reasoning":
+                                (
+                                    "This observation "
+                                    "may weaken the hypothesis "
+                                    "if confirmed."
+                                ),
+
+
+                            "severity":
+                                None,
+
+
+                            "confidence":
+                                None,
+
+
+                            "evaluation_status":
+                                "pending"
+                        }
+
+                    )
+
 
 
             contradictions[hypothesis_id] = (
@@ -104,17 +212,24 @@ class CounterEvidenceAgent(BaseAgent):
             )
 
 
+
         state.contradictions = contradictions
 
 
+
         self.record_reasoning(
+
             state,
 
             action="counter_evidence_analysis",
 
             content={
+
+                "used_evidence_plan":
+                    bool(evidence_plan),
+
                 "number_of_hypotheses":
-                    len(state.hypotheses),
+                    len(hypotheses),
 
                 "contradictions":
                     contradictions

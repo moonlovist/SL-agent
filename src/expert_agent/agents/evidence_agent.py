@@ -12,9 +12,9 @@ class EvidenceAgent(BaseAgent):
 
     Responsibilities:
 
-    1. Read hypothesis requirements.
-    2. Create evidence evaluation tasks.
-    3. Record why evidence supports a hypothesis.
+    1. Read evidence planning results.
+    2. Generate evidence evaluation tasks.
+    3. Record why evidence is relevant.
 
     This stage does not make final judgement.
     """
@@ -35,7 +35,7 @@ class EvidenceAgent(BaseAgent):
         )
 
 
-        skill = self.load_skill(
+        self.load_skill(
             "evidence_evaluation_skill"
         )
 
@@ -50,7 +50,34 @@ class EvidenceAgent(BaseAgent):
         )
 
 
+        evidence_plan = (
+            state.evidence_plan
+        )
+
+
         evidence: Dict[str, List[Dict[str, Any]]] = {}
+
+
+
+        # v2.1:
+        # 优先使用 EvidencePlanner 选择的问题。
+        #
+        # 如果没有 evidence_plan，
+        # 则回退到旧版全部检查逻辑。
+
+
+        planned_questions = []
+
+
+        if evidence_plan:
+
+            planned_questions = (
+                evidence_plan.get(
+                    "priority_questions",
+                    []
+                )
+            )
+
 
 
         for hypothesis in hypotheses:
@@ -66,88 +93,174 @@ class EvidenceAgent(BaseAgent):
             )
 
 
-            required_evidence = (
-                hypothesis.get(
-                    "required_evidence",
-                    []
-                )
-            )
-
-
             evidence_items = []
 
 
-            for item in required_evidence:
+
+            # =========================
+            # v2.1 Evidence Planning模式
+            # =========================
+
+            if planned_questions:
 
 
-                evidence_items.append(
-
-                    {
-                        "feature":
-                            item,
+                for question in planned_questions:
 
 
-                        "evidence_type":
-                            "required_evidence",
+                    if hypothesis_id in (
+                        question.get(
+                            "target_hypotheses",
+                            []
+                        )
+                    ):
 
 
-                        "observation":
-                            observations,
+                        evidence_items.append(
+
+                            {
+                                "feature":
+                                    question["question"],
 
 
-                        "related_hypothesis":
-                            hypothesis_name,
+                                "evidence_type":
+                                    "planned_evidence",
 
 
-                        "description":
-                            (
-                                "This evidence item "
-                                "should be evaluated "
-                                "to determine whether "
-                                "it supports the hypothesis."
-                            ),
+                                "observation":
+                                    observations,
 
 
-                        "expected_result":
-                            item,
+                                "related_hypothesis":
+                                    hypothesis_name,
 
 
-                        "reliability":
-                            None,
+                                "description":
+                                    question["reason"],
 
 
-                        "specificity":
-                            None,
+                                "priority":
+                                    question.get(
+                                        "priority",
+                                        "unknown"
+                                    ),
 
 
-                        "strength":
-                            None,
+                                "reliability":
+                                    None,
 
 
-                        "evaluation_status":
-                            "pending",
+                                "specificity":
+                                    None,
 
 
-                        "reasoning":
-                            (
-                                "Evidence evaluation "
-                                "requires analysis of "
-                                "observed astronomical features."
-                            )
-                    }
+                                "strength":
+                                    None,
 
+
+                                "evaluation_status":
+                                    "pending",
+
+
+                                "reasoning":
+                                    (
+                                        "Evidence selected "
+                                        "by EvidencePlannerAgent."
+                                    )
+                            }
+
+                        )
+
+
+
+            # =========================
+            # fallback:
+            # 保留v2.0行为
+            # =========================
+
+            else:
+
+
+                required_evidence = (
+                    hypothesis.get(
+                        "required_evidence",
+                        []
+                    )
                 )
 
 
-            evidence[hypothesis_id] = (
-                evidence_items
-            )
+                for item in required_evidence:
+
+
+                    evidence_items.append(
+
+                        {
+                            "feature":
+                                item,
+
+
+                            "evidence_type":
+                                "required_evidence",
+
+
+                            "observation":
+                                observations,
+
+
+                            "related_hypothesis":
+                                hypothesis_name,
+
+
+                            "description":
+                                (
+                                    "This evidence item "
+                                    "should be evaluated "
+                                    "to determine whether "
+                                    "it supports the hypothesis."
+                                ),
+
+
+                            "expected_result":
+                                item,
+
+
+                            "reliability":
+                                None,
+
+
+                            "specificity":
+                                None,
+
+
+                            "strength":
+                                None,
+
+
+                            "evaluation_status":
+                                "pending",
+
+
+                            "reasoning":
+                                (
+                                    "Evidence evaluation "
+                                    "requires analysis of "
+                                    "observed astronomical features."
+                                )
+                        }
+
+                    )
+
+
+
+            evidence[hypothesis_id] = evidence_items
+
 
 
         state.evidence = evidence
 
 
+
         self.record_reasoning(
+
             state,
 
             action="evidence_analysis",
@@ -157,8 +270,14 @@ class EvidenceAgent(BaseAgent):
                 "skill_used":
                     "evidence_evaluation_skill",
 
+
+                "used_evidence_plan":
+                    bool(evidence_plan),
+
+
                 "number_of_hypotheses":
                     len(hypotheses),
+
 
                 "evidence":
                     evidence

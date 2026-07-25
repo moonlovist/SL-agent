@@ -480,11 +480,17 @@ v2.0核心推理流程已经完成初步运行测试。
 
 
 # Version 2.1
+## V2.1 Evidence Planning Upgrade
 
-（待更新）
+新增：
+- EvidencePlannerAgent
+- evidence_plan state
+- Evidence-guided evaluation workflow
 
-
----
+改进：
+- 从穷举式证据检查升级为优先级证据选择
+- 减少无效假设验证
+- 提高专家推理效率
 
 # Version 3.0
 

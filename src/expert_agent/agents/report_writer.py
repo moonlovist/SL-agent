@@ -20,6 +20,7 @@ class ReportWriter(BaseAgent):
         super().__init__("ReportWriter")
 
 
+
     def run(
         self,
         state: ExpertState
@@ -42,6 +43,10 @@ class ReportWriter(BaseAgent):
                 state.hypotheses,
 
 
+            "evidence_plan":
+                state.evidence_plan,
+
+
             "evidence":
                 state.evidence,
 
@@ -61,7 +66,8 @@ class ReportWriter(BaseAgent):
             "final_statement":
                 (
                     "Expert judgement generated "
-                    "from evidence balance, "
+                    "from evidence planning, "
+                    "evidence balance, "
                     "contradiction analysis, "
                     "confidence calibration, "
                     "and reasoning audit."

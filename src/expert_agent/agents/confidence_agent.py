@@ -27,6 +27,7 @@ class ConfidenceAgent(BaseAgent):
         super().__init__("ConfidenceAgent")
 
 
+
     def run(
         self,
         state: ExpertState
@@ -50,6 +51,7 @@ class ConfidenceAgent(BaseAgent):
         contradictions = state.contradictions
 
 
+
         supporting_factors: List[Dict[str, Any]] = []
 
         limiting_factors: List[Dict[str, Any]] = []
@@ -57,16 +59,76 @@ class ConfidenceAgent(BaseAgent):
         remaining_uncertainties: List[str] = []
 
 
-        # 当前版本：
-        # 使用候选列表中的第一个假设作为初始候选。
+
+        # =================================
+        # v2.1:
+        # 根据证据和反证数量选择候选
         #
-        # 未来版本：
-        # 由 Evidence Planner / Decision Agent
-        # 根据证据强度动态选择。
+        # 当前为基础评分框架。
+        #
+        # 未来：
+        # 使用模型根据证据质量动态评分。
+        # =================================
+
+
+        hypothesis_scores = {}
+
+
+
+        for hypothesis in hypotheses:
+
+
+            hypothesis_id = (
+                hypothesis["id"]
+            )
+
+
+            support_count = len(
+                evidence.get(
+                    hypothesis_id,
+                    []
+                )
+            )
+
+
+            contradiction_count = len(
+                contradictions.get(
+                    hypothesis_id,
+                    []
+                )
+            )
+
+
+            score = (
+                support_count
+                -
+                contradiction_count
+            )
+
+
+            hypothesis_scores[
+                hypothesis_id
+            ] = score
+
+
 
         if hypotheses:
 
-            selected_hypothesis = hypotheses[0]
+
+            best_hypothesis_id = max(
+                hypothesis_scores,
+                key=hypothesis_scores.get
+            )
+
+
+            selected_hypothesis = next(
+
+                h for h in hypotheses
+
+                if h["id"] == best_hypothesis_id
+
+            )
+
 
             final_hypothesis = (
                 selected_hypothesis.get(
@@ -75,6 +137,7 @@ class ConfidenceAgent(BaseAgent):
                 )
             )
 
+
             previous_confidence = (
                 selected_hypothesis.get(
                     "initial_confidence",
@@ -82,7 +145,9 @@ class ConfidenceAgent(BaseAgent):
                 )
             )
 
+
         else:
+
 
             final_hypothesis = "unknown"
 
@@ -97,6 +162,7 @@ class ConfidenceAgent(BaseAgent):
             for item in items:
 
                 supporting_factors.append(
+
                     {
                         "hypothesis":
                             hypothesis_id,
@@ -112,6 +178,7 @@ class ConfidenceAgent(BaseAgent):
                                 "pending"
                             )
                     }
+
                 )
 
 
@@ -123,6 +190,7 @@ class ConfidenceAgent(BaseAgent):
             for item in items:
 
                 limiting_factors.append(
+
                     {
                         "hypothesis":
                             hypothesis_id,
@@ -138,24 +206,32 @@ class ConfidenceAgent(BaseAgent):
                                 "pending"
                             )
                     }
+
                 )
 
 
 
         remaining_uncertainties.extend(
+
             [
+
                 "Visual evidence requires further analysis.",
 
                 "Alternative explanations have not been fully excluded."
+
             ]
+
         )
 
 
 
-        # 当前为框架版本。
-        # 后续根据真实证据评分动态调整。
+        # 当前阶段：
+        # 由于真实证据尚未接入，
+        # 保持中等可信度。
 
-        confidence_level = "medium"
+        confidence_level = (
+            "medium"
+        )
 
 
 
@@ -168,6 +244,10 @@ class ConfidenceAgent(BaseAgent):
 
             "previous_confidence":
                 previous_confidence,
+
+
+            "hypothesis_scores":
+                hypothesis_scores,
 
 
             "confidence_level":
@@ -218,7 +298,9 @@ class ConfidenceAgent(BaseAgent):
                     confidence_result
 
             }
+
         )
+
 
 
         return state

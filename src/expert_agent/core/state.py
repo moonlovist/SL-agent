@@ -18,6 +18,8 @@ class ExpertState:
         ↓
     hypotheses
         ↓
+    evidence_plan
+        ↓
     evidence
         ↓
     contradiction
@@ -60,10 +62,21 @@ class ExpertState:
         default_factory=list
     )
 
-
-
     # =========================
     # 第三阶段：
+    # 证据规划
+    #
+    # EvidencePlannerAgent输出：
+    #
+    # 哪些证据最值得优先检查
+    # 为什么选择这些证据
+    # 针对哪些假设
+    # =========================
+
+    evidence_plan: Optional[Dict[str, Any]] = None
+
+    # =========================
+    # 第四阶段：
     # 支持证据
     # =========================
 
@@ -74,7 +87,7 @@ class ExpertState:
 
 
     # =========================
-    # 第四阶段：
+    # 第五阶段：
     # 反证 / 替代解释
     # =========================
 
@@ -85,7 +98,7 @@ class ExpertState:
 
 
     # =========================
-    # 第五阶段：
+    # 第六阶段：
     # 可信度校准
     #
     # ConfidenceAgent输出：
@@ -101,7 +114,7 @@ class ExpertState:
 
 
     # =========================
-    # 第六阶段：
+    # 第七阶段：
     # 推理审计
     # =========================
 
@@ -110,7 +123,7 @@ class ExpertState:
 
 
     # =========================
-    # 第七阶段：
+    # 第八阶段：
     # 最终专家报告
     #
     # ReportWriter最终输出

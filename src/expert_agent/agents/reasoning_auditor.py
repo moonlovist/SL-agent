@@ -4,6 +4,7 @@ from ..core.base_agent import BaseAgent
 from ..core.state import ExpertState
 
 
+
 class ReasoningAuditor(BaseAgent):
     """
     Reasoning audit Agent.
@@ -15,14 +16,16 @@ class ReasoningAuditor(BaseAgent):
     It checks:
 
     1. Whether reasoning follows the expert workflow.
-    2. Whether evidence supports hypotheses.
-    3. Whether contradictions are considered.
-    4. Whether confidence and uncertainty are properly recorded.
+    2. Whether evidence planning is performed.
+    3. Whether evidence supports hypotheses.
+    4. Whether contradictions are considered.
+    5. Whether confidence and uncertainty are properly recorded.
     """
 
 
     def __init__(self):
         super().__init__("ReasoningAuditor")
+
 
 
     def run(
@@ -39,6 +42,7 @@ class ReasoningAuditor(BaseAgent):
         issues = []
 
 
+
         # Check hypothesis generation
 
         if len(state.hypotheses) == 0:
@@ -46,6 +50,17 @@ class ReasoningAuditor(BaseAgent):
             issues.append(
                 "没有生成候选假设"
             )
+
+
+
+        # Check evidence planning
+
+        if not state.evidence_plan:
+
+            issues.append(
+                "没有进行证据规划"
+            )
+
 
 
         # Check evidence evaluation
@@ -57,6 +72,37 @@ class ReasoningAuditor(BaseAgent):
             )
 
 
+
+        # Check whether evidence uses planning
+
+        unplanned_evidence = []
+
+
+        for hypothesis_id, items in state.evidence.items():
+
+            for item in items:
+
+                if (
+                    item.get(
+                        "evidence_type"
+                    )
+                    !=
+                    "planned_evidence"
+                ):
+
+                    unplanned_evidence.append(
+                        hypothesis_id
+                    )
+
+
+        if unplanned_evidence:
+
+            issues.append(
+                "部分证据评估未使用证据规划结果"
+            )
+
+
+
         # Check contradiction analysis
 
         if len(state.contradictions) == 0:
@@ -64,6 +110,7 @@ class ReasoningAuditor(BaseAgent):
             issues.append(
                 "没有进行反证检查"
             )
+
 
 
         # Check confidence calibration
@@ -81,6 +128,7 @@ class ReasoningAuditor(BaseAgent):
 
 
         else:
+
 
             if (
                 "confidence_level"
@@ -100,6 +148,7 @@ class ReasoningAuditor(BaseAgent):
                 issues.append(
                     "没有记录不确定性"
                 )
+
 
 
         # Check evidence completion
@@ -131,6 +180,7 @@ class ReasoningAuditor(BaseAgent):
             )
 
 
+
         audit_result = {
 
 
@@ -145,39 +195,53 @@ class ReasoningAuditor(BaseAgent):
             "workflow_check":
 
                 {
+
                     "hypothesis":
                         len(state.hypotheses) > 0,
+
+
+                    "evidence_plan":
+                        bool(state.evidence_plan),
+
 
                     "evidence":
                         len(state.evidence) > 0,
 
+
                     "contradiction":
                         len(state.contradictions) > 0,
 
+
                     "confidence":
                         bool(confidence_result)
+
                 },
 
 
             "recommendation":
                 (
                     "推理流程完整，但需要根据 "
-                    "证据质量和不确定性进一步判断。"
+                    "证据质量、不确定性和替代解释进一步判断。"
                 )
 
         }
 
 
+
         state.audit_result = audit_result
 
 
+
         self.record_reasoning(
+
             state,
 
             action="reasoning_audit",
 
             content=audit_result
+
         )
+
 
 
         return state

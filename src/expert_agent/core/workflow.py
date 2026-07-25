@@ -2,11 +2,13 @@ from .state import ExpertState
 
 from ..agents.observer_agent import ObserverAgent
 from ..agents.hypothesis_agent import HypothesisAgent
+from ..agents.evidence_planner import EvidencePlannerAgent
 from ..agents.evidence_agent import EvidenceAgent
 from ..agents.counter_evidence_agent import CounterEvidenceAgent
 from ..agents.confidence_agent import ConfidenceAgent
 from ..agents.reasoning_auditor import ReasoningAuditor
 from ..agents.report_writer import ReportWriter
+
 
 
 class ExpertWorkflow:
@@ -15,11 +17,14 @@ class ExpertWorkflow:
 
     控制整个专家分析流程。
 
+
     流程：
 
     观察
       ↓
     假设生成
+      ↓
+    证据规划
       ↓
     证据评估
       ↓
@@ -31,11 +36,14 @@ class ExpertWorkflow:
       ↓
     最终报告
 
+
     对应 Expert Reasoning Framework:
-    
+
     Observation
         ↓
     Hypothesis Generation
+        ↓
+    Evidence Planning
         ↓
     Evidence Evaluation
         ↓
@@ -57,6 +65,8 @@ class ExpertWorkflow:
 
             HypothesisAgent(),
 
+            EvidencePlannerAgent(),
+
             EvidenceAgent(),
 
             CounterEvidenceAgent(),
@@ -68,6 +78,7 @@ class ExpertWorkflow:
             ReportWriter()
 
         ]
+
 
 
     def run(
