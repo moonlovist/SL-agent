@@ -18,8 +18,8 @@ class ReasoningAuditor(BaseAgent):
     1. Whether reasoning follows the expert workflow.
     2. Whether evidence planning is performed.
     3. Whether evidence scoring structure exists.
-    4. Whether contradictions are considered.
-    5. Whether confidence uses uncertainty and scoring information.
+    4. Whether decision selection is performed.
+    5. Whether confidence is based on decision and uncertainty.
     """
 
 
@@ -158,6 +158,48 @@ class ReasoningAuditor(BaseAgent):
 
 
 
+        # =========================
+        # V2.3:
+        # Check decision selection
+        # =========================
+
+
+        decision_result = (
+            state.decision_result
+        )
+
+
+        if not decision_result:
+
+            issues.append(
+                "没有进行最佳解释选择"
+            )
+
+
+        else:
+
+
+            if (
+                "selected_hypothesis"
+                not in decision_result
+            ):
+
+                issues.append(
+                    "决策结果缺少选择假设"
+                )
+
+
+            if (
+                "ranking"
+                not in decision_result
+            ):
+
+                issues.append(
+                    "决策结果缺少假设排序"
+                )
+
+
+
         # Check confidence calibration
 
         confidence_result = (
@@ -202,6 +244,13 @@ class ReasoningAuditor(BaseAgent):
 
                 issues.append(
                     "可信度校准未使用证据评分结果"
+                )
+
+
+            if not decision_result:
+
+                issues.append(
+                    "可信度校准缺少决策依据"
                 )
 
 
@@ -274,6 +323,10 @@ class ReasoningAuditor(BaseAgent):
                         len(state.contradictions) > 0,
 
 
+                    "decision":
+                        bool(decision_result),
+
+
                     "confidence":
                         bool(confidence_result)
 
@@ -283,7 +336,8 @@ class ReasoningAuditor(BaseAgent):
             "recommendation":
                 (
                     "推理流程完整，但需要根据 "
-                    "证据权重、不确定性和替代解释进一步判断。"
+                    "证据权重、决策依据、"
+                    "不确定性和替代解释进一步判断。"
                 )
 
         }

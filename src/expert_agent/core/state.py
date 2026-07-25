@@ -24,11 +24,13 @@ class ExpertState:
         ↓
     contradiction
         ↓
+    decision
+        ↓
     confidence
         ↓
     audit
         ↓
-    decision
+    final_report
     """
 
 
@@ -62,6 +64,8 @@ class ExpertState:
         default_factory=list
     )
 
+
+
     # =========================
     # 第三阶段：
     # 证据规划
@@ -74,6 +78,8 @@ class ExpertState:
     # =========================
 
     evidence_plan: Optional[Dict[str, Any]] = None
+
+
 
     # =========================
     # 第四阶段：
@@ -99,10 +105,26 @@ class ExpertState:
 
     # =========================
     # 第六阶段：
+    # 最佳解释选择
+    #
+    # DecisionAgent输出：
+    #
+    # - 当前最佳假设
+    # - 假设排序
+    # - 决策依据
+    # - 剩余竞争解释
+    # =========================
+
+    decision_result: Optional[Dict[str, Any]] = None
+
+
+
+    # =========================
+    # 第七阶段：
     # 可信度校准
     #
     # ConfidenceAgent输出：
-    # - 最终候选解释
+    #
     # - 可信度等级
     # - 支持因素
     # - 限制因素
@@ -114,7 +136,7 @@ class ExpertState:
 
 
     # =========================
-    # 第七阶段：
+    # 第八阶段：
     # 推理审计
     # =========================
 
@@ -123,7 +145,7 @@ class ExpertState:
 
 
     # =========================
-    # 第八阶段：
+    # 第九阶段：
     # 最终专家报告
     #
     # ReportWriter最终输出

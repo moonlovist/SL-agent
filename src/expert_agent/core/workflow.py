@@ -5,6 +5,7 @@ from ..agents.hypothesis_agent import HypothesisAgent
 from ..agents.evidence_planner import EvidencePlannerAgent
 from ..agents.evidence_agent import EvidenceAgent
 from ..agents.counter_evidence_agent import CounterEvidenceAgent
+from ..agents.decision_agent import DecisionAgent
 from ..agents.confidence_agent import ConfidenceAgent
 from ..agents.reasoning_auditor import ReasoningAuditor
 from ..agents.report_writer import ReportWriter
@@ -30,6 +31,8 @@ class ExpertWorkflow:
       ↓
     反证分析
       ↓
+    最佳解释选择
+      ↓
     可信度校准
       ↓
     推理审计
@@ -49,6 +52,8 @@ class ExpertWorkflow:
         ↓
     Contradiction Analysis
         ↓
+    Decision Making
+        ↓
     Confidence Calibration
         ↓
     Reasoning Audit
@@ -57,23 +62,35 @@ class ExpertWorkflow:
     """
 
 
+
     def __init__(self):
 
         self.agents = [
 
+
             ObserverAgent(),
+
 
             HypothesisAgent(),
 
+
             EvidencePlannerAgent(),
+
 
             EvidenceAgent(),
 
+
             CounterEvidenceAgent(),
+
+
+            DecisionAgent(),
+
 
             ConfidenceAgent(),
 
+
             ReasoningAuditor(),
+
 
             ReportWriter()
 

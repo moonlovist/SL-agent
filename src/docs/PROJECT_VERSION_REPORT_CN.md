@@ -758,43 +758,490 @@ Expert Report
 
 ---
 
-# 下一阶段规划
+# V2.3 Decision Separation
 
-## V2.3 Decision Separation
+## 版本目标
 
-目标：
+解决 V2.2 中存在的职责耦合问题：
 
-拆分：
+ConfidenceAgent 同时承担：
 
-假设选择
-
-与
-
-可信度判断。
+- 选择最佳假设；
+- 判断可信程度。
 
 
-新增：
+这种设计导致：
 
-DecisionAgent
+“选择什么解释”
+
+和
+
+“相信这个解释多少”
+
+两个不同的专家任务混合。
 
 
-职责：
-
-- 比较候选假设；
-- 根据证据评分选择最佳解释。
-
-
-ConfidenceAgent：
-
-专注：
-
-- 判断可信程度；
-- 记录不确定性；
-- 分析风险。
+V2.3 将两个过程进行拆分，使推理流程更加符合真实专家分析过程。
 
 
 ---
 
+# 核心改进
+
+
+## Decision 与 Confidence 分离
+
+
+原流程：
+
+Evidence
+
+↓
+
+ConfidenceAgent
+
+↓
+
+Final judgement
+
+
+其中 ConfidenceAgent 同时负责：
+
+- hypothesis selection；
+- confidence evaluation。
+
+
+
+升级后：
+
+Evidence
+
+↓
+
+DecisionAgent
+
+↓
+
+ConfidenceAgent
+
+↓
+
+Final judgement
+
+
+
+职责变为：
+
+
+### DecisionAgent
+
+回答：
+
+“当前哪个解释最符合已有证据？”
+
+
+负责：
+
+- 比较候选假设；
+- 综合证据评分；
+- 考虑反证影响；
+- 输出假设排序。
+
+
+不负责：
+
+- 可信度等级；
+- 不确定性分析。
+
+
+
+---
+
+### ConfidenceAgent
+
+回答：
+
+“对于当前选择，我应该有多大信心？”
+
+
+负责：
+
+- confidence level；
+- uncertainty；
+- supporting factors；
+- limiting factors。
+
+
+不再负责：
+
+- 选择最终假设。
+
+
+---
+
+# 新增组件
+
+
+## DecisionAgent
+
+
+新增：
+
+`DecisionAgent`
+
+
+作用：
+
+根据：
+
+- evidence scoring；
+- contradiction analysis；
+
+选择当前最佳解释。
+
+
+输出：
+
+- selected hypothesis；
+- hypothesis ranking；
+- decision reasoning；
+- remaining competitors。
+
+
+
+---
+
+# State升级
+
+
+新增：
+
+```text
+decision_result
+```
+
+
+用于保存 DecisionAgent 输出。
+
+
+新的状态流程：
+
+
+Observation
+
+↓
+
+Hypothesis
+
+↓
+
+Evidence Planning
+
+↓
+
+Evidence Evaluation
+
+↓
+
+Contradiction Analysis
+
+↓
+
+Decision
+
+↓
+
+Confidence
+
+↓
+
+Audit
+
+↓
+
+Final Report
+
+
+
+---
+
+# Workflow升级
+
+
+ExpertWorkflow 新增：
+
+DecisionAgent。
+
+
+流程由：
+
+Evidence
+
+↓
+
+Counter Evidence
+
+↓
+
+Confidence
+
+
+升级为：
+
+
+Evidence
+
+↓
+
+Counter Evidence
+
+↓
+
+Decision
+
+↓
+
+Confidence
+
+
+
+---
+
+# ConfidenceAgent升级
+
+
+主要变化：
+
+删除：
+
+- 根据 hypothesis_scores 自动选择最佳假设；
+- 使用 max score 直接决定最终解释。
+
+
+新增：
+
+读取：
+
+```text
+decision_result
+```
+
+
+由 DecisionAgent 提供：
+
+当前最佳解释。
+
+
+ConfidenceAgent 专注：
+
+可信度评估。
+
+
+---
+
+# ReasoningAuditor升级
+
+
+新增检查：
+
+
+## Decision检查
+
+验证：
+
+- 是否完成最佳解释选择；
+- 是否存在 selected_hypothesis；
+- 是否存在 hypothesis ranking。
+
+
+## Confidence依赖检查
+
+验证：
+
+Confidence阶段是否基于 Decision 结果。
+
+
+---
+
+# ReportWriter升级
+
+
+最终报告新增：
+
+```text
+decision_result
+```
+
+
+使最终报告能够完整记录：
+
+- 为什么选择该假设；
+- 候选假设如何排序；
+- 可信度如何评估。
+
+
+---
+
+# V2.3意义
+
+
+V2.3 的核心不是增加新的分析能力，
+
+而是优化专家推理结构。
+
+
+系统从：
+
+“一个 Agent 同时负责选择和判断”
+
+
+升级为：
+
+“多个专家角色分别负责不同认知任务”。
+
+
+形成更加清晰的专家决策链：
+
+
+观察事实
+
+↓
+
+提出解释
+
+↓
+
+规划验证
+
+↓
+
+评估证据
+
+↓
+
+分析反例
+
+↓
+
+选择最佳解释
+
+↓
+
+评估可信程度
+
+↓
+
+审计推理
+
+↓
+
+生成报告
+
+
+
+---
+
+# 当前版本状态
+
+当前版本：
+
+V2.3
+
+
+当前 Expert Reasoning Framework：
+
+
+Observation
+
+↓
+
+Hypothesis Generation
+
+↓
+
+Evidence Planning
+
+↓
+
+Evidence Evaluation
+
+↓
+
+Evidence Scoring
+
+↓
+
+Contradiction Analysis
+
+↓
+
+Decision Making
+
+↓
+
+Confidence Calibration
+
+↓
+
+Reasoning Audit
+
+↓
+
+Final Report
+
+
+---
+
+# 下一阶段规划
+
+
+## V2.4 LLM Integration Preparation
+
+
+目标：
+
+为接入真实模型能力准备接口。
+
+
+主要方向：
+
+- Agent Prompt结构设计；
+- LLM调用层；
+- Skill与模型推理结合；
+- 输入输出格式标准化。
+
+
+当前系统已经完成：
+
+专家推理流程骨架。
+
+
+下一阶段将逐步替换：
+
+模拟专家逻辑
+
+↓
+
+模型驱动专家推理。
+```
+
+---
+
+更新完后可以 Git：
+
+建议 commit：
+
+```text
+V2.3 Decision Separation completed
+```
+
+或者：
+
+```text
+V2.3：决策与可信度分离完成
+```
+
+---
 
 # Version 3.0
 

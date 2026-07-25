@@ -74,6 +74,10 @@ class ReportWriter(BaseAgent):
                 state.contradictions,
 
 
+            "decision_result":
+                state.decision_result,
+
+
             "confidence_assessment":
                 confidence_assessment,
 
@@ -86,8 +90,8 @@ class ReportWriter(BaseAgent):
                 (
                     "Expert judgement generated "
                     "from evidence planning, "
-                    "weighted evidence evaluation, "
-                    "contradiction analysis, "
+                    "evidence evaluation, "
+                    "decision selection, "
                     "confidence calibration, "
                     "and reasoning audit."
                 )
