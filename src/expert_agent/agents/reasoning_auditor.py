@@ -17,9 +17,9 @@ class ReasoningAuditor(BaseAgent):
 
     1. Whether reasoning follows the expert workflow.
     2. Whether evidence planning is performed.
-    3. Whether evidence supports hypotheses.
+    3. Whether evidence scoring structure exists.
     4. Whether contradictions are considered.
-    5. Whether confidence and uncertainty are properly recorded.
+    5. Whether confidence uses uncertainty and scoring information.
     """
 
 
@@ -73,7 +73,7 @@ class ReasoningAuditor(BaseAgent):
 
 
 
-        # Check whether evidence uses planning
+        # Check evidence planning usage
 
         unplanned_evidence = []
 
@@ -81,6 +81,7 @@ class ReasoningAuditor(BaseAgent):
         for hypothesis_id, items in state.evidence.items():
 
             for item in items:
+
 
                 if (
                     item.get(
@@ -95,10 +96,54 @@ class ReasoningAuditor(BaseAgent):
                     )
 
 
+
         if unplanned_evidence:
 
             issues.append(
                 "部分证据评估未使用证据规划结果"
+            )
+
+
+
+        # Check evidence scoring structure
+
+        missing_scoring_fields = []
+
+
+        required_fields = [
+
+            "strength",
+
+            "reliability",
+
+            "specificity",
+
+            "support_score",
+
+            "evaluation_reason"
+
+        ]
+
+
+        for hypothesis_id, items in state.evidence.items():
+
+            for item in items:
+
+                for field in required_fields:
+
+
+                    if field not in item:
+
+                        missing_scoring_fields.append(
+                            field
+                        )
+
+
+
+        if missing_scoring_fields:
+
+            issues.append(
+                "部分证据缺少评分字段"
             )
 
 
@@ -150,6 +195,16 @@ class ReasoningAuditor(BaseAgent):
                 )
 
 
+            if (
+                "evidence_score_breakdown"
+                not in confidence_result
+            ):
+
+                issues.append(
+                    "可信度校准未使用证据评分结果"
+                )
+
+
 
         # Check evidence completion
 
@@ -159,6 +214,7 @@ class ReasoningAuditor(BaseAgent):
         for hypothesis_id, items in state.evidence.items():
 
             for item in items:
+
 
                 if (
                     item.get(
@@ -171,6 +227,7 @@ class ReasoningAuditor(BaseAgent):
                     pending_evidence.append(
                         hypothesis_id
                     )
+
 
 
         if pending_evidence:
@@ -196,6 +253,7 @@ class ReasoningAuditor(BaseAgent):
 
                 {
 
+
                     "hypothesis":
                         len(state.hypotheses) > 0,
 
@@ -206,6 +264,10 @@ class ReasoningAuditor(BaseAgent):
 
                     "evidence":
                         len(state.evidence) > 0,
+
+
+                    "evidence_scoring":
+                        len(missing_scoring_fields) == 0,
 
 
                     "contradiction":
@@ -221,7 +283,7 @@ class ReasoningAuditor(BaseAgent):
             "recommendation":
                 (
                     "推理流程完整，但需要根据 "
-                    "证据质量、不确定性和替代解释进一步判断。"
+                    "证据权重、不确定性和替代解释进一步判断。"
                 )
 
         }

@@ -32,6 +32,21 @@ class ReportWriter(BaseAgent):
         )
 
 
+        confidence_assessment = (
+            state.confidence_assessment
+            if state.confidence_assessment
+            else {}
+        )
+
+
+        evidence_scoring = (
+            confidence_assessment.get(
+                "evidence_score_breakdown",
+                {}
+            )
+        )
+
+
         report = {
 
 
@@ -51,12 +66,16 @@ class ReportWriter(BaseAgent):
                 state.evidence,
 
 
+            "evidence_scoring":
+                evidence_scoring,
+
+
             "contradictions":
                 state.contradictions,
 
 
             "confidence_assessment":
-                state.confidence_assessment,
+                confidence_assessment,
 
 
             "audit":
@@ -67,7 +86,7 @@ class ReportWriter(BaseAgent):
                 (
                     "Expert judgement generated "
                     "from evidence planning, "
-                    "evidence balance, "
+                    "weighted evidence evaluation, "
                     "contradiction analysis, "
                     "confidence calibration, "
                     "and reasoning audit."

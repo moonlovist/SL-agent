@@ -14,10 +14,10 @@ class ConfidenceAgent(BaseAgent):
 
     Responsibilities:
 
-    1. Review evidence balance.
-    2. Consider contradictions.
-    3. Evaluate uncertainty.
-    4. Assign confidence level.
+    1. Evaluate evidence balance.
+    2. Consider contradiction strength.
+    3. Calculate hypothesis confidence.
+    4. Preserve uncertainty.
 
     This stage does not create new hypotheses.
     """
@@ -61,17 +61,24 @@ class ConfidenceAgent(BaseAgent):
 
 
         # =================================
-        # v2.1:
-        # 根据证据和反证数量选择候选
+        # v2.2 Evidence Scoring
         #
-        # 当前为基础评分框架。
+        # 使用证据权重计算候选评分。
+        #
+        # 当前：
+        # 使用support_score。
         #
         # 未来：
-        # 使用模型根据证据质量动态评分。
+        # 使用:
+        # strength *
+        # reliability *
+        # specificity
         # =================================
 
 
         hypothesis_scores = {}
+
+        evidence_score_breakdown = {}
 
 
 
@@ -83,32 +90,88 @@ class ConfidenceAgent(BaseAgent):
             )
 
 
-            support_count = len(
-                evidence.get(
-                    hypothesis_id,
-                    []
+            positive_score = 0
+
+            negative_score = 0
+
+
+
+            # 计算支持证据
+
+            for item in evidence.get(
+                hypothesis_id,
+                []
+            ):
+
+
+                support_score = (
+                    item.get(
+                        "support_score"
+                    )
                 )
-            )
 
 
-            contradiction_count = len(
-                contradictions.get(
-                    hypothesis_id,
-                    []
+                if support_score is not None:
+
+                    positive_score += (
+                        support_score
+                    )
+
+
+
+            # 计算反证影响
+
+            for item in contradictions.get(
+                hypothesis_id,
+                []
+            ):
+
+
+                severity = (
+                    item.get(
+                        "severity"
+                    )
                 )
-            )
 
 
-            score = (
-                support_count
+                if severity is not None:
+
+                    negative_score += (
+                        severity
+                    )
+
+
+
+            final_score = (
+                positive_score
                 -
-                contradiction_count
+                negative_score
             )
 
 
             hypothesis_scores[
                 hypothesis_id
-            ] = score
+            ] = final_score
+
+
+
+            evidence_score_breakdown[
+                hypothesis_id
+            ] = {
+
+
+                "positive_evidence_score":
+                    positive_score,
+
+
+                "negative_contradiction_score":
+                    negative_score,
+
+
+                "final_score":
+                    final_score
+
+            }
 
 
 
@@ -161,16 +224,25 @@ class ConfidenceAgent(BaseAgent):
 
             for item in items:
 
+
                 supporting_factors.append(
 
                     {
                         "hypothesis":
                             hypothesis_id,
 
+
                         "feature":
                             item.get(
                                 "feature"
                             ),
+
+
+                        "support_score":
+                            item.get(
+                                "support_score"
+                            ),
+
 
                         "status":
                             item.get(
@@ -189,16 +261,25 @@ class ConfidenceAgent(BaseAgent):
 
             for item in items:
 
+
                 limiting_factors.append(
 
                     {
                         "hypothesis":
                             hypothesis_id,
 
+
                         "contradiction":
                             item.get(
                                 "description"
                             ),
+
+
+                        "severity":
+                            item.get(
+                                "severity"
+                            ),
+
 
                         "status":
                             item.get(
@@ -215,7 +296,7 @@ class ConfidenceAgent(BaseAgent):
 
             [
 
-                "Visual evidence requires further analysis.",
+                "Evidence scores require further evaluation.",
 
                 "Alternative explanations have not been fully excluded."
 
@@ -224,10 +305,6 @@ class ConfidenceAgent(BaseAgent):
         )
 
 
-
-        # 当前阶段：
-        # 由于真实证据尚未接入，
-        # 保持中等可信度。
 
         confidence_level = (
             "medium"
@@ -250,6 +327,10 @@ class ConfidenceAgent(BaseAgent):
                 hypothesis_scores,
 
 
+            "evidence_score_breakdown":
+                evidence_score_breakdown,
+
+
             "confidence_level":
                 confidence_level,
 
@@ -257,8 +338,8 @@ class ConfidenceAgent(BaseAgent):
             "confidence_reasoning":
                 (
                     "Confidence is calibrated "
-                    "based on evidence balance, "
-                    "contradictions, and remaining uncertainty."
+                    "based on weighted evidence, "
+                    "contradictions, and uncertainty."
                 ),
 
 
@@ -293,6 +374,7 @@ class ConfidenceAgent(BaseAgent):
 
                 "skill_used":
                     "confidence_calibration_skill",
+
 
                 "result":
                     confidence_result

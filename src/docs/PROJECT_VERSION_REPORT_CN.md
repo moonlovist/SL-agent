@@ -260,160 +260,43 @@ Agent：
 
 ---
 
-# Version 2.0
+---
 
-## 专家推理流程重构
-
+# V2.0 Expert Reasoning Framework Upgrade
 
 ## 版本目标
 
+V2.0 对原有基础 Agent 流程进行重新设计。
 
-v2.0是一次重要架构升级。
+核心目标：
 
+从简单的任务执行流程，
 
-核心变化：
-
-从：
-
-> 固定假设检查系统
+升级为模拟专家分析过程的推理框架。
 
 
-升级为：
+核心原则：
 
-> 模拟专家判断过程的推理系统。
+Observation does not equal conclusion.
 
+观察结果不直接等于最终判断。
 
----
+系统需要：
 
-# v2.0主要完成内容
-
-
-## 1. Hypothesis Generation升级
-
-
-旧流程：
-
-```
-观察
-
-↓
-
-列出所有可能
-
-↓
-
-逐个检查
-```
-
-
-升级：
-
-```
-观察事实
-
-↓
-
-生成竞争解释
-
-↓
-
-提出验证问题
-
-↓
-
-寻找关键证据
-```
-
-
-新增：
-
-- 初始可信度；
-- 支持证据需求；
-- 可能反例。
+- 保留多个候选解释；
+- 分析支持证据；
+- 寻找反例；
+- 评估判断可信程度。
 
 
 ---
 
-## 2. Evidence Evaluation升级
+## 推理流程升级
 
 
-EvidenceAgent不再只是生成证据占位。
+V2.0 新增完整专家推理链：
 
 
-升级为：
-
-根据假设：
-
-分析：
-
-- 哪些证据支持该解释；
-- 哪些证据能够区分不同解释。
-
-
----
-
-## 3. CounterEvidence增强
-
-
-新增专家反思机制：
-
-> 如果当前判断错误，可能是什么原因？
-
-
-用于：
-
-- 降低确认偏差；
-- 主动寻找替代解释。
-
-
----
-
-## 4. 新增Confidence Calibration
-
-
-加入：
-
-ConfidenceAgent
-
-
-负责：
-
-综合：
-
-- 证据；
-- 反证；
-- 不确定性。
-
-
-输出：
-
-- 判断；
-- 可信度；
-- 支持因素；
-- 限制因素。
-
-
----
-
-## 5. Reasoning Audit升级
-
-
-增强推理检查。
-
-
-检查：
-
-- 是否存在无证据结论；
-- 是否考虑替代解释；
-- 是否记录不确定性。
-
-
----
-
-# v2.0最终推理流程
-
-
-```
 Observation
 
 ↓
@@ -426,7 +309,439 @@ Evidence Evaluation
 
 ↓
 
-Counter Evidence Analysis
+Contradiction Analysis
+
+↓
+
+Confidence Calibration
+
+↓
+
+Reasoning Audit
+
+↓
+
+Final Report
+
+
+---
+
+## 主要改进
+
+
+### 1. Hypothesis Generation升级
+
+新增竞争假设机制。
+
+系统不直接判断目标是否为强引力透镜，而是同时维护多个可能解释：
+
+- strong gravitational lens;
+- intrinsic galaxy structure;
+- galaxy merger;
+- imaging artifact.
+
+
+每个假设包含：
+
+- supporting observations;
+- required evidence;
+- possible contradictions。
+
+
+---
+
+### 2. Evidence Evaluation升级
+
+EvidenceAgent不再直接输出结论。
+
+改为：
+
+根据候选假设生成需要验证的证据。
+
+
+每个证据记录：
+
+- 关联假设；
+- 需要验证的问题；
+- 当前评估状态；
+- 不确定性。
+
+
+---
+
+### 3. Counter Evidence机制
+
+新增反证分析流程。
+
+目标：
+
+降低确认偏差。
+
+
+系统主动寻找：
+
+- 哪些观察可能削弱当前假设；
+- 哪些替代解释仍然成立。
+
+
+---
+
+### 4. Confidence Calibration
+
+新增可信度校准阶段。
+
+
+区别：
+
+判断：
+
+“哪个解释更合理”
+
+与
+
+相信程度：
+
+“这个判断有多可靠”。
+
+
+系统记录：
+
+- confidence level;
+- supporting factors;
+- limiting factors;
+- remaining uncertainties。
+
+
+---
+
+### 5. Reasoning Audit
+
+新增推理审计阶段。
+
+
+检查：
+
+- 是否生成候选假设；
+- 是否分析证据；
+- 是否考虑反证；
+- 是否记录不确定性。
+
+
+---
+
+# V2.1 Evidence Planning Upgrade
+
+## 版本目标
+
+解决 V2.0 中存在的问题：
+
+所有候选假设进行完整枚举验证，
+
+导致：
+
+- 验证效率低；
+- 无效推理增加；
+- 不符合专家实际分析流程。
+
+
+---
+
+## 核心改进
+
+从：
+
+全部证据检查
+
+
+升级为：
+
+优先验证高价值证据。
+
+
+---
+
+## 新增组件
+
+
+### EvidencePlannerAgent
+
+新增证据规划阶段。
+
+
+流程升级：
+
+Hypothesis
+
+↓
+
+Evidence Planning
+
+↓
+
+Evidence Evaluation
+
+
+负责：
+
+- 选择优先验证的问题；
+- 根据假设竞争关系规划证据；
+- 减少无效检查。
+
+
+---
+
+## 新增Skill
+
+新增：
+
+evidence_planning_skill
+
+
+用于定义：
+
+- 证据优先级；
+- 验证目标；
+- 信息价值。
+
+
+---
+
+## State升级
+
+新增：
+
+evidence_plan
+
+
+用于保存：
+
+- 优先验证问题；
+- 目标假设；
+- 规划原因。
+
+
+---
+
+## Agent升级
+
+
+### EvidenceAgent
+
+升级：
+
+从读取全部证据需求，
+
+变为读取 EvidencePlanner 生成的验证计划。
+
+
+新增：
+
+planned_evidence。
+
+
+---
+
+### CounterEvidenceAgent
+
+升级：
+
+从生成全部可能反例，
+
+变为针对关键验证问题生成风险检查。
+
+
+新增：
+
+planned_contradiction。
+
+
+---
+
+### ConfidenceAgent
+
+升级：
+
+不再固定选择第一个假设。
+
+增加基础候选比较机制。
+
+
+---
+
+### ReasoningAuditor
+
+新增：
+
+检查证据规划是否执行。
+
+
+---
+
+### ReportWriter
+
+新增输出：
+
+evidence_plan。
+
+
+---
+
+# V2.2 Evidence Scoring Framework
+
+## 版本目标
+
+解决 V2.1 中的问题：
+
+系统能够选择验证什么，
+
+但还不能评价证据强弱。
+
+
+---
+
+## 核心改进
+
+从：
+
+证据存在性判断
+
+
+升级为：
+
+证据权重评价框架。
+
+
+---
+
+## 新增Skill
+
+新增：
+
+evidence_scoring_skill
+
+
+定义：
+
+- evidence strength;
+- reliability;
+- specificity;
+- support score。
+
+
+为未来接入视觉模型和LLM评分提供接口。
+
+
+---
+
+## EvidenceAgent升级
+
+
+证据结构增加：
+
+- strength;
+- reliability;
+- specificity;
+- support_score;
+- evaluation_reason。
+
+
+使证据由：
+
+“待验证项目”
+
+升级为：
+
+“可评分知识单元”。
+
+
+---
+
+## ConfidenceAgent升级
+
+
+评分方式由：
+
+support_count - contradiction_count
+
+
+升级为：
+
+基于证据权重的评分框架。
+
+
+新增：
+
+- hypothesis_scores;
+- evidence_score_breakdown。
+
+
+用于记录：
+
+- 支持证据贡献；
+- 反证影响；
+- 假设综合评分。
+
+
+---
+
+## ReasoningAuditor升级
+
+
+新增检查：
+
+- 证据是否包含评分结构；
+- 可信度判断是否使用证据评分。
+
+
+---
+
+## ReportWriter升级
+
+
+最终报告新增：
+
+evidence_scoring
+
+
+用于展示：
+
+- 证据权重；
+- 假设评分；
+- 可信度依据。
+
+
+---
+
+# 当前版本状态
+
+当前版本：
+
+V2.2
+
+
+当前专家推理流程：
+
+Observation
+
+↓
+
+Hypothesis Generation
+
+↓
+
+Evidence Planning
+
+↓
+
+Evidence Evaluation
+
+↓
+
+Evidence Scoring
+
+↓
+
+Contradiction Analysis
 
 ↓
 
@@ -439,58 +754,47 @@ Reasoning Audit
 ↓
 
 Expert Report
-```
 
 
 ---
 
-# v2.0解决的问题
+# 下一阶段规划
 
+## V2.3 Decision Separation
 
-相比v1.0：
+目标：
 
-|问题|改进|
-|-|-|
-|固定假设枚举|竞争解释|
-|所有证据全部检查|强调关键证据|
-|只寻找支持|加入反证分析|
-|结果导向|推理过程导向|
-|缺少可信度|加入Confidence Calibration|
+拆分：
 
+假设选择
 
----
-## v2.0测试状态
+与
 
-v2.0核心推理流程已经完成初步运行测试。
+可信度判断。
 
-验证内容：
-
-- Agent流程完整运行；
-- ExpertState完成模块化重构；
-- Confidence结果与最终报告分离；
-- ReasoningAudit能够正确检查完整推理流程。
-
-当前限制：
-
-- Observer仍等待真实视觉模型；
-- Evidence仍为规则驱动；
-- Hypothesis选择仍需要未来引入动态决策机制。
-
-# 后续版本记录
-
-
-# Version 2.1
-## V2.1 Evidence Planning Upgrade
 
 新增：
-- EvidencePlannerAgent
-- evidence_plan state
-- Evidence-guided evaluation workflow
 
-改进：
-- 从穷举式证据检查升级为优先级证据选择
-- 减少无效假设验证
-- 提高专家推理效率
+DecisionAgent
+
+
+职责：
+
+- 比较候选假设；
+- 根据证据评分选择最佳解释。
+
+
+ConfidenceAgent：
+
+专注：
+
+- 判断可信程度；
+- 记录不确定性；
+- 分析风险。
+
+
+---
+
 
 # Version 3.0
 

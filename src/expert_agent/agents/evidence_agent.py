@@ -14,7 +14,8 @@ class EvidenceAgent(BaseAgent):
 
     1. Read evidence planning results.
     2. Generate evidence evaluation tasks.
-    3. Record why evidence is relevant.
+    3. Prepare evidence scoring structure.
+    4. Record why evidence is relevant.
 
     This stage does not make final judgement.
     """
@@ -22,6 +23,7 @@ class EvidenceAgent(BaseAgent):
 
     def __init__(self):
         super().__init__("EvidenceAgent")
+
 
 
     def run(
@@ -59,13 +61,6 @@ class EvidenceAgent(BaseAgent):
 
 
 
-        # v2.1:
-        # 优先使用 EvidencePlanner 选择的问题。
-        #
-        # 如果没有 evidence_plan，
-        # 则回退到旧版全部检查逻辑。
-
-
         planned_questions = []
 
 
@@ -98,8 +93,12 @@ class EvidenceAgent(BaseAgent):
 
 
             # =========================
-            # v2.1 Evidence Planning模式
+            # v2.2 Evidence Scoring模式
+            #
+            # 使用EvidencePlanner选择的问题
+            # 并初始化评分字段
             # =========================
+
 
             if planned_questions:
 
@@ -118,6 +117,7 @@ class EvidenceAgent(BaseAgent):
                         evidence_items.append(
 
                             {
+
                                 "feature":
                                     question["question"],
 
@@ -145,6 +145,12 @@ class EvidenceAgent(BaseAgent):
                                     ),
 
 
+                                # 证据评分字段
+
+                                "strength":
+                                    None,
+
+
                                 "reliability":
                                     None,
 
@@ -153,7 +159,11 @@ class EvidenceAgent(BaseAgent):
                                     None,
 
 
-                                "strength":
+                                "support_score":
+                                    None,
+
+
+                                "evaluation_reason":
                                     None,
 
 
@@ -164,7 +174,8 @@ class EvidenceAgent(BaseAgent):
                                 "reasoning":
                                     (
                                         "Evidence selected "
-                                        "by EvidencePlannerAgent."
+                                        "by EvidencePlannerAgent "
+                                        "and prepared for scoring."
                                     )
                             }
 
@@ -174,7 +185,7 @@ class EvidenceAgent(BaseAgent):
 
             # =========================
             # fallback:
-            # 保留v2.0行为
+            # 保留旧版本兼容
             # =========================
 
             else:
@@ -194,6 +205,7 @@ class EvidenceAgent(BaseAgent):
                     evidence_items.append(
 
                         {
+
                             "feature":
                                 item,
 
@@ -223,6 +235,10 @@ class EvidenceAgent(BaseAgent):
                                 item,
 
 
+                            "strength":
+                                None,
+
+
                             "reliability":
                                 None,
 
@@ -231,7 +247,11 @@ class EvidenceAgent(BaseAgent):
                                 None,
 
 
-                            "strength":
+                            "support_score":
+                                None,
+
+
+                            "evaluation_reason":
                                 None,
 
 
@@ -275,6 +295,10 @@ class EvidenceAgent(BaseAgent):
                     bool(evidence_plan),
 
 
+                "scoring_ready":
+                    True,
+
+
                 "number_of_hypotheses":
                     len(hypotheses),
 
@@ -283,6 +307,7 @@ class EvidenceAgent(BaseAgent):
                     evidence
             }
         )
+
 
 
         return state
