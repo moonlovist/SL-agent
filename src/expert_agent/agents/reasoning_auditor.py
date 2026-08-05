@@ -1,363 +1,92 @@
-from typing import Dict, Any, List
+from __future__ import annotations
 
 from ..core.base_agent import BaseAgent
 from ..core.state import ExpertState
-
+from ..schemas.reasoning import AuditResult
 
 
 class ReasoningAuditor(BaseAgent):
-    """
-    Reasoning audit Agent.
-
-    Simulates the final expert self-review.
-
-    It does not create new facts.
-
-    It checks:
-
-    1. Whether reasoning follows the expert workflow.
-    2. Whether evidence planning is performed.
-    3. Whether evidence scoring structure exists.
-    4. Whether decision selection is performed.
-    5. Whether confidence is based on decision and uncertainty.
-    """
-
-
     def __init__(self):
         super().__init__("ReasoningAuditor")
 
-
-
-    def run(
-        self,
-        state: ExpertState
-    ) -> ExpertState:
-
-
-        self.log(
-            "开始审查推理过程"
-        )
-
-
-        issues = []
-
-
-
-        # Check hypothesis generation
-
-        if len(state.hypotheses) == 0:
-
-            issues.append(
-                "没有生成候选假设"
-            )
-
-
-
-        # Check evidence planning
-
-        if not state.evidence_plan:
-
-            issues.append(
-                "没有进行证据规划"
-            )
-
-
-
-        # Check evidence evaluation
-
-        if len(state.evidence) == 0:
-
-            issues.append(
-                "没有进行证据分析"
-            )
-
-
-
-        # Check evidence planning usage
-
-        unplanned_evidence = []
-
-
-        for hypothesis_id, items in state.evidence.items():
-
-            for item in items:
-
-
-                if (
-                    item.get(
-                        "evidence_type"
-                    )
-                    !=
-                    "planned_evidence"
-                ):
-
-                    unplanned_evidence.append(
-                        hypothesis_id
-                    )
-
-
-
-        if unplanned_evidence:
-
-            issues.append(
-                "部分证据评估未使用证据规划结果"
-            )
-
-
-
-        # Check evidence scoring structure
-
-        missing_scoring_fields = []
-
-
-        required_fields = [
-
-            "strength",
-
-            "reliability",
-
-            "specificity",
-
-            "support_score",
-
-            "evaluation_reason"
-
+    def run(self, state: ExpertState) -> ExpertState:
+        self.log("审计证据来源与决策约束")
+        document = state.require_observation()
+        issues: list[str] = []
+        measurement_ids = [item.id for item in document.measurements]
+        evidence_ids = [item.id for items in state.evidence.values() for item in items]
+        contradiction_ids = [
+            item.id for items in state.contradictions.values() for item in items
         ]
-
-
-        for hypothesis_id, items in state.evidence.items():
-
-            for item in items:
-
-                for field in required_fields:
-
-
-                    if field not in item:
-
-                        missing_scoring_fields.append(
-                            field
-                        )
-
-
-
-        if missing_scoring_fields:
-
-            issues.append(
-                "部分证据缺少评分字段"
-            )
-
-
-
-        # Check contradiction analysis
-
-        if len(state.contradictions) == 0:
-
-            issues.append(
-                "没有进行反证检查"
-            )
-
-
-
-        # =========================
-        # V2.3:
-        # Check decision selection
-        # =========================
-
-
-        decision_result = (
-            state.decision_result
+        unique_measurements = len(measurement_ids) == len(set(measurement_ids))
+        if not unique_measurements:
+            issues.append("Observation contains duplicate measurement IDs.")
+        known_measurements = set(measurement_ids)
+        valid_evidence_refs = all(
+            set(item.observation_refs).issubset(known_measurements)
+            and (item.observation_refs or item.status == "not_available")
+            for items in state.evidence.values()
+            for item in items
         )
-
-
-        if not decision_result:
-
-            issues.append(
-                "没有进行最佳解释选择"
-            )
-
-
-        else:
-
-
-            if (
-                "selected_hypothesis"
-                not in decision_result
-            ):
-
-                issues.append(
-                    "决策结果缺少选择假设"
-                )
-
-
-            if (
-                "ranking"
-                not in decision_result
-            ):
-
-                issues.append(
-                    "决策结果缺少假设排序"
-                )
-
-
-
-        # Check confidence calibration
-
-        confidence_result = (
-            state.confidence_assessment
+        if not valid_evidence_refs:
+            issues.append("One or more evidence claims lack valid observation references.")
+        valid_contradiction_refs = all(
+            item.observation_refs
+            and set(item.observation_refs).issubset(known_measurements)
+            for items in state.contradictions.values()
+            for item in items
         )
-
-
-        if not confidence_result:
-
-            issues.append(
-                "没有进行可信度校准"
-            )
-
-
-        else:
-
-
-            if (
-                "confidence_level"
-                not in confidence_result
-            ):
-
-                issues.append(
-                    "缺少可信度等级"
-                )
-
-
-            if (
-                "remaining_uncertainties"
-                not in confidence_result
-            ):
-
-                issues.append(
-                    "没有记录不确定性"
-                )
-
-
-            if (
-                "evidence_score_breakdown"
-                not in confidence_result
-            ):
-
-                issues.append(
-                    "可信度校准未使用证据评分结果"
-                )
-
-
-            if not decision_result:
-
-                issues.append(
-                    "可信度校准缺少决策依据"
-                )
-
-
-
-        # Check evidence completion
-
-        pending_evidence = []
-
-
-        for hypothesis_id, items in state.evidence.items():
-
-            for item in items:
-
-
-                if (
-                    item.get(
-                        "evaluation_status"
-                    )
-                    ==
-                    "pending"
-                ):
-
-                    pending_evidence.append(
-                        hypothesis_id
-                    )
-
-
-
-        if pending_evidence:
-
-            issues.append(
-                "部分证据仍未完成评估"
-            )
-
-
-
-        audit_result = {
-
-
-            "valid":
-                len(issues) == 0,
-
-
-            "issues":
-                issues,
-
-
-            "workflow_check":
-
-                {
-
-
-                    "hypothesis":
-                        len(state.hypotheses) > 0,
-
-
-                    "evidence_plan":
-                        bool(state.evidence_plan),
-
-
-                    "evidence":
-                        len(state.evidence) > 0,
-
-
-                    "evidence_scoring":
-                        len(missing_scoring_fields) == 0,
-
-
-                    "contradiction":
-                        len(state.contradictions) > 0,
-
-
-                    "decision":
-                        bool(decision_result),
-
-
-                    "confidence":
-                        bool(confidence_result)
-
-                },
-
-
-            "recommendation":
-                (
-                    "推理流程完整，但需要根据 "
-                    "证据权重、决策依据、"
-                    "不确定性和替代解释进一步判断。"
-                )
-
+        if not valid_contradiction_refs:
+            issues.append("One or more contradictions lack valid observation references.")
+        has_competition = len(state.hypotheses) >= 3
+        if not has_competition:
+            issues.append("Too few competing hypotheses were considered.")
+        has_evaluated_evidence = any(
+            item.status == "evaluated"
+            for items in state.evidence.values()
+            for item in items
+        )
+        if not has_evaluated_evidence:
+            issues.append("No observation was converted into evaluated evidence.")
+        decision = state.decision_result
+        decision_valid = decision is not None
+        if not decision_valid:
+            issues.append("Decision stage did not run.")
+        elif decision.selected_hypothesis is not None:
+            valid_decision_refs = set(decision.evidence_refs).issubset(
+                set(evidence_ids) | set(contradiction_ids)
+            ) and bool(decision.evidence_refs)
+            if not valid_decision_refs:
+                decision_valid = False
+                issues.append("Selected hypothesis lacks valid evidence references.")
+            if decision.score_margin <= 0:
+                decision_valid = False
+                issues.append("A tied hypothesis was selected instead of abstaining.")
+        confidence_valid = state.confidence_assessment is not None
+        if not confidence_valid:
+            issues.append("Confidence calibration did not run.")
+        checks = {
+            "observation_schema": True,
+            "unique_measurement_ids": unique_measurements,
+            "competing_hypotheses": has_competition,
+            "evaluated_evidence": has_evaluated_evidence,
+            "evidence_provenance": valid_evidence_refs,
+            "contradiction_provenance": valid_contradiction_refs,
+            "decision_constraints": decision_valid,
+            "confidence_present": confidence_valid,
         }
-
-
-
-        state.audit_result = audit_result
-
-
-
-        self.record_reasoning(
-
-            state,
-
-            action="reasoning_audit",
-
-            content=audit_result
-
+        valid = all(checks.values())
+        state.audit_result = AuditResult(
+            valid=valid,
+            issues=issues,
+            checks=checks,
+            recommendation=(
+                "Reasoning is traceable to measurements; retain stated limitations."
+                if valid
+                else "Treat the result as indeterminate until the audit issues are resolved."
+            ),
         )
-
-
-
+        self.record_reasoning(
+            state, "reasoning_audit", state.audit_result.model_dump(mode="json")
+        )
         return state

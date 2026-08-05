@@ -1,166 +1,62 @@
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import Any
+
+from ..schemas.observation import ObservationDocument
+from ..schemas.reasoning import (
+    AuditResult,
+    ConfidenceAssessment,
+    ContradictionItem,
+    DecisionResult,
+    EvidenceItem,
+    EvidenceQuestion,
+    Hypothesis,
+)
 
 
 @dataclass
 class ExpertState:
-    """
-    Expert Reasoning Agent 的共享状态。
+    image_path: str | None = None
+    object_id: str | None = None
+    observation_document: ObservationDocument | None = None
+    observations: list[dict[str, Any]] = field(default_factory=list)
+    hypotheses: list[Hypothesis] = field(default_factory=list)
+    evidence_plan: list[EvidenceQuestion] = field(default_factory=list)
+    evidence: dict[str, list[EvidenceItem]] = field(default_factory=dict)
+    contradictions: dict[str, list[ContradictionItem]] = field(default_factory=dict)
+    decision_result: DecisionResult | None = None
+    confidence_assessment: ConfidenceAssessment | None = None
+    audit_result: AuditResult | None = None
+    final_decision: dict[str, Any] | None = None
+    final_report_markdown: str | None = None
+    reasoning_trace: list[dict[str, Any]] = field(default_factory=list)
 
-    目标：
+    def require_observation(self) -> ObservationDocument:
+        if self.observation_document is None:
+            raise ValueError("Expert reasoning requires an ObservationDocument")
+        return self.observation_document
 
-    模拟人类专家分析过程。
+    def to_dict(self) -> dict[str, Any]:
+        def dump(value: Any) -> Any:
+            if hasattr(value, "model_dump"):
+                return value.model_dump(mode="json")
+            if isinstance(value, list):
+                return [dump(item) for item in value]
+            if isinstance(value, dict):
+                return {key: dump(item) for key, item in value.items()}
+            return value
 
-
-    流程：
-
-    observation
-        ↓
-    hypotheses
-        ↓
-    evidence_plan
-        ↓
-    evidence
-        ↓
-    contradiction
-        ↓
-    decision
-        ↓
-    confidence
-        ↓
-    audit
-        ↓
-    final_report
-    """
-
-
-    # =========================
-    # 输入信息
-    # =========================
-
-    image_path: Optional[str] = None
-
-    object_id: Optional[str] = None
-
-
-
-    # =========================
-    # 第一阶段：
-    # 专家观察到的事实
-    # =========================
-
-    observations: List[Dict[str, Any]] = field(
-        default_factory=list
-    )
-
-
-
-    # =========================
-    # 第二阶段：
-    # 候选解释
-    # =========================
-
-    hypotheses: List[Dict[str, Any]] = field(
-        default_factory=list
-    )
-
-
-
-    # =========================
-    # 第三阶段：
-    # 证据规划
-    #
-    # EvidencePlannerAgent输出：
-    #
-    # 哪些证据最值得优先检查
-    # 为什么选择这些证据
-    # 针对哪些假设
-    # =========================
-
-    evidence_plan: Optional[Dict[str, Any]] = None
-
-
-
-    # =========================
-    # 第四阶段：
-    # 支持证据
-    # =========================
-
-    evidence: Dict[str, List[Dict[str, Any]]] = field(
-        default_factory=dict
-    )
-
-
-
-    # =========================
-    # 第五阶段：
-    # 反证 / 替代解释
-    # =========================
-
-    contradictions: Dict[str, List[Dict[str, Any]]] = field(
-        default_factory=dict
-    )
-
-
-
-    # =========================
-    # 第六阶段：
-    # 最佳解释选择
-    #
-    # DecisionAgent输出：
-    #
-    # - 当前最佳假设
-    # - 假设排序
-    # - 决策依据
-    # - 剩余竞争解释
-    # =========================
-
-    decision_result: Optional[Dict[str, Any]] = None
-
-
-
-    # =========================
-    # 第七阶段：
-    # 可信度校准
-    #
-    # ConfidenceAgent输出：
-    #
-    # - 可信度等级
-    # - 支持因素
-    # - 限制因素
-    # - 剩余不确定性
-    # =========================
-
-    confidence_assessment: Optional[Dict[str, Any]] = None
-
-
-
-    # =========================
-    # 第八阶段：
-    # 推理审计
-    # =========================
-
-    audit_result: Optional[Dict[str, Any]] = None
-
-
-
-    # =========================
-    # 第九阶段：
-    # 最终专家报告
-    #
-    # ReportWriter最终输出
-    # =========================
-
-    final_decision: Optional[Dict[str, Any]] = None
-
-
-
-    # =========================
-    # 推理历史
-    #
-    # 保存每个Agent执行记录
-    # =========================
-
-    reasoning_trace: List[Dict[str, Any]] = field(
-        default_factory=list
-    )
+        return {
+            "object_id": self.object_id,
+            "observation": dump(self.observation_document),
+            "observation_summary": dump(self.observations),
+            "hypotheses": dump(self.hypotheses),
+            "evidence_plan": dump(self.evidence_plan),
+            "evidence": dump(self.evidence),
+            "contradictions": dump(self.contradictions),
+            "decision": dump(self.decision_result),
+            "confidence": dump(self.confidence_assessment),
+            "audit": dump(self.audit_result),
+            "reasoning_trace": dump(self.reasoning_trace),
+        }

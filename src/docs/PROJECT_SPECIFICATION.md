@@ -140,21 +140,18 @@ FORMA 多 Agent 架构思想。
 
 # 6. 当前开发状态
 
-已完成：
+Minimal Working Agent 已完成：
 
-* 项目结构；
-* Agent骨架；
-* State设计；
-* Workflow；
-* 基础测试运行。
+* FITS/PNG 输入与一次预处理、多测量器共享的 VisionPipeline；
+* 带版本、测量 ID、可靠性、相关性和 provenance 的 Observation JSON；
+* Observation → Hypothesis → Evidence Planning → Evidence/Counter-evidence →
+  Decision/Abstain → Confidence → Audit → Report 的完整流程；
+* 结论到 measurement ID 的可追溯引用；
+* 零证据、平局和非特异证据不能默认选择强透镜；
+* CLI、JSON/Markdown 结果落盘、单元测试和真实 FITS 端到端测试。
 
-下一阶段：
-
-* 完善 Expert Skills；
-* 接入视觉模型；
-* 接入天文知识；
-* 建立推理循环；
-* 测试专家一致性。
+下一阶段是科学能力扩展与数据集校准，包括多波段颜色、PSF、WCS、并合形态、
+hard negatives，以及只能引用现有证据、不能绕过确定性约束的可选 LLM 解释层。
 
 ---
 

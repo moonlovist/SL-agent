@@ -1,314 +1,89 @@
-from typing import Dict, Any, List
+from __future__ import annotations
+
+import numpy as np
 
 from ..core.base_agent import BaseAgent
+from ..core.config import ReasoningConfig
 from ..core.state import ExpertState
+from ..schemas.reasoning import ConfidenceAssessment
 
 
 class ConfidenceAgent(BaseAgent):
-    """
-    Confidence calibration Agent.
-
-    Simulates expert judgement:
-
-    "How strongly should I believe this conclusion?"
-
-    Responsibilities:
-
-    1. Read the selected decision.
-    2. Evaluate evidence balance.
-    3. Consider contradiction strength.
-    4. Preserve uncertainty.
-
-    This stage does not select hypotheses.
-    """
-
-
-
-    def __init__(self):
+    def __init__(self, config: ReasoningConfig | None = None):
         super().__init__("ConfidenceAgent")
+        self.config = config or ReasoningConfig()
 
-
-
-    def run(
-        self,
-        state: ExpertState
-    ) -> ExpertState:
-
-
-        self.log(
-            "开始可信度校准"
+    def run(self, state: ExpertState) -> ExpertState:
+        self.log("按证据强度、覆盖度和质量校准可信度")
+        self.load_skill("confidence_calibration_skill")
+        document = state.require_observation()
+        decision = state.decision_result
+        if decision is None:
+            raise ValueError("ConfidenceAgent requires a decision")
+        available_kinds = {item.kind for item in document.measurements if item.value is not None}
+        answered = sum(
+            any(kind in available_kinds for kind in question.measurement_kinds)
+            for question in state.evidence_plan
         )
-
-
-        self.load_skill(
-            "confidence_calibration_skill"
-        )
-
-
-        evidence = (
-            state.evidence
-        )
-
-
-        contradictions = (
-            state.contradictions
-        )
-
-
-        decision_result = (
-            state.decision_result
-        )
-
-
-
-        supporting_factors: List[Dict[str, Any]] = []
-
-        limiting_factors: List[Dict[str, Any]] = []
-
-        remaining_uncertainties: List[str] = []
-
-
-
-        # =================================
-        # V2.3 Decision Separation
-        #
-        # DecisionAgent:
-        # 负责选择最佳解释
-        #
-        # ConfidenceAgent:
-        # 负责判断可信程度
-        # =================================
-
-
-        if decision_result:
-
-
-            final_hypothesis = (
-                decision_result.get(
-                    "selected_hypothesis",
-                    "unknown"
-                )
+        completeness = answered / len(state.evidence_plan) if state.evidence_plan else 0.0
+        quality = 1.0 if document.data_quality.usable else 0.4
+        if not document.data_quality.model_success:
+            quality *= 0.75
+        top_score = decision.ranking[0].final_score if decision.ranking else 0.0
+        positive_score = max(0.0, top_score)
+        calibrated = float(
+            np.clip(
+                0.45 * positive_score
+                + 0.25 * min(1.0, decision.score_margin * 3.0)
+                + 0.20 * completeness
+                + 0.10 * quality,
+                0.0,
+                1.0,
             )
-
-
+        )
+        if decision.selected_hypothesis is None:
+            level = "insufficient" if completeness < 0.6 or positive_score < 0.1 else "low"
+        elif calibrated >= self.config.high_confidence_score and completeness >= 0.8:
+            level = "high"
+        elif calibrated >= self.config.medium_confidence_score:
+            level = "medium"
         else:
-
-
-            final_hypothesis = (
-                "unknown"
-            )
-
-
-
-        # 收集支持因素
-
-
-        for hypothesis_id, items in evidence.items():
-
-            for item in items:
-
-
-                supporting_factors.append(
-
-                    {
-
-                        "hypothesis":
-                            hypothesis_id,
-
-
-                        "feature":
-                            item.get(
-                                "feature"
-                            ),
-
-
-                        "support_score":
-                            item.get(
-                                "support_score"
-                            ),
-
-
-                        "status":
-                            item.get(
-                                "evaluation_status",
-                                "pending"
-                            )
-
-                    }
-
-                )
-
-
-
-        # 收集限制因素
-
-
-        for hypothesis_id, items in contradictions.items():
-
-            for item in items:
-
-
-                limiting_factors.append(
-
-                    {
-
-                        "hypothesis":
-                            hypothesis_id,
-
-
-                        "contradiction":
-                            item.get(
-                                "description"
-                            ),
-
-
-                        "severity":
-                            item.get(
-                                "severity"
-                            ),
-
-
-                        "status":
-                            item.get(
-                                "evaluation_status",
-                                "pending"
-                            )
-
-                    }
-
-                )
-
-
-
-        # 当前版本保留评分摘要
-
-        evidence_score_breakdown = {}
-
-
-
-        for hypothesis_id, items in evidence.items():
-
-
-            total_score = 0
-
-
-            for item in items:
-
-
-                score = (
-                    item.get(
-                        "support_score"
-                    )
-                )
-
-
-                if score is not None:
-
-                    total_score += score
-
-
-
-            evidence_score_breakdown[
-
-                hypothesis_id
-
-            ] = {
-
-
-                "support_score":
-                    total_score
-
-            }
-
-
-
-        remaining_uncertainties.extend(
-
-            [
-
-                "Evidence scores require further evaluation.",
-
-                "Alternative explanations have not been fully excluded."
-
-            ]
-
+            level = "low"
+        selected_id = decision.ranking[0].hypothesis_id if decision.selected_hypothesis else None
+        support_refs = [
+            item.id
+            for item in state.evidence.get(selected_id or "", [])
+            if item.status == "evaluated" and item.polarity == "support"
+        ]
+        limiting = list(document.data_quality.flags)
+        if not document.data_quality.supplied_rms:
+            limiting.append("noise_map_was_estimated")
+        limiting.extend(
+            item.description
+            for item in state.contradictions.get(selected_id or "", [])
         )
-
-
-
-        # 当前阶段：
-        # 没有真实模型评分时保持框架状态
-
-        confidence_level = (
-            "medium"
+        uncertainties = list(document.limitations)
+        unanswered = [
+            question.question
+            for question in state.evidence_plan
+            if not any(kind in available_kinds for kind in question.measurement_kinds)
+        ]
+        uncertainties.extend(f"Unanswered: {question}" for question in unanswered)
+        state.confidence_assessment = ConfidenceAssessment(
+            level=level,
+            score=calibrated,
+            completeness=completeness,
+            reasoning=(
+                f"Confidence combines the preferred score, score margin, evidence-plan "
+                f"coverage ({completeness:.0%}), and data quality; it is not a calibrated lens probability."
+            ),
+            supporting_evidence_refs=support_refs,
+            limiting_factors=limiting,
+            remaining_uncertainties=uncertainties,
         )
-
-
-
-        confidence_result = {
-
-
-            "final_hypothesis":
-                final_hypothesis,
-
-
-            "evidence_score_breakdown":
-                evidence_score_breakdown,
-
-
-            "confidence_level":
-                confidence_level,
-
-
-            "confidence_reasoning":
-                (
-                    "Confidence is calibrated "
-                    "after decision selection, "
-                    "based on evidence balance, "
-                    "contradictions, and uncertainty."
-                ),
-
-
-            "supporting_factors":
-                supporting_factors,
-
-
-            "limiting_factors":
-                limiting_factors,
-
-
-            "remaining_uncertainties":
-                remaining_uncertainties
-
-        }
-
-
-
-        state.confidence_assessment = (
-            confidence_result
-        )
-
-
-
         self.record_reasoning(
-
             state,
-
-            action="confidence_calibration",
-
-            content={
-
-                "skill_used":
-                    "confidence_calibration_skill",
-
-
-                "result":
-                    confidence_result
-
-            }
-
+            "confidence_calibration",
+            {"level": level, "score": calibrated, "completeness": completeness},
         )
-
-
-
         return state
