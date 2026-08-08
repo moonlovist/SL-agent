@@ -51,6 +51,42 @@ class ContradictionItem(StrictModel):
     rationale: str
 
 
+class HypothesisEvidenceEffect(StrictModel):
+    hypothesis_id: Literal["H1", "H2", "H3", "H4"]
+    effect: Literal["support", "oppose", "neutral", "unknown"]
+    evidence_refs: list[str] = Field(default_factory=list)
+    weighted_effect: float = Field(ge=-1.0, le=1.0)
+    explanation: str
+
+
+class CrossHypothesisEvidenceComparison(StrictModel):
+    id: str
+    observation_refs: list[str]
+    observed_fact: str
+    correlation_group: str
+    effects: list[HypothesisEvidenceEffect]
+    discriminating: bool
+
+
+class MissingEvidence(StrictModel):
+    question_id: str
+    question: str
+    required_measurement_kinds: list[str]
+    reason: str
+
+
+class HypothesisAnalysis(StrictModel):
+    hypothesis_id: Literal["H1", "H2", "H3", "H4"]
+    hypothesis: str
+    status: Literal["viable", "weakened", "insufficient"]
+    supporting_evidence_refs: list[str]
+    opposing_evidence_refs: list[str]
+    missing_evidence: list[MissingEvidence]
+    uncertainties: list[str]
+    explained_observation_refs: list[str]
+    unexplained_relevant_observation_refs: list[str]
+
+
 class HypothesisScore(StrictModel):
     hypothesis_id: str
     hypothesis: str

@@ -51,9 +51,17 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
+Version 0.2 adds Observation schema 1.1, explicit cross-hypothesis evidence
+comparison, and one independent case file for each of the four competing
+explanations. See the [phase-1 upgrade note](src/docs/PHASE1_MULTI_HYPOTHESIS_UPGRADE_CN.md).
+
 PNG input runs in a conservative reduced-measurement mode because rendered images
 do not carry calibrated flux or RMS maps. A high-S/N elongated PNG residual cannot
 trigger a lens decision unless a lens-specific geometry measurement also passes.
 
 See [the architecture note](src/docs/ARCHITECTURE.md) for schemas, reasoning
 constraints, and extension points.
+
+For a comprehensive Chinese introduction, beginner-friendly operating guide,
+output interpretation, and troubleshooting reference, see
+[the Chinese user manual](src/docs/USER_MANUAL_CN.md).

@@ -10,8 +10,10 @@ from ..schemas.reasoning import (
     ContradictionItem,
     DecisionResult,
     EvidenceItem,
+    CrossHypothesisEvidenceComparison,
     EvidenceQuestion,
     Hypothesis,
+    HypothesisAnalysis,
 )
 
 
@@ -24,7 +26,11 @@ class ExpertState:
     hypotheses: list[Hypothesis] = field(default_factory=list)
     evidence_plan: list[EvidenceQuestion] = field(default_factory=list)
     evidence: dict[str, list[EvidenceItem]] = field(default_factory=dict)
+    evidence_comparisons: list[CrossHypothesisEvidenceComparison] = field(
+        default_factory=list
+    )
     contradictions: dict[str, list[ContradictionItem]] = field(default_factory=dict)
+    hypothesis_analyses: dict[str, HypothesisAnalysis] = field(default_factory=dict)
     decision_result: DecisionResult | None = None
     confidence_assessment: ConfidenceAssessment | None = None
     audit_result: AuditResult | None = None
@@ -54,7 +60,9 @@ class ExpertState:
             "hypotheses": dump(self.hypotheses),
             "evidence_plan": dump(self.evidence_plan),
             "evidence": dump(self.evidence),
+            "evidence_comparisons": dump(self.evidence_comparisons),
             "contradictions": dump(self.contradictions),
+            "hypothesis_analyses": dump(self.hypothesis_analyses),
             "decision": dump(self.decision_result),
             "confidence": dump(self.confidence_assessment),
             "audit": dump(self.audit_result),

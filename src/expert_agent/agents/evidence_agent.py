@@ -234,6 +234,42 @@ class EvidenceAgent(BaseAgent):
                     "This component should not be treated as secure lens evidence without additional checks.",
                 )
 
+            connection = structure_measurements.get("inner_connection_fraction")
+            if connection and connection.value is not None:
+                value = float(connection.value)
+                if value >= 0.02:
+                    strength = min(1.0, value / 0.15)
+                    add(
+                        "H2",
+                        f"{structure.id} is connected to the inner light distribution (footprint fraction {value:.3f}).",
+                        [connection],
+                        "support",
+                        strength,
+                        0.65,
+                        "galaxy_connectivity",
+                        "A connected residual is compatible with a spiral arm, ring, or star-forming structure belonging to the foreground galaxy.",
+                    )
+                    add(
+                        "H3",
+                        f"{structure.id} has measurable continuity toward the inner system.",
+                        [connection],
+                        "support",
+                        strength,
+                        0.35,
+                        "galaxy_connectivity",
+                        "Connected irregular structure can be compatible with interaction debris, but this proxy is not merger-specific.",
+                    )
+                    add(
+                        "H1",
+                        f"{structure.id} is not cleanly detached from the inner galaxy light.",
+                        [connection],
+                        "oppose",
+                        strength,
+                        0.6,
+                        "galaxy_connectivity",
+                        "Continuity with foreground light weakens a background-source interpretation, although blending can mimic a connection.",
+                    )
+
         common_radius = by_kind.get("common_radius_cv", [])
         if common_radius and common_radius[0].value is not None:
             cv = float(common_radius[0].value)
@@ -271,6 +307,142 @@ class EvidenceAgent(BaseAgent):
                 0.45,
                 "scene_geometry",
                 "Multiple components can be related lensed images, but independent sources are also possible.",
+            )
+
+        foreground_detected = by_kind.get("foreground_detected", [])
+        if foreground_detected:
+            detected = bool(foreground_detected[0].value)
+            if detected:
+                add(
+                    "H1",
+                    "A central light concentration provides a measurable common geometric reference.",
+                    foreground_detected,
+                    "support",
+                    0.45,
+                    0.35,
+                    "foreground_light",
+                    "A central mass tracer is expected in galaxy-scale lens candidates, but central light alone is not lens-specific.",
+                )
+            else:
+                add(
+                    "H1",
+                    "No central light concentration was robustly measured.",
+                    foreground_detected,
+                    "oppose",
+                    0.6,
+                    0.55,
+                    "foreground_light",
+                    "Without a reliable center, the claimed lens geometry is less secure.",
+                )
+
+        coverage = by_kind.get("total_angular_coverage", [])
+        if coverage and coverage[0].value is not None:
+            value = float(coverage[0].value)
+            if value >= 90.0:
+                add(
+                    "H1",
+                    f"The residual structures span {value:.1f} deg around the common center.",
+                    coverage,
+                    "support",
+                    min(1.0, value / 180.0),
+                    0.7,
+                    "scene_geometry",
+                    "Broad azimuthal coverage is compatible with multiple images or a partial Einstein ring.",
+                )
+
+        multiple_cores = by_kind.get("multiple_core_count", [])
+        if multiple_cores and multiple_cores[0].value is not None:
+            count = int(multiple_cores[0].value)
+            if count >= 1:
+                add(
+                    "H3",
+                    f"{count} secondary central light concentration(s) passed the screening threshold.",
+                    multiple_cores,
+                    "support",
+                    min(1.0, 0.55 + 0.2 * count),
+                    0.75,
+                    "interaction_morphology",
+                    "Multiple central concentrations are compatible with a merger or interaction, though source deblending can fragment one galaxy.",
+                )
+                add(
+                    "H1",
+                    "The central region contains more than one plausible light concentration.",
+                    multiple_cores,
+                    "oppose",
+                    0.4,
+                    0.45,
+                    "interaction_morphology",
+                    "Multiple cores introduce an interaction alternative that must be considered before a simple one-deflector interpretation.",
+                )
+            else:
+                add(
+                    "H3",
+                    "No secondary central light concentration passed the screening threshold.",
+                    multiple_cores,
+                    "oppose",
+                    0.25,
+                    0.4,
+                    "interaction_morphology",
+                    "The absence of a detected secondary core weakens but does not exclude a merger interpretation.",
+                )
+
+        asymmetry = by_kind.get("tidal_asymmetry", [])
+        if asymmetry and asymmetry[0].value is not None:
+            value = float(asymmetry[0].value)
+            core_count = (
+                int(multiple_cores[0].value)
+                if multiple_cores and multiple_cores[0].value is not None
+                else 0
+            )
+            if value >= 0.35 and core_count >= 1:
+                add(
+                    "H3",
+                    f"The residual has elevated 180-degree asymmetry ({value:.3f}) together with a secondary central concentration.",
+                    [asymmetry[0], multiple_cores[0]],
+                    "support",
+                    min(1.0, value / 0.7),
+                    0.55,
+                    "interaction_morphology",
+                    "The combination is compatible with interaction, while each proxy alone remains non-specific and subtraction-sensitive.",
+                )
+
+        core_residual = by_kind.get("core_residual_fraction", [])
+        if core_residual and core_residual[0].value is not None:
+            value = float(core_residual[0].value)
+            if value >= 0.35:
+                add(
+                    "H4",
+                    f"A large fraction of absolute residual flux is concentrated in the core ({value:.3f}).",
+                    core_residual,
+                    "support",
+                    min(1.0, value / 0.7),
+                    0.7,
+                    "subtraction_quality",
+                    "Core-concentrated residuals are compatible with foreground-model or PSF mismatch.",
+                )
+                add(
+                    "H1",
+                    "The residual field is strongly influenced by the subtraction-sensitive core.",
+                    core_residual,
+                    "oppose",
+                    min(1.0, value / 0.7),
+                    0.6,
+                    "subtraction_quality",
+                    "Lens-specific morphology is less secure when core modeling dominates the residual budget.",
+                )
+
+        bad_pixels = by_kind.get("bad_pixel_fraction", [])
+        if bad_pixels and bad_pixels[0].value is not None and float(bad_pixels[0].value) > 0.01:
+            value = float(bad_pixels[0].value)
+            add(
+                "H4",
+                f"{value:.2%} of input pixels required non-finite-value replacement.",
+                bad_pixels,
+                "support",
+                min(1.0, value / 0.1),
+                0.65,
+                "input_quality",
+                "A substantial invalid-pixel fraction increases artifact risk.",
             )
 
         model_success = by_kind.get("galaxy_model_success", [])
@@ -323,6 +495,20 @@ class EvidenceAgent(BaseAgent):
                 "The merger hypothesis remains insufficiently tested rather than excluded.",
                 status="not_available",
             )
+        psf_available = by_kind.get("psf_information_available", [])
+        if not psf_available or not bool(psf_available[0].value):
+            for hypothesis_id in ("H1", "H4"):
+                add(
+                    hypothesis_id,
+                    "PSF-specific artifact evidence was not available.",
+                    psf_available,
+                    "neutral",
+                    0.0,
+                    0.0,
+                    "psf_quality",
+                    "Without a validated PSF model, PSF residuals cannot be confirmed or excluded.",
+                    status="not_available",
+                )
 
         state.evidence = evidence
         self.record_reasoning(

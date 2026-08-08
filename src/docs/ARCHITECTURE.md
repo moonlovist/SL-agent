@@ -27,28 +27,38 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.0` records:
+`schema_version=1.1` records:
 
 - input identity, format, band, shape, and nucleus;
+- measured central foreground-light properties, without assigning a lens label;
 - data and foreground-model quality;
 - per-structure centroid, radius, PA, S/N, angular extent, axis ratio, tangential
   misalignment, and detector stability;
 - atomic measurements with IDs, reliability, methods, units, and correlation groups;
 - artifact paths, limitations, parameters, and pipeline version.
 
+Version 1.1 also records scene-level tangential geometry and explicitly labelled
+screening proxies for inner connectivity, secondary central concentrations,
+180-degree residual asymmetry, core residual concentration, invalid pixels, and
+PSF availability. Proxy measurements remain observations: they are not calibrated
+morphology classifiers and cannot independently decide a hypothesis.
+
 ## Expert workflow
 
-The deterministic MWA runs these explicit stages:
+The deterministic v0.2 MWA runs these explicit stages:
 
 1. normalize observed facts;
 2. maintain four competing hypotheses;
 3. plan discriminating evidence;
-4. map measurements to signed, cited evidence;
-5. expose opposing evidence as contradictions;
-6. rank hypotheses with correlation-aware aggregation and abstention;
-7. calibrate confidence from score, margin, completeness, and data quality;
-8. audit references, ties, competition, and required stages;
-9. write JSON and Markdown reports without creating new facts.
+4. map measurements to signed, cited evidence for every relevant hypothesis;
+5. build an explicit cross-hypothesis matrix showing how one fact affects H1-H4;
+6. expose opposing evidence as contradictions;
+7. create a separate case file for each hypothesis with support, opposition,
+   missing evidence, uncertainties, explained observations, and unexplained facts;
+8. synthesize and rank hypotheses with correlation-aware aggregation and abstention;
+9. calibrate confidence from score, margin, completeness, and data quality;
+10. audit references, comparison coverage, per-hypothesis analysis, ties, and stages;
+11. write JSON and Markdown reports without creating new facts.
 
 Unavailable measurements are not negative evidence. A strong-lens decision also
 requires at least one sufficiently specific geometry item; signal significance or

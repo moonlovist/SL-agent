@@ -1243,9 +1243,98 @@ V2.3：决策与可信度分离完成
 
 ---
 
-# Version 3.0
+# Lens Expert Agent v0.2.0（2026-08-08）
 
-（待更新）
+> 说明：上文的 V1.0–V2.3 是早期 Expert Reasoning Framework 的内部演进编号；
+> 从可安装、可运行的 `lens-expert-agent` 开始，项目统一采用语义化版本号。
+> 本节对应软件包版本 `0.2.0` 和 Observation schema `1.1`。
+
+## 本次目标
+
+吸收 FORMA 的多假设竞争思想，把现有流程从“围绕强透镜收集证据”升级为：
+
+```text
+观察事实
+→ 四种解释分别分析
+→ 同一事实跨假设比较
+→ 综合选择或主动弃权
+```
+
+本版本不接入 LLM、VLM 或自动 Self-Evolve，继续保持视觉测量与专家推理分离。
+
+## Observation 1.1
+
+新增：
+
+- 中心前景光分布的位置、峰值、通量、椭率、位置角和轴比；
+- 整体共同半径、环向覆盖、平均切向偏差和切向对齐比例；
+- 结构与内区连接性；
+- 次级核心筛查；
+- 180° 残差不对称代理；
+- 核心残差比例、坏像素比例和 PSF 信息可用性。
+
+所有替代解释指标都保持为 Observation 或 screening proxy，不直接输出透镜、
+并合或伪影结论。
+
+## 多假设推理
+
+新增 `EvidenceComparisonAgent`：
+
+- 将同一组测量对 H1–H4 的影响并排记录；
+- 区分支持、反对、中性和未知；
+- 标记该事实是否真正具有跨假设区分力。
+
+新增 `HypothesisAnalysisAgent`：
+
+- 为每个假设建立独立案卷；
+- 记录支持证据、反对证据、缺失证据和不确定性；
+- 记录已解释及尚未解释的相关观察；
+- 产生 `viable`、`weakened` 或 `insufficient` 暂态，供最终综合使用。
+
+## 新工作流
+
+```text
+Observer
+→ Hypothesis Generation
+→ Evidence Planning
+→ Evidence Evaluation
+→ Cross-Hypothesis Evidence Comparison
+→ Counter Evidence
+→ Per-Hypothesis Analysis
+→ Hypothesis Synthesis / Decision
+→ Confidence
+→ Reasoning Audit
+→ Report
+```
+
+## 审计与兼容性
+
+- 审计器新增跨假设矩阵覆盖检查；
+- 审计器检查每个假设是否拥有完整案卷；
+- 原有 CLI 和六类输出文件名保持不变；
+- Observation 1.0 仍可由 `lens-agent reason` 读取；
+- 新字段写入 `observation.json`、`reasoning.json`、`summary.json` 和 `report.md`。
+
+## 验证
+
+- 自动测试：6 项全部通过；
+- Python 依赖检查：无损坏项；
+- 旧 Observation 1.0 兼容推理通过；
+- 真实 FITS 端到端回归通过；
+- 回归样本结果为 `strong_lens_candidate`、中等可信度、审计通过；
+- 软件源码和安装元数据均为 `0.2.0`。
+
+## 下一阶段
+
+- 拆分 ObservationAuditor、EvidenceAuditor 与 DecisionAuditor；
+- 建立正式的强透镜 Knowledge / Skill 分层；
+- 暂不接入 LLM/VLM，直至审计和知识接口稳定。
+
+---
+
+# 后续版本
+
+（每次完成并验证一个可运行版本后，在这里继续追加。）
 
 
 ---

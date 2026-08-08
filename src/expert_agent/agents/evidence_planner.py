@@ -16,6 +16,18 @@ class EvidencePlannerAgent(BaseAgent):
         available = {item.kind for item in document.measurements}
         candidates = [
             EvidenceQuestion(
+                id="Q0",
+                question="Is a measurable central light concentration available as the common geometric reference?",
+                target_hypotheses=["H1", "H4"],
+                measurement_kinds=[
+                    "foreground_detected",
+                    "foreground_peak_value",
+                    "foreground_ellipticity",
+                ],
+                priority="high",
+                reason="A central reference is required to interpret radii and tangential geometry, without assuming that the light source is itself a lens.",
+            ),
+            EvidenceQuestion(
                 id="Q1",
                 question="Do residual structures share a common radius around the central source?",
                 target_hypotheses=["H1", "H2"],
@@ -51,6 +63,26 @@ class EvidencePlannerAgent(BaseAgent):
                 measurement_kinds=["multiple_core_count", "tidal_asymmetry"],
                 priority="medium",
                 reason="These measurements discriminate an interaction from lensing.",
+            ),
+            EvidenceQuestion(
+                id="Q6",
+                question="Are candidate residual structures connected to the inner galaxy light distribution?",
+                target_hypotheses=["H1", "H2", "H3"],
+                measurement_kinds=["inner_connection_fraction"],
+                priority="high",
+                reason="Connectivity to the inner galaxy can favor intrinsic or interaction morphology over a detached background-source interpretation.",
+            ),
+            EvidenceQuestion(
+                id="Q7",
+                question="Could PSF behavior, non-finite pixels, or concentrated core residuals explain the structures?",
+                target_hypotheses=["H1", "H4"],
+                measurement_kinds=[
+                    "psf_information_available",
+                    "bad_pixel_fraction",
+                    "core_residual_fraction",
+                ],
+                priority="high",
+                reason="These checks distinguish astrophysical residual structure from image or subtraction artifacts.",
             ),
             EvidenceQuestion(
                 id="Q5",

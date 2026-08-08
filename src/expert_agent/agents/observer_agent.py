@@ -22,6 +22,21 @@ class ObserverAgent(BaseAgent):
                 "data_usable": document.data_quality.usable,
                 "band": document.band,
                 "nucleus_xy": list(document.nucleus_xy),
+                "foreground_galaxy": (
+                    document.foreground_galaxy.model_dump(mode="json")
+                    if document.foreground_galaxy
+                    else None
+                ),
+                "scene_geometry": (
+                    document.scene_geometry.model_dump(mode="json")
+                    if document.scene_geometry
+                    else None
+                ),
+                "alternative_indicators": (
+                    document.alternative_indicators.model_dump(mode="json")
+                    if document.alternative_indicators
+                    else None
+                ),
                 "structure_count": len(document.structures),
                 "structures": [
                     {
@@ -34,6 +49,8 @@ class ObserverAgent(BaseAgent):
                         "tangential_misalignment_deg": item.tangential_misalignment_deg,
                         "threshold_survival_fraction": item.threshold_survival_fraction,
                         "sep_survival_fraction": item.sep_survival_fraction,
+                        "inner_connection_fraction": item.inner_connection_fraction,
+                        "connects_to_inner_region": item.connects_to_inner_region,
                         "near_core": item.near_core,
                         "measurement_ids": item.measurement_ids,
                     }

@@ -34,6 +34,33 @@ class ReportWriter(BaseAgent):
             )
             for row in top_rows
         ]
+        hypothesis_case_lines: list[str] = []
+        for hypothesis in state.hypotheses:
+            analysis = state.hypothesis_analyses[hypothesis.id]
+            missing = ", ".join(item.question_id for item in analysis.missing_evidence) or "none"
+            hypothesis_case_lines.extend(
+                [
+                    f"### {hypothesis.id}: {hypothesis.name}",
+                    "",
+                    f"- Current status: {analysis.status}",
+                    f"- Supporting evidence: {', '.join(analysis.supporting_evidence_refs) or 'none'}",
+                    f"- Opposing evidence: {', '.join(analysis.opposing_evidence_refs) or 'none'}",
+                    f"- Missing evidence questions: {missing}",
+                    f"- Unexplained relevant measurements: {', '.join(analysis.unexplained_relevant_observation_refs) or 'none'}",
+                    "",
+                ]
+            )
+        comparison_lines = [
+            (
+                f"- {item.id}: {item.observed_fact} | "
+                + "; ".join(
+                    f"{effect.hypothesis_id}={effect.effect}"
+                    for effect in item.effects
+                )
+                + f" | discriminating={item.discriminating}"
+            )
+            for item in state.evidence_comparisons
+        ] or ["- No cross-hypothesis comparison was available."]
         selected_id = top_rows[0].hypothesis_id if decision.selected_hypothesis else None
         support_lines = [
             f"- {item.id}: {item.claim} (refs: {', '.join(item.observation_refs)})"
@@ -67,6 +94,13 @@ class ReportWriter(BaseAgent):
                 "",
                 *hypothesis_lines,
                 "",
+                "## Per-hypothesis analysis",
+                "",
+                *hypothesis_case_lines,
+                "## Cross-hypothesis evidence comparison",
+                "",
+                *comparison_lines,
+                "",
                 "## Supporting evidence for the preferred explanation",
                 "",
                 *support_lines,
@@ -95,6 +129,13 @@ class ReportWriter(BaseAgent):
             "object_id": document.object_id,
             "classification": effective_classification,
             "decision": decision.model_dump(mode="json"),
+            "hypothesis_analyses": {
+                key: value.model_dump(mode="json")
+                for key, value in state.hypothesis_analyses.items()
+            },
+            "evidence_comparisons": [
+                item.model_dump(mode="json") for item in state.evidence_comparisons
+            ],
             "confidence": confidence.model_dump(mode="json"),
             "audit": audit.model_dump(mode="json"),
             "report_markdown": markdown,

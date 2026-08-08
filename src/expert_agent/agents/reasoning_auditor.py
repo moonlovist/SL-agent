@@ -48,6 +48,31 @@ class ReasoningAuditor(BaseAgent):
         )
         if not has_evaluated_evidence:
             issues.append("No observation was converted into evaluated evidence.")
+        comparison_refs_valid = all(
+            item.observation_refs
+            and set(item.observation_refs).issubset(known_measurements)
+            and {effect.hypothesis_id for effect in item.effects}
+            == {hypothesis.id for hypothesis in state.hypotheses}
+            for item in state.evidence_comparisons
+        )
+        has_comparisons = bool(state.evidence_comparisons) and comparison_refs_valid
+        if not has_comparisons:
+            issues.append(
+                "Cross-hypothesis evidence comparison is missing or has invalid references."
+            )
+        analyses_complete = (
+            set(state.hypothesis_analyses)
+            == {hypothesis.id for hypothesis in state.hypotheses}
+            and all(
+                analysis.supporting_evidence_refs is not None
+                and analysis.opposing_evidence_refs is not None
+                and analysis.missing_evidence is not None
+                and analysis.uncertainties is not None
+                for analysis in state.hypothesis_analyses.values()
+            )
+        )
+        if not analyses_complete:
+            issues.append("One or more hypotheses lack a complete case analysis.")
         decision = state.decision_result
         decision_valid = decision is not None
         if not decision_valid:
@@ -71,7 +96,9 @@ class ReasoningAuditor(BaseAgent):
             "competing_hypotheses": has_competition,
             "evaluated_evidence": has_evaluated_evidence,
             "evidence_provenance": valid_evidence_refs,
+            "cross_hypothesis_comparison": has_comparisons,
             "contradiction_provenance": valid_contradiction_refs,
+            "per_hypothesis_analysis": analyses_complete,
             "decision_constraints": decision_valid,
             "confidence_present": confidence_valid,
         }

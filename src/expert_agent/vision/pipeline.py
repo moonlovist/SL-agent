@@ -8,10 +8,13 @@ import numpy as np
 
 from ..core.config import VisionConfig
 from ..schemas.observation import (
+    AlternativeIndicators,
     DataQuality,
+    ForegroundGalaxyObservation,
     Measurement,
     ObservationDocument,
     Provenance,
+    SceneGeometryObservation,
     StructureObservation,
 )
 from .detectors import (
@@ -129,6 +132,13 @@ class VisionPipeline:
                     "sep_parameter_grid",
                     consensus_fraction or 0.0,
                 ),
+                (
+                    "inner_connection_fraction",
+                    float(segment.inner_connection_fraction),
+                    None,
+                    "residual_component_connectivity",
+                    min(0.7, base_reliability),
+                ),
             ]
             measurement_ids = []
             for kind, value, unit, method, reliability in entries:
@@ -147,6 +157,8 @@ class VisionPipeline:
                         correlation_group=(
                             "shared_residual_detection"
                             if "survival" in kind
+                            else "galaxy_connectivity"
+                            if kind == "inner_connection_fraction"
                             else "residual_morphology"
                         ),
                     )
@@ -168,6 +180,8 @@ class VisionPipeline:
                     tangential_misalignment_deg=misalignment,
                     threshold_survival_fraction=threshold_fraction,
                     sep_survival_fraction=consensus_fraction,
+                    inner_connection_fraction=segment.inner_connection_fraction,
+                    connects_to_inner_region=segment.connects_to_inner_region,
                     near_core=near_core,
                     measurement_ids=measurement_ids,
                     flags=flags,
@@ -192,6 +206,19 @@ class VisionPipeline:
         )
         total_coverage = (
             circular_span(np.concatenate(all_angles)) if all_angles else 0.0
+        )
+        valid_misalignments = [
+            item.tangential_misalignment_deg
+            for item in structures
+            if item.tangential_misalignment_deg is not None
+        ]
+        mean_misalignment = (
+            float(np.mean(valid_misalignments)) if valid_misalignments else None
+        )
+        tangential_fraction = (
+            float(np.mean([value <= 30.0 for value in valid_misalignments]))
+            if valid_misalignments
+            else None
         )
         scene_entries = [
             (
@@ -230,6 +257,24 @@ class VisionPipeline:
                 prep.model_method,
                 "Whether the preferred foreground-galaxy model converged",
             ),
+            (
+                "M_scene_mean_tangential_misalignment",
+                "mean_tangential_misalignment",
+                mean_misalignment,
+                "deg",
+                0.8 if valid_misalignments else 0.0,
+                "geometry_summary",
+                "Mean local tangential misalignment across measured structures",
+            ),
+            (
+                "M_scene_tangential_alignment_fraction",
+                "tangential_alignment_fraction",
+                tangential_fraction,
+                None,
+                0.8 if valid_misalignments else 0.0,
+                "geometry_summary",
+                "Fraction of measured structures within 30 degrees of the local tangent",
+            ),
         ]
         for mid, kind, value, unit, reliability, method, description in scene_entries:
             measurements.append(
@@ -242,6 +287,150 @@ class VisionPipeline:
                     method=method,
                     description=description,
                     correlation_group="scene_geometry" if "model" not in kind else "subtraction_quality",
+                )
+            )
+
+        foreground_entries = [
+            (
+                "M_foreground_detected",
+                "foreground_detected",
+                prep.foreground_detected,
+                None,
+                prep.foreground_reliability,
+                "sep_central_source",
+                "Whether a central foreground light concentration was measured",
+            ),
+            (
+                "M_foreground_peak_value",
+                "foreground_peak_value",
+                prep.foreground_peak_value,
+                "image_value",
+                prep.foreground_reliability,
+                "central_pixel",
+                "Image value at the measured central light peak",
+            ),
+            (
+                "M_foreground_integrated_flux",
+                "foreground_integrated_flux",
+                prep.foreground_integrated_flux,
+                "image_value",
+                prep.foreground_reliability if prep.foreground_integrated_flux is not None else 0.0,
+                "sep_central_source",
+                "SEP-integrated flux of the measured central light concentration",
+            ),
+            (
+                "M_foreground_ellipticity",
+                "foreground_ellipticity",
+                prep.foreground_ellipticity,
+                None,
+                prep.foreground_reliability if prep.foreground_ellipticity is not None else 0.0,
+                "sep_second_moments",
+                "Ellipticity of the central light distribution",
+            ),
+            (
+                "M_foreground_position_angle",
+                "foreground_position_angle",
+                prep.foreground_position_angle_deg,
+                "deg",
+                prep.foreground_reliability if prep.foreground_position_angle_deg is not None else 0.0,
+                "sep_second_moments",
+                "Position angle of the central light distribution",
+            ),
+            (
+                "M_foreground_axis_ratio",
+                "foreground_axis_ratio",
+                prep.foreground_axis_ratio,
+                None,
+                prep.foreground_reliability if prep.foreground_axis_ratio is not None else 0.0,
+                "sep_second_moments",
+                "Major-to-minor axis ratio of the central light distribution",
+            ),
+        ]
+        for mid, kind, value, unit, reliability, method, description in foreground_entries:
+            measurements.append(
+                Measurement(
+                    id=mid,
+                    kind=kind,
+                    value=value,
+                    unit=unit,
+                    reliability=float(np.clip(reliability, 0.0, 1.0)),
+                    method=method,
+                    description=description,
+                    correlation_group="foreground_light",
+                    flags=[] if prep.foreground_detected else ["central_source_not_sep_detected"],
+                )
+            )
+
+        alternative_entries = [
+            (
+                "M_alt_multiple_core_count",
+                "multiple_core_count",
+                prep.multiple_core_count,
+                None,
+                0.55 if prep.multiple_core_count is not None else 0.0,
+                "sep_central_source_count",
+                "Number of secondary central sources with at least 10% of the primary SEP flux",
+                ["proxy_measurement"],
+            ),
+            (
+                "M_alt_tidal_asymmetry",
+                "tidal_asymmetry",
+                prep.tidal_asymmetry,
+                None,
+                0.45 if prep.tidal_asymmetry is not None else 0.0,
+                "residual_180_degree_asymmetry",
+                "Rotation-asymmetry proxy measured on the foreground-subtracted residual",
+                ["proxy_measurement", "subtraction_correlated"],
+            ),
+            (
+                "M_alt_core_residual_fraction",
+                "core_residual_fraction",
+                prep.core_residual_fraction,
+                None,
+                0.55 if prep.core_residual_fraction is not None else 0.0,
+                "absolute_residual_flux_ratio",
+                "Fraction of absolute residual flux inside the subtraction-sensitive core",
+                ["proxy_measurement", "subtraction_correlated"],
+            ),
+            (
+                "M_alt_bad_pixel_fraction",
+                "bad_pixel_fraction",
+                1.0 - image.finite_fraction,
+                None,
+                1.0,
+                "finite_input_pixel_count",
+                "Fraction of input pixels requiring non-finite-value replacement",
+                [],
+            ),
+            (
+                "M_alt_psf_information_available",
+                "psf_information_available",
+                False,
+                None,
+                1.0,
+                "input_metadata_check",
+                "Whether a validated PSF model was supplied to this pipeline",
+                ["not_measured"],
+            ),
+        ]
+        for mid, kind, value, unit, reliability, method, description, item_flags in alternative_entries:
+            measurements.append(
+                Measurement(
+                    id=mid,
+                    kind=kind,
+                    value=value,
+                    unit=unit,
+                    reliability=reliability,
+                    method=method,
+                    description=description,
+                    correlation_group=(
+                        "subtraction_quality"
+                        if kind in {"tidal_asymmetry", "core_residual_fraction"}
+                        else "interaction_morphology"
+                        if kind == "multiple_core_count"
+                        else "input_quality"
+                    ),
+                    flags=item_flags,
                 )
             )
 
@@ -269,7 +458,7 @@ class VisionPipeline:
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
 
-        finite_fraction = float(np.isfinite(prep.image.data).mean())
+        finite_fraction = image.finite_fraction
         flags = list(prep.flags)
         if not structures:
             flags.append("no_significant_annular_structure")
@@ -277,6 +466,8 @@ class VisionPipeline:
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "Angular measurements are in pixel geometry unless a validated pixel scale is supplied.",
             "A single-band run cannot test source-color consistency.",
+            "No validated PSF model is supplied; PSF-specific artifact rejection is unavailable.",
+            "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
         ]
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
@@ -298,6 +489,42 @@ class VisionPipeline:
                 residual_median=prep.residual_median,
                 residual_robust_rms=prep.residual_robust_rms,
                 flags=flags,
+            ),
+            foreground_galaxy=ForegroundGalaxyObservation(
+                detected=prep.foreground_detected,
+                center_xy=(float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+                peak_value=prep.foreground_peak_value,
+                integrated_flux=prep.foreground_integrated_flux,
+                ellipticity=prep.foreground_ellipticity,
+                position_angle_deg=prep.foreground_position_angle_deg,
+                axis_ratio=prep.foreground_axis_ratio,
+                reliability=prep.foreground_reliability,
+                method="sep_central_source_and_second_moments",
+                measurement_ids=[item[0] for item in foreground_entries],
+                flags=[] if prep.foreground_detected else ["central_source_not_sep_detected"],
+            ),
+            scene_geometry=SceneGeometryObservation(
+                structure_count=len(structures),
+                common_radius_cv=common_radius_cv,
+                total_angular_coverage_deg=total_coverage,
+                mean_tangential_misalignment_deg=mean_misalignment,
+                tangential_alignment_fraction=tangential_fraction,
+                measurement_ids=[item[0] for item in scene_entries if "model" not in item[1]],
+            ),
+            alternative_indicators=AlternativeIndicators(
+                inner_connected_structure_count=sum(
+                    bool(item.connects_to_inner_region) for item in structures
+                ),
+                multiple_core_count=prep.multiple_core_count,
+                tidal_asymmetry=prep.tidal_asymmetry,
+                core_residual_fraction=prep.core_residual_fraction,
+                bad_pixel_fraction=1.0 - image.finite_fraction,
+                psf_information_available=False,
+                measurement_ids=[item[0] for item in alternative_entries],
+                limitations=[
+                    "Connectivity and asymmetry are residual-image proxies.",
+                    "No PSF-specific measurement is available.",
+                ],
             ),
             structures=structures,
             measurements=measurements,

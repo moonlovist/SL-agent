@@ -25,6 +25,8 @@ class DecisionAgent(BaseAgent):
     def run(self, state: ExpertState) -> ExpertState:
         self.log("比较假设并允许证据不足时弃权")
         self.load_skill("decision_making_skill")
+        if set(state.hypothesis_analyses) != {item.id for item in state.hypotheses}:
+            raise ValueError("DecisionAgent requires one completed analysis per hypothesis")
         ranking: list[HypothesisScore] = []
         for hypothesis in state.hypotheses:
             supporting: dict[str, list[float]] = defaultdict(list)
@@ -118,7 +120,7 @@ class DecisionAgent(BaseAgent):
         )
         self.record_reasoning(
             state,
-            "decision_making",
+            "hypothesis_synthesis_and_decision",
             {
                 "classification": classification,
                 "selected_hypothesis": selected,

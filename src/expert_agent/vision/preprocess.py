@@ -22,6 +22,7 @@ class ImageData:
     data: np.ndarray
     rms: np.ndarray
     supplied_rms: bool
+    finite_fraction: float
 
 
 @dataclass
@@ -40,6 +41,16 @@ class PreprocessedImage:
     residual_robust_rms: float
     model_method: str
     model_success: bool
+    foreground_detected: bool
+    foreground_peak_value: float
+    foreground_integrated_flux: float | None
+    foreground_ellipticity: float | None
+    foreground_position_angle_deg: float | None
+    foreground_axis_ratio: float | None
+    foreground_reliability: float
+    multiple_core_count: int | None
+    tidal_asymmetry: float | None
+    core_residual_fraction: float | None
     flags: list[str]
 
 
@@ -114,6 +125,7 @@ def load_image(path: str | Path, band: str) -> ImageData:
     if data.ndim != 2 or rms.shape != data.shape:
         raise ValueError("Flux and RMS data must be matching 2-D arrays")
     finite = np.isfinite(data) & np.isfinite(rms)
+    finite_fraction = float(finite.mean())
     if not finite.any():
         raise ValueError("Input contains no finite pixels")
     data = np.where(np.isfinite(data), data, np.nanmedian(data[finite]))
@@ -128,6 +140,7 @@ def load_image(path: str | Path, band: str) -> ImageData:
         data=data,
         rms=rms,
         supplied_rms=supplied_rms,
+        finite_fraction=finite_fraction,
     )
 
 
@@ -247,9 +260,15 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
     source_mask = np.zeros(data.shape, dtype=bool)
     fit_mask = np.zeros(data.shape, dtype=bool)
     initial_eps, initial_pa = 0.2, 0.0
+    foreground_detected = False
+    foreground_flux: float | None = None
+    foreground_axis_ratio: float | None = None
+    foreground_reliability = 0.25
+    multiple_core_count: int | None = None
     if len(objects):
         distances = (objects["x"] - nucleus[1]) ** 2 + (objects["y"] - nucleus[0]) ** 2
         central_index = int(np.argmin(distances))
+        foreground_detected = True
         central_label = central_index + 1
         # Fit the foreground using the central object only, so candidate arcs do
         # not bias its isophotes. During residual detection, however, preserve
@@ -271,6 +290,24 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
             )
         )
         initial_pa = float(objects["theta"][central_index])
+        foreground_flux = float(objects["flux"][central_index])
+        foreground_axis_ratio = float(
+            objects["a"][central_index] / max(objects["b"][central_index], 1e-9)
+        )
+        foreground_reliability = float(
+            np.clip(abs(foreground_flux) / max(20.0 * background.globalrms, 1e-9), 0.25, 1.0)
+        )
+        # Keep the core screen inside the subtraction-sensitive central scale.
+        # A wider aperture can incorrectly count the very annular structures
+        # under investigation as additional galaxy nuclei.
+        core_radius = config.near_core_radius_px
+        central_flux_scale = max(abs(foreground_flux), 1e-9)
+        plausible_secondary = (
+            (distances <= core_radius**2)
+            & (np.arange(len(objects)) != central_index)
+            & (np.abs(objects["flux"]) >= 0.1 * central_flux_scale)
+        )
+        multiple_core_count = int(np.count_nonzero(plausible_secondary))
 
     flags: list[str] = []
     if image.input_format == "png":
@@ -296,6 +333,30 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
     background_region = (radius > config.ring_outer_px * 1.5) & ~source_mask
     if not background_region.any():
         background_region = ~source_mask
+    symmetric_half_y = min(nucleus[0], data.shape[0] - 1 - nucleus[0])
+    symmetric_half_x = min(nucleus[1], data.shape[1] - 1 - nucleus[1])
+    if symmetric_half_y >= 1 and symmetric_half_x >= 1:
+        symmetric = residual[
+            nucleus[0] - symmetric_half_y : nucleus[0] + symmetric_half_y + 1,
+            nucleus[1] - symmetric_half_x : nucleus[1] + symmetric_half_x + 1,
+        ]
+        rotated = np.rot90(symmetric, 2)
+        asymmetry_denominator = float(np.sum(np.abs(symmetric)) + np.sum(np.abs(rotated)))
+        tidal_asymmetry = (
+            float(np.sum(np.abs(symmetric - rotated)) / asymmetry_denominator)
+            if asymmetry_denominator > 0
+            else 0.0
+        )
+    else:
+        tidal_asymmetry = None
+    core_region = radius <= config.near_core_radius_px
+    comparison_region = radius <= config.ring_outer_px
+    residual_denominator = float(np.sum(np.abs(residual[comparison_region])))
+    core_residual_fraction = (
+        float(np.sum(np.abs(residual[core_region])) / residual_denominator)
+        if residual_denominator > 0
+        else 0.0
+    )
     return PreprocessedImage(
         image=image,
         model=model,
@@ -311,5 +372,17 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
         residual_robust_rms=robust_rms(residual[background_region]),
         model_method=model_method,
         model_success=model_success,
+        foreground_detected=foreground_detected,
+        foreground_peak_value=float(data[nucleus]),
+        foreground_integrated_flux=foreground_flux,
+        foreground_ellipticity=initial_eps if foreground_detected else None,
+        foreground_position_angle_deg=(
+            float(np.degrees(initial_pa) % 180.0) if foreground_detected else None
+        ),
+        foreground_axis_ratio=foreground_axis_ratio,
+        foreground_reliability=foreground_reliability,
+        multiple_core_count=multiple_core_count,
+        tidal_asymmetry=tidal_asymmetry,
+        core_residual_fraction=core_residual_fraction,
         flags=flags,
     )

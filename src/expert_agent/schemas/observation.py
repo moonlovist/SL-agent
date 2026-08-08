@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.1.0"
+    pipeline_version: str = "0.2.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -62,6 +62,8 @@ class StructureObservation(StrictModel):
     tangential_misalignment_deg: float | None = Field(default=None, ge=0.0, le=90.0)
     threshold_survival_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     sep_survival_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    inner_connection_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    connects_to_inner_region: bool | None = None
     near_core: bool
     measurement_ids: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
@@ -74,8 +76,50 @@ class StructureObservation(StrictModel):
         return value
 
 
+class ForegroundGalaxyObservation(StrictModel):
+    """Measured properties of the central light distribution, not a lens label."""
+
+    detected: bool
+    center_xy: tuple[float, float]
+    peak_value: float
+    integrated_flux: float | None = None
+    ellipticity: float | None = Field(default=None, ge=0.0, le=1.0)
+    position_angle_deg: float | None = Field(default=None, ge=0.0, lt=180.0)
+    axis_ratio: float | None = Field(default=None, ge=1.0)
+    reliability: float = Field(ge=0.0, le=1.0)
+    method: str
+    measurement_ids: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
+class SceneGeometryObservation(StrictModel):
+    structure_count: int = Field(ge=0)
+    common_radius_cv: float | None = Field(default=None, ge=0.0)
+    total_angular_coverage_deg: float = Field(ge=0.0, le=360.0)
+    mean_tangential_misalignment_deg: float | None = Field(
+        default=None, ge=0.0, le=90.0
+    )
+    tangential_alignment_fraction: float | None = Field(
+        default=None, ge=0.0, le=1.0
+    )
+    measurement_ids: list[str] = Field(default_factory=list)
+
+
+class AlternativeIndicators(StrictModel):
+    """Observation-only proxies useful for testing non-lens explanations."""
+
+    inner_connected_structure_count: int = Field(ge=0)
+    multiple_core_count: int | None = Field(default=None, ge=0)
+    tidal_asymmetry: float | None = Field(default=None, ge=0.0, le=1.0)
+    core_residual_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    bad_pixel_fraction: float = Field(ge=0.0, le=1.0)
+    psf_information_available: bool = False
+    measurement_ids: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.1"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -83,6 +127,9 @@ class ObservationDocument(StrictModel):
     image_shape: tuple[int, int]
     nucleus_xy: tuple[float, float]
     data_quality: DataQuality
+    foreground_galaxy: ForegroundGalaxyObservation | None = None
+    scene_geometry: SceneGeometryObservation | None = None
+    alternative_indicators: AlternativeIndicators | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

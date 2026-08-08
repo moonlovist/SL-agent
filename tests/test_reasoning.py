@@ -129,6 +129,26 @@ class ReasoningTests(unittest.TestCase):
         )
         self.assertTrue(result.audit_result.valid)
         self.assertTrue(result.decision_result.evidence_refs)
+        self.assertEqual(set(result.hypothesis_analyses), {"H1", "H2", "H3", "H4"})
+        self.assertTrue(result.evidence_comparisons)
+        self.assertTrue(
+            all(len(item.effects) == 4 for item in result.evidence_comparisons)
+        )
+        self.assertTrue(
+            any(item.discriminating for item in result.evidence_comparisons)
+        )
+
+    def test_each_hypothesis_records_missing_evidence_and_uncertainty(self):
+        observation = make_observation(True)
+        result = ExpertWorkflow().run(
+            ExpertState(observation_document=observation)
+        )
+        merger_analysis = result.hypothesis_analyses["H3"]
+        self.assertTrue(merger_analysis.missing_evidence)
+        self.assertTrue(merger_analysis.uncertainties)
+        self.assertEqual(merger_analysis.status, "insufficient")
+        self.assertIn("per_hypothesis_analysis", result.audit_result.checks)
+        self.assertTrue(result.audit_result.checks["cross_hypothesis_comparison"])
 
     def test_empty_observation_abstains(self):
         observation = make_observation(False)
@@ -138,6 +158,19 @@ class ReasoningTests(unittest.TestCase):
         self.assertEqual(result.decision_result.classification, "indeterminate")
         self.assertIsNone(result.decision_result.selected_hypothesis)
         self.assertNotEqual(result.confidence_assessment.level, "medium")
+
+    def test_observation_1_0_remains_readable(self):
+        payload = make_observation(True).model_dump(mode="json")
+        payload["schema_version"] = "1.0"
+        payload.pop("foreground_galaxy", None)
+        payload.pop("scene_geometry", None)
+        payload.pop("alternative_indicators", None)
+        observation = ObservationDocument.model_validate(payload)
+        result = ExpertWorkflow().run(
+            ExpertState(observation_document=observation)
+        )
+        self.assertEqual(observation.schema_version, "1.0")
+        self.assertEqual(set(result.hypothesis_analyses), {"H1", "H2", "H3", "H4"})
 
     def test_non_specific_arc_evidence_cannot_force_lens(self):
         observation = make_observation(True)

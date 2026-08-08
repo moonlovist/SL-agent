@@ -33,6 +33,8 @@ class ArcSegment:
     angular_extent_deg: float
     axis_ratio: float
     tangential_misalignment_deg: float
+    inner_connection_fraction: float
+    connects_to_inner_region: bool
     pixels_y: np.ndarray
     pixels_x: np.ndarray
 
@@ -258,6 +260,11 @@ def extract_arc_segments(
         misalignment = float(
             abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
         )
+        inner_connection_region = radius <= (config.ring_inner_px + 1.0)
+        inner_connection_fraction = float(
+            np.count_nonzero(object_footprint & inner_connection_region)
+            / max(np.count_nonzero(object_footprint), 1)
+        )
         segments.append(
             ArcSegment(
                 label=label,
@@ -271,6 +278,8 @@ def extract_arc_segments(
                 angular_extent_deg=circular_span(pa[arc_pixels]),
                 axis_ratio=float(item["a"] / max(item["b"], 1e-9)),
                 tangential_misalignment_deg=misalignment,
+                inner_connection_fraction=inner_connection_fraction,
+                connects_to_inner_region=inner_connection_fraction > 0.0,
                 pixels_y=ys,
                 pixels_x=xs,
             )
