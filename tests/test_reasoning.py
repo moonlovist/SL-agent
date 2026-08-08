@@ -137,6 +137,13 @@ class ReasoningTests(unittest.TestCase):
         self.assertTrue(
             any(item.discriminating for item in result.evidence_comparisons)
         )
+        self.assertTrue(result.observation_audit.valid)
+        self.assertTrue(result.evidence_audit.valid)
+        self.assertIn(result.decision_audit.verdict, {"confirm", "downgrade"})
+        self.assertEqual(
+            result.decision_audit.effective_classification,
+            "strong_lens_candidate",
+        )
 
     def test_each_hypothesis_records_missing_evidence_and_uncertainty(self):
         observation = make_observation(True)
@@ -186,6 +193,26 @@ class ReasoningTests(unittest.TestCase):
         observation.structures[0].tangential_misalignment_deg = 60.0
         result = ExpertWorkflow().run(ExpertState(observation_document=observation))
         self.assertNotEqual(result.decision_result.classification, "strong_lens_candidate")
+
+    def test_unusable_observation_forces_audited_abstention(self):
+        observation = make_observation(True)
+        observation.data_quality.usable = False
+        result = ExpertWorkflow().run(ExpertState(observation_document=observation))
+        self.assertFalse(result.observation_audit.valid)
+        self.assertEqual(result.observation_audit.quality_level, "unusable")
+        self.assertEqual(result.decision_audit.verdict, "abstain")
+        self.assertEqual(result.decision_audit.effective_classification, "indeterminate")
+        self.assertTrue(result.audit_result.valid)
+        self.assertEqual(result.final_decision["classification"], "indeterminate")
+
+    def test_evidence_audit_exposes_correlated_groups(self):
+        result = ExpertWorkflow().run(
+            ExpertState(observation_document=make_observation(True))
+        )
+        self.assertTrue(result.evidence_audit.correlated_groups)
+        self.assertTrue(result.evidence_audit.checks["measurement_provenance"])
+        self.assertIn("observation_audit", result.to_dict())
+        self.assertIn("decision_audit", result.final_decision)
 
 
 if __name__ == "__main__":

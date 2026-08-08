@@ -1,6 +1,8 @@
 # Lens Expert Agent 全面介绍与使用说明书
 
-> 适用版本：`lens-expert-agent 0.2.0`（当前多假设推理 MWA）  
+> 适用版本：`lens-expert-agent 0.3.0`（分层科学审计与知识/技能分离版 MWA）
+>
+> v0.3 阅读提示：系统现在有三位科学“复核员”。ObservationAuditor 检查测量能不能信，EvidenceAuditor 检查证据有没有重复或夸大，DecisionAuditor 检查最终结论应当确认、降级还是弃权。原 ReasoningAuditor 仍只检查程序结构和引用完整性。`summary.json` 中的最终分类以 DecisionAuditor 审核后的结果为准，原始初判仍会保留，方便追溯。
 > 适用系统：Windows + PowerShell；Python 3.11 或更高版本  
 > 本手册依据当前实际代码编写。凡是尚未实现的功能，都会明确标为“当前不支持”或“未来扩展”。
 

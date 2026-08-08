@@ -51,10 +51,11 @@ def analyze(args: argparse.Namespace) -> int:
     print(f"Object: {observation.object_id}")
     print(f"Classification: {result.final_decision['classification']}")
     print(
-        f"Confidence: {result.confidence_assessment.level} "
+        f"Confidence: {result.decision_audit.effective_confidence_level} "
         f"({result.confidence_assessment.score:.3f})"
     )
-    print(f"Audit valid: {result.audit_result.valid}")
+    print(f"Decision audit: {result.decision_audit.verdict}")
+    print(f"Structural audit valid: {result.audit_result.valid}")
     print(f"Report: {output_dir / 'report.md'}")
     return 0
 

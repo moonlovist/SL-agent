@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lens-expert-agent"
-version = "0.2.0"
+version = "0.3.0"
 description = "Evidence-first expert reasoning agent for strong gravitational lens inspection"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,7 +30,7 @@ where = ["src"]
 include = ["expert_agent*"]
 
 [tool.setuptools.package-data]
-expert_agent = ["skills/*.md"]
+expert_agent = ["skills/*.md", "knowledge/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

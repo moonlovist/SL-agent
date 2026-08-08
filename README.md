@@ -29,7 +29,7 @@ The target directory contains:
 - `observation.json`: versioned measurements only;
 - `vision_artifacts.npz`: pixel-level provenance;
 - `vision_diagnostic.png`: input/model/residual/mask QA;
-- `reasoning.json`: hypotheses, evidence, contradictions, decision, confidence, audit;
+- `reasoning.json`: hypotheses, evidence, contradictions, decision, confidence, and layered audits;
 - `summary.json` and `report.md`: final user-facing results.
 
 ## Run reasoning without image access
@@ -51,9 +51,8 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.2 adds Observation schema 1.1, explicit cross-hypothesis evidence
-comparison, and one independent case file for each of the four competing
-explanations. See the [phase-1 upgrade note](src/docs/PHASE1_MULTI_HYPOTHESIS_UPGRADE_CN.md).
+Version 0.3 adds separate observation, evidence, and decision audits plus a formal
+Knowledge/Skill boundary. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
 
 PNG input runs in a conservative reduced-measurement mode because rendered images
 do not carry calibrated flux or RMS maps. A high-S/N elongated PNG residual cannot

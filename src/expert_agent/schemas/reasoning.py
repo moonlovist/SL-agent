@@ -117,6 +117,46 @@ class ConfidenceAssessment(StrictModel):
     remaining_uncertainties: list[str]
 
 
+class AuditFinding(StrictModel):
+    id: str
+    severity: Literal["info", "warning", "critical"]
+    category: str
+    description: str
+    observation_refs: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    hypothesis_ids: list[str] = Field(default_factory=list)
+    recommended_action: str
+
+
+class ObservationAuditResult(StrictModel):
+    valid: bool
+    quality_level: Literal["usable", "limited", "unusable"]
+    findings: list[AuditFinding]
+    checks: dict[str, bool]
+    reliability_summary: str
+    recommendation: str
+
+
+class EvidenceAuditResult(StrictModel):
+    valid: bool
+    findings: list[AuditFinding]
+    checks: dict[str, bool]
+    correlated_groups: dict[str, list[str]]
+    low_specificity_evidence_refs: list[str]
+    recommendation: str
+
+
+class DecisionAuditResult(StrictModel):
+    verdict: Literal["confirm", "downgrade", "abstain"]
+    effective_classification: Literal[
+        "strong_lens_candidate", "not_lens_preferred", "indeterminate"
+    ]
+    effective_confidence_level: Literal["high", "medium", "low", "insufficient"]
+    findings: list[AuditFinding]
+    checks: dict[str, bool]
+    recommendation: str
+
+
 class AuditResult(StrictModel):
     valid: bool
     issues: list[str]

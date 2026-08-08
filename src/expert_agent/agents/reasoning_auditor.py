@@ -90,6 +90,29 @@ class ReasoningAuditor(BaseAgent):
         confidence_valid = state.confidence_assessment is not None
         if not confidence_valid:
             issues.append("Confidence calibration did not run.")
+        layered_audits_present = all(
+            item is not None
+            for item in (
+                state.observation_audit,
+                state.evidence_audit,
+                state.decision_audit,
+            )
+        )
+        if not layered_audits_present:
+            issues.append("One or more layered scientific audits did not run.")
+        audit_enforcement = layered_audits_present
+        if layered_audits_present:
+            upstream_failed = (
+                not state.observation_audit.valid or not state.evidence_audit.valid
+            )
+            audit_enforcement = not upstream_failed or (
+                state.decision_audit.verdict == "abstain"
+                and state.decision_audit.effective_classification == "indeterminate"
+            )
+            if not audit_enforcement:
+                issues.append(
+                    "A blocking scientific audit was not enforced by the decision audit."
+                )
         checks = {
             "observation_schema": True,
             "unique_measurement_ids": unique_measurements,
@@ -101,6 +124,8 @@ class ReasoningAuditor(BaseAgent):
             "per_hypothesis_analysis": analyses_complete,
             "decision_constraints": decision_valid,
             "confidence_present": confidence_valid,
+            "layered_scientific_audits": layered_audits_present,
+            "scientific_audit_enforcement": audit_enforcement,
         }
         valid = all(checks.values())
         state.audit_result = AuditResult(
@@ -108,7 +133,7 @@ class ReasoningAuditor(BaseAgent):
             issues=issues,
             checks=checks,
             recommendation=(
-                "Reasoning is traceable to measurements; retain stated limitations."
+                "Reasoning structure and audit enforcement are complete; retain stated scientific limitations."
                 if valid
                 else "Treat the result as indeterminate until the audit issues are resolved."
             ),

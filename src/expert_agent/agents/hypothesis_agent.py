@@ -12,6 +12,13 @@ class HypothesisAgent(BaseAgent):
     def run(self, state: ExpertState) -> ExpertState:
         self.log("建立竞争解释")
         self.load_skill("hypothesis_skill")
+        knowledge_topics = [
+            "lens_geometry",
+            "intrinsic_galaxy_morphology",
+            "merger_interaction",
+            "artifacts_subtraction",
+        ]
+        self.load_knowledge_bundle(knowledge_topics)
         state.require_observation()
         state.hypotheses = [
             Hypothesis(
@@ -40,6 +47,9 @@ class HypothesisAgent(BaseAgent):
         self.record_reasoning(
             state,
             "hypothesis_generation",
-            {"hypothesis_ids": [item.id for item in state.hypotheses]},
+            {
+                "hypothesis_ids": [item.id for item in state.hypotheses],
+                "knowledge_topics": knowledge_topics,
+            },
         )
         return state

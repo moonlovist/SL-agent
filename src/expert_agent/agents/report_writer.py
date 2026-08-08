@@ -15,9 +15,15 @@ class ReportWriter(BaseAgent):
         decision = state.decision_result
         confidence = state.confidence_assessment
         audit = state.audit_result
-        if decision is None or confidence is None or audit is None:
-            raise ValueError("ReportWriter requires decision, confidence, and audit results")
-        effective_classification = decision.classification if audit.valid else "indeterminate"
+        decision_audit = state.decision_audit
+        if decision is None or confidence is None or audit is None or decision_audit is None:
+            raise ValueError("ReportWriter requires decision, confidence, and all audit results")
+        effective_classification = (
+            decision_audit.effective_classification if audit.valid else "indeterminate"
+        )
+        effective_confidence = (
+            decision_audit.effective_confidence_level if audit.valid else "insufficient"
+        )
         top_rows = decision.ranking
         structure_lines = [
             (
@@ -85,6 +91,8 @@ class ReportWriter(BaseAgent):
                 f"- Foreground model: {document.data_quality.model_method} "
                 f"(success={document.data_quality.model_success})",
                 f"- Supplied RMS map: {document.data_quality.supplied_rms}",
+                f"- Observation audit: {state.observation_audit.quality_level} "
+                f"(valid={state.observation_audit.valid})",
                 "",
                 "## Structured observations",
                 "",
@@ -113,9 +121,10 @@ class ReportWriter(BaseAgent):
                 "",
                 f"- Classification: **{effective_classification}**",
                 f"- Preferred explanation: {decision.selected_hypothesis or 'none (abstained)'}",
-                f"- Confidence: **{confidence.level}** ({confidence.score:.3f})",
+                f"- Confidence: **{effective_confidence}** (raw score={confidence.score:.3f})",
                 f"- Decision basis: {decision.decision_reasoning}",
-                f"- Audit valid: {audit.valid}",
+                f"- Decision audit: {decision_audit.verdict}",
+                f"- Structural audit valid: {audit.valid}",
                 "",
                 "## Remaining uncertainty",
                 "",
@@ -137,12 +146,20 @@ class ReportWriter(BaseAgent):
                 item.model_dump(mode="json") for item in state.evidence_comparisons
             ],
             "confidence": confidence.model_dump(mode="json"),
+            "observation_audit": state.observation_audit.model_dump(mode="json"),
+            "evidence_audit": state.evidence_audit.model_dump(mode="json"),
+            "decision_audit": decision_audit.model_dump(mode="json"),
             "audit": audit.model_dump(mode="json"),
             "report_markdown": markdown,
         }
         self.record_reasoning(
             state,
             "report_generation",
-            {"classification": effective_classification, "audit_valid": audit.valid},
+            {
+                "classification": effective_classification,
+                "effective_confidence": effective_confidence,
+                "decision_audit_verdict": decision_audit.verdict,
+                "audit_valid": audit.valid,
+            },
         )
         return state

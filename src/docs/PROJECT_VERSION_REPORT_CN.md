@@ -1332,6 +1332,63 @@ Observer
 
 ---
 
+# Lens Expert Agent v0.3.0（2026-08-09）
+
+> 本节对应软件包版本 `0.3.0`，Observation schema 继续为 `1.1`。
+
+## 升级目标
+
+本版完成第二阶段升级：将单一流程完整性审计拆成 Observation、Evidence、Decision 三层科学审计，同时建立正式的 Knowledge / Skill 分离。继续坚持测量提供事实、Agent 解释事实，不接入 LLM、VLM 或 Self-Evolve。
+
+## 新工作流
+
+```text
+Observer
+→ Observation Audit
+→ Multiple Hypotheses
+→ Evidence Planning / Evaluation / Comparison
+→ Counter Evidence / Per-Hypothesis Analysis
+→ Evidence Audit
+→ Decision / Confidence
+→ Decision Audit
+→ Structural Reasoning Audit
+→ Report
+```
+
+## 分层审计
+
+- `ObservationAuditor`：检查数据可用性、噪声、前景减除、测量可靠性、PSF/RMS 局限和引用来源；
+- `EvidenceAuditor`：检查证据引用、重复/相关证据、缺失证据中性原则、区分力和过度解释；
+- `DecisionAuditor`：检查替代解释、上游审计、阈值、关键缺失证据和反证，输出 `confirm`、`downgrade` 或 `abstain`；
+- `ReasoningAuditor`：保留为结构审计，并验证阻断性科学审计是否被正确执行。
+
+科学数据不可用但系统正确弃权时，结构审计可以通过。两者含义不同：前者评价科学结论，后者评价推理流程。
+
+## Knowledge / Skill
+
+新增六类领域知识：透镜几何、弧形态、本征星系形态、并合/相互作用、伪影/减除、颜色/多波段。新增三个审计技能。`BaseAgent` 提供知识主题与知识包加载接口，安装包元数据同时包含 `knowledge/*.md`。
+
+## 输出与兼容性
+
+- `reasoning.json` 和 `summary.json` 新增 `observation_audit`、`evidence_audit`、`decision_audit`；
+- 最终分类采用决策审计后的有效结果，同时保留原始决策和置信度；
+- CLI 显示有效置信等级、决策审计 verdict 和结构审计状态；
+- Observation schema 仍为 1.1，旧 1.0 Observation 继续可读。
+
+## 验证
+
+- 自动化测试从 6 项增加到 8 项，全部通过；
+- 新增不可用 Observation 强制弃权测试；
+- 新增相关证据组与审计输出测试；
+- 真实 FITS `102018667_NEG587746535508057234` 端到端回归通过；
+- 回归结果：`strong_lens_candidate`，有效置信度 `medium`，Decision Audit 为 `confirm`，结构审计通过。
+
+## 下一阶段
+
+保持当前审计与知识接口稳定，下一阶段再建设独立领域 Plugin 输入/输出契约和 General Agent 对接边界；在验证集和错误案例体系建立前，仍不启用自动 Self-Evolve。
+
+---
+
 # 后续版本
 
 （每次完成并验证一个可运行版本后，在这里继续追加。）

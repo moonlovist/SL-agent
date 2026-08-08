@@ -11,6 +11,7 @@ class BaseAgent(ABC):
     def __init__(self, name: str):
         self.name = name
         self.skill_dir = Path(__file__).parent.parent / "skills"
+        self.knowledge_dir = Path(__file__).parent.parent / "knowledge"
 
     def log(self, message: str) -> None:
         print(f"[{self.name}] {message}")
@@ -20,6 +21,15 @@ class BaseAgent(ABC):
         if not path.exists():
             raise FileNotFoundError(f"Skill not found: {path}")
         return path.read_text(encoding="utf-8")
+
+    def load_knowledge(self, topic_name: str) -> str:
+        path = self.knowledge_dir / f"{topic_name}.md"
+        if not path.exists():
+            raise FileNotFoundError(f"Knowledge topic not found: {path}")
+        return path.read_text(encoding="utf-8")
+
+    def load_knowledge_bundle(self, topic_names: list[str]) -> dict[str, str]:
+        return {name: self.load_knowledge(name) for name in topic_names}
 
     def record_reasoning(
         self, state: ExpertState, action: str, content: dict[str, Any]

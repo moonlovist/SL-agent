@@ -45,24 +45,43 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-The deterministic v0.2 MWA runs these explicit stages:
+The deterministic v0.3 MWA runs these explicit stages:
 
 1. normalize observed facts;
-2. maintain four competing hypotheses;
-3. plan discriminating evidence;
-4. map measurements to signed, cited evidence for every relevant hypothesis;
-5. build an explicit cross-hypothesis matrix showing how one fact affects H1-H4;
-6. expose opposing evidence as contradictions;
-7. create a separate case file for each hypothesis with support, opposition,
+2. audit data usability, measurement reliability, and observation provenance;
+3. maintain four competing hypotheses;
+4. plan discriminating evidence;
+5. map measurements to signed, cited evidence for every relevant hypothesis;
+6. build an explicit cross-hypothesis matrix showing how one fact affects H1-H4;
+7. expose opposing evidence as contradictions;
+8. create a separate case file for each hypothesis with support, opposition,
    missing evidence, uncertainties, explained observations, and unexplained facts;
-8. synthesize and rank hypotheses with correlation-aware aggregation and abstention;
-9. calibrate confidence from score, margin, completeness, and data quality;
-10. audit references, comparison coverage, per-hypothesis analysis, ties, and stages;
-11. write JSON and Markdown reports without creating new facts.
+9. audit evidence provenance, dependence, specificity, and over-interpretation;
+10. synthesize and rank hypotheses with correlation-aware aggregation and abstention;
+11. calibrate confidence from score, margin, completeness, and data quality;
+12. adversarially audit the decision and confirm, downgrade, or abstain;
+13. audit schema/reference integrity and enforcement of scientific audit failures;
+14. write JSON and Markdown reports without creating new facts.
 
 Unavailable measurements are not negative evidence. A strong-lens decision also
 requires at least one sufficiently specific geometry item; signal significance or
 visual extent alone cannot pass this gate.
+
+## Knowledge and skill separation
+
+Files under `knowledge/` state domain interpretation, confounders, missing evidence,
+and forbidden inferences for lens geometry, arc morphology, intrinsic galaxy
+morphology, mergers, artifacts, and colour. Files under `skills/` define repeatable
+agent procedures. Python code remains responsible for measurement, validation,
+threshold enforcement, and structured outputs. Loading knowledge never creates an
+observation and never overrides measurement provenance.
+
+The three scientific audits have distinct meanings. Observation audit asks whether
+the measurements are usable. Evidence audit asks whether claims are traceable,
+independent enough, and proportionate to specificity. Decision audit challenges the
+proposed conclusion and can only preserve, reduce, or abstain. `ReasoningAuditor`
+remains a structural integrity check; a scientifically unusable case can therefore
+have a valid reasoning trace when the decision audit correctly abstains.
 
 ## Intended extensions
 

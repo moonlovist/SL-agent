@@ -19,6 +19,15 @@ class EvidenceAgent(BaseAgent):
         self.log("评价观测对各假设的支持关系")
         self.load_skill("evidence_evaluation_skill")
         self.load_skill("evidence_scoring_skill")
+        knowledge_topics = [
+            "lens_geometry",
+            "arc_morphology",
+            "intrinsic_galaxy_morphology",
+            "merger_interaction",
+            "artifacts_subtraction",
+            "color_multiband",
+        ]
+        self.load_knowledge_bundle(knowledge_topics)
         document = state.require_observation()
         by_kind: dict[str, list[Measurement]] = defaultdict(list)
         for measurement in document.measurements:
@@ -524,6 +533,7 @@ class EvidenceAgent(BaseAgent):
                     for items in evidence.values()
                     for item in items
                 ),
+                "knowledge_topics": knowledge_topics,
             },
         )
         return state
