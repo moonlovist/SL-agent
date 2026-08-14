@@ -25,6 +25,7 @@ from .detectors import (
     sep_consensus,
     threshold_stability,
 )
+from .diagnostics import write_visual_audit_bundle
 from .preprocess import load_image, preprocess
 
 
@@ -457,6 +458,18 @@ class VisionPipeline:
             diagnostic_path = self._write_diagnostic(prep, arc_mask, output)
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
+            artifacts.update(
+                write_visual_audit_bundle(
+                    prep=prep,
+                    config=runtime_config,
+                    threshold_detections=threshold_detections,
+                    consensus_detections=consensus_detections,
+                    level_map=level_map,
+                    footprint=footprint,
+                    arc_mask=arc_mask,
+                    output=output,
+                )
+            )
 
         finite_fraction = image.finite_fraction
         flags = list(prep.flags)

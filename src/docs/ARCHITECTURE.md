@@ -45,7 +45,7 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-The deterministic v0.3 MWA runs these explicit stages:
+The deterministic v0.4 MWA runs these explicit stages:
 
 1. normalize observed facts;
 2. audit data usability, measurement reliability, and observation provenance;
@@ -82,6 +82,19 @@ independent enough, and proportionate to specificity. Decision audit challenges 
 proposed conclusion and can only preserve, reduce, or abstain. `ReasoningAuditor`
 remains a structural integrity check; a scientifically unusable case can therefore
 have a valid reasoning trace when the decision audit correctly abstains.
+
+## Visual trace bundle
+
+Version 0.4 renders the actual intermediates used by the vision pipeline rather
+than reconstructing illustrative approximations. The threshold detector and its
+diagnostic share `threshold_masks`; the SEP figure consumes the returned consensus
+detections; and the extraction figure consumes the final SEP footprint and arc
+mask. A per-run manifest records the input SHA-256 digest, runtime parameters,
+processing order, numerical-array meanings, and output paths.
+
+The active scientific channel is the raw foreground-subtracted residual divided by
+RMS. No wavelet denoising is applied. PNG diagnostics are human-readable audit
+views, while `vision_artifacts.npz` remains the numerical provenance record.
 
 ## Intended extensions
 

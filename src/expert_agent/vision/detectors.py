@@ -102,6 +102,18 @@ def _cluster_detections(
     return clusters
 
 
+def threshold_masks(
+    prep: PreprocessedImage, config: VisionConfig
+) -> tuple[list[np.ndarray], np.ndarray]:
+    """Return the exact annular masks used by threshold stability detection."""
+    _, _, _, _, ring = _ring_geometry(prep, config)
+    masks = [
+        (prep.residual_snr >= threshold) & ring & ~prep.source_mask
+        for threshold in config.snr_thresholds
+    ]
+    return masks, ring
+
+
 def threshold_stability(
     prep: PreprocessedImage, config: VisionConfig
 ) -> tuple[list[StabilityDetection], np.ndarray]:
@@ -109,15 +121,10 @@ def threshold_stability(
         from scipy import ndimage
     except ImportError as exc:
         raise VisionDependencyError("threshold detection requires scipy") from exc
-    _, _, radius, _, ring = _ring_geometry(prep, config)
+    masks, _ = threshold_masks(prep, config)
     runs: list[list[dict[str, float]]] = []
     level_map = np.zeros(prep.image.data.shape, dtype=np.uint8)
-    for threshold in config.snr_thresholds:
-        active = (
-            (prep.residual_snr >= threshold)
-            & ring
-            & ~prep.source_mask
-        )
+    for active in masks:
         labels, count = ndimage.label(active)
         detections: list[dict[str, float]] = []
         for label in range(1, count + 1):

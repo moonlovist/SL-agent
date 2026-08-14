@@ -80,6 +80,20 @@ class ReportWriter(BaseAgent):
             for item in items
         ] or ["- No explicit contradictory measurement was identified."]
         limitation_lines = [f"- {item}" for item in confidence.remaining_uncertainties]
+        trace_labels = {
+            "overview_diagnostic": "overview diagnostic",
+            "snr_threshold_process": "S/N threshold process",
+            "sep_consensus_diagnostic": "SEP consensus process",
+            "arc_extraction_diagnostic": "arc-pixel extraction process",
+            "vision_process_flow": "vision-layer flowchart",
+            "vision_manifest": "trace manifest",
+            "vision_arrays": "numerical trace arrays",
+        }
+        trace_lines = [
+            f"- {trace_labels[key]}: `{document.artifacts[key]}`"
+            for key in trace_labels
+            if key in document.artifacts
+        ] or ["- No visual trace bundle was written for this run."]
         markdown = "\n".join(
             [
                 f"# Strong-lens expert report: {document.object_id}",
@@ -93,6 +107,10 @@ class ReportWriter(BaseAgent):
                 f"- Supplied RMS map: {document.data_quality.supplied_rms}",
                 f"- Observation audit: {state.observation_audit.quality_level} "
                 f"(valid={state.observation_audit.valid})",
+                "",
+                "## Vision processing trace",
+                "",
+                *trace_lines,
                 "",
                 "## Structured observations",
                 "",
