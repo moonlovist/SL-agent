@@ -85,7 +85,6 @@ class ReportWriter(BaseAgent):
             "snr_threshold_process": "S/N threshold process",
             "sep_consensus_diagnostic": "SEP consensus process",
             "arc_extraction_diagnostic": "arc-pixel extraction process",
-            "vision_process_flow": "vision-layer flowchart",
             "vision_manifest": "trace manifest",
             "vision_arrays": "numerical trace arrays",
         }

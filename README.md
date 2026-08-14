@@ -32,7 +32,7 @@ The target directory contains:
 - `vision_snr_threshold_process.png`: every S/N threshold mask and survival layer;
 - `vision_sep_consensus.png`: stable detections across the SEP parameter grid;
 - `vision_arc_extraction.png`: the exact pixel-intersection path used for arc measurements;
-- `vision_process_flow.png` and `vision_manifest.json`: workflow map, parameters, and input hash;
+- `vision_manifest.json`: runtime parameters, processing steps, output paths, and input hash;
 - `reasoning.json`: hypotheses, evidence, contradictions, decision, confidence, and layered audits;
 - `summary.json` and `report.md`: final user-facing results.
 

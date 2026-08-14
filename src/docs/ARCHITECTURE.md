@@ -96,6 +96,10 @@ The active scientific channel is the raw foreground-subtracted residual divided 
 RMS. No wavelet denoising is applied. PNG diagnostics are human-readable audit
 views, while `vision_artifacts.npz` remains the numerical provenance record.
 
+The fixed architecture diagram is maintained once in `VISION_PROCESS_FLOW_CN.md`.
+Per-object output directories contain only sample-dependent diagnostic images; they
+do not duplicate a static flowchart.
+
 ## Intended extensions
 
 - PSF-aware and multi-band foreground modeling;

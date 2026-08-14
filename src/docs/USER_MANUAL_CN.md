@@ -1,6 +1,6 @@
 # Lens Expert Agent 全面介绍与使用说明书
 
-> 适用版本：`lens-expert-agent 0.4.0`（视觉过程可追溯版 MWA）
+> 适用版本：`lens-expert-agent 0.4.1`（视觉过程可追溯版 MWA）
 >
 > v0.3 阅读提示：系统现在有三位科学“复核员”。ObservationAuditor 检查测量能不能信，EvidenceAuditor 检查证据有没有重复或夸大，DecisionAuditor 检查最终结论应当确认、降级还是弃权。原 ReasoningAuditor 仍只检查程序结构和引用完整性。`summary.json` 中的最终分类以 DecisionAuditor 审核后的结果为准，原始初判仍会保留，方便追溯。
 > 适用系统：Windows + PowerShell；Python 3.11 或更高版本  
@@ -734,7 +734,6 @@ outputs/
     ├── vision_snr_threshold_process.png
     ├── vision_sep_consensus.png
     ├── vision_arc_extraction.png
-    ├── vision_process_flow.png
     ├── vision_manifest.json
     ├── reasoning.json
     ├── summary.json
@@ -811,13 +810,14 @@ residual_snr = artifact["residual_snr"]
 
 ### 11.3.1 视觉处理过程图与清单
 
-v0.4.0 进一步保存实际计算过程：
+v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 - `vision_snr_threshold_process.png`：每个 S/N 阈值的真实掩膜、掩膜残差、相邻层壳和最终存活层级；
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
 - `vision_arc_extraction.png`：残差、SEP 范围、S/N 掩膜以及最终用于测量的交集像素；
-- `vision_process_flow.png`：视觉层中文流程图；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。
+
+固定的视觉架构流程不随样本变化，只在 `src/docs/VISION_PROCESS_FLOW_CN.md` 中维护一份，不再复制到每个样本输出目录。
 
 这些 PNG 是给人看的审计视图，`vision_artifacts.npz` 才是精确数值记录。当前正式管线没有小波去噪，使用的是前景星系减除后的原始残差 S/N；清单中会明确记录这一点。
 

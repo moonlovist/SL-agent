@@ -209,49 +209,6 @@ def write_arc_extraction(
     return path
 
 
-def write_flowchart(output: Path) -> Path:
-    plt = _matplotlib(output)
-    figure, axis = plt.subplots(figsize=(15, 5.8))
-    axis.set_xlim(0, 15)
-    axis.set_ylim(0, 6)
-    axis.axis("off")
-    nodes = [
-        (0.8, 4.4, "FITS / PNG\n输入图像"),
-        (3.1, 4.4, "中心定位与\n污染源掩膜"),
-        (5.4, 4.4, "前景星系\n椭圆模型"),
-        (7.7, 4.4, "Residual\n残差 / S/N"),
-        (10.0, 5.0, "S/N 多阈值\n稳定性"),
-        (10.0, 3.8, "SEP 多参数\n共识"),
-        (12.3, 4.4, "弧像素交集\n与几何测量"),
-        (14.2, 4.4, "Observation\n结构化事实"),
-        (7.7, 1.5, "NPZ 数值证据\n+ PNG 过程图\n+ Manifest 参数清单"),
-    ]
-    for x, y, label in nodes:
-        axis.text(
-            x, y, label, ha="center", va="center", fontsize=10,
-            bbox=dict(boxstyle="round,pad=0.45", fc="#eaf2ff", ec="#315a8a", lw=1.3),
-        )
-
-    def arrow(x1, y1, x2, y2):
-        axis.annotate("", xy=(x2, y2), xytext=(x1, y1), arrowprops=dict(arrowstyle="->", lw=1.4, color="#444"))
-
-    arrow(1.65, 4.4, 2.25, 4.4)
-    arrow(3.95, 4.4, 4.55, 4.4)
-    arrow(6.25, 4.4, 6.85, 4.4)
-    arrow(8.55, 4.55, 9.15, 4.9)
-    arrow(8.55, 4.25, 9.15, 3.9)
-    arrow(10.85, 5.0, 11.45, 4.6)
-    arrow(10.85, 3.8, 11.45, 4.2)
-    arrow(13.15, 4.4, 13.55, 4.4)
-    arrow(7.7, 3.65, 7.7, 2.25)
-    axis.text(7.5, 5.65, "LensAgent 视觉层可追溯处理流程", ha="center", fontsize=16, weight="bold")
-    axis.text(7.5, 0.35, "视觉层只记录测量事实，不在此阶段输出‘透镜/非透镜’结论。", ha="center", fontsize=11, color="#7a1f1f")
-    path = output / "vision_process_flow.png"
-    figure.savefig(path, dpi=140, bbox_inches="tight")
-    plt.close(figure)
-    return path
-
-
 def write_manifest(
     prep: PreprocessedImage,
     config: VisionConfig,
@@ -319,7 +276,6 @@ def write_visual_audit_bundle(
         threshold_path = write_threshold_process(prep, config, threshold_detections, level_map, output)
         sep_path = write_sep_consensus(prep, config, consensus_detections, output)
         arc_path = write_arc_extraction(prep, config, footprint, arc_mask, output)
-        flow_path = write_flowchart(output)
     except ImportError:
         return {}
     files = {
@@ -328,7 +284,6 @@ def write_visual_audit_bundle(
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
         "arc_extraction_diagnostic": str(arc_path),
-        "vision_process_flow": str(flow_path),
         "vision_manifest": str(output / "vision_manifest.json"),
     }
     manifest_path = write_manifest(prep, config, files, output)
