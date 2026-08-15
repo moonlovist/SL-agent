@@ -4,6 +4,6 @@ from .core.state import ExpertState
 from .core.workflow import ExpertWorkflow
 from .vision import VisionPipeline
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = ["ExpertState", "ExpertWorkflow", "VisionPipeline"]

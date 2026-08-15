@@ -33,6 +33,7 @@ The target directory contains:
 - `vision_sep_consensus.png`: stable detections across the SEP parameter grid;
 - `vision_arc_extraction.png`: the exact pixel-intersection path used for arc measurements;
 - `vision_manifest.json`: runtime parameters, processing steps, output paths, and input hash;
+- `observation_summary_cn.md`: deterministic Chinese explanation of the measured Observation only;
 - `reasoning.json`: hypotheses, evidence, contradictions, decision, confidence, and layered audits;
 - `summary.json` and `report.md`: final user-facing results.
 

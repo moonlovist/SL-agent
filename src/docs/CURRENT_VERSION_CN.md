@@ -1,6 +1,6 @@
 # LensAgent 当前版本说明
 
-> 当前版本：`0.4.1`
+> 当前版本：`0.4.2`
 >
 > Observation schema（观察文档格式）：`1.1`
 >
@@ -10,7 +10,7 @@
 
 以前 Agent 已经保存了完整数值数组 `vision_artifacts.npz`，也会生成一张四宫格总览图；但人直接打开输出文件夹时，看不到多阈值检测、SEP 多参数检测和弧像素提取的中间过程。
 
-v0.4.1 不改变检测算法、判定规则或分数。它保留与每个样本真实计算相对应的过程图，同时取消在每个输出目录重复生成完全相同的固定流程图。
+v0.4.2 不改变检测算法、判定规则或分数。在已有可追溯过程图基础上，每次视觉处理新增 `observation_summary_cn.md`，用固定模板把 Observation 中的测量值解释成容易阅读的中文。
 
 ## 当前视觉流程
 
@@ -35,8 +35,11 @@ FITS / PNG
 - `vision_sep_consensus.png`：在 SEP 不同分割参数下反复出现的结构。标签显示“存活次数/总运行次数”和切向偏差。
 - `vision_arc_extraction.png`：依次展示星系减除残差、SEP 候选范围、低阈值 S/N 掩膜，以及二者交集产生的最终测量像素。
 - `vision_manifest.json`：记录输入文件 SHA-256 指纹、文件大小、运行参数、处理顺序和所有过程文件路径。
+- `observation_summary_cn.md`：Observation 的中文解释版，包含快速概括、输入质量、模型状态、逐结构数值、整体几何、限制和结论边界。
 
 项目固定流程只在 [`VISION_PROCESS_FLOW_CN.md`](VISION_PROCESS_FLOW_CN.md) 中保留一份。
+
+中文摘要不调用 LLM，同一个 Observation 会产生相同文字；它不会新增事实、评分、候选等级或透镜结论。JSON 仍是正式机器记录，中文摘要只负责帮助人工阅读。
 
 原有文件继续保留：
 

@@ -27,6 +27,7 @@ from .detectors import (
 )
 from .diagnostics import write_visual_audit_bundle
 from .preprocess import load_image, preprocess
+from .summary_cn import write_observation_summary_cn
 
 
 def _nearest(
@@ -484,7 +485,11 @@ class VisionPipeline:
         ]
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
-        return ObservationDocument(
+        if output is not None:
+            artifacts["observation_summary_cn"] = str(
+                output / "observation_summary_cn.md"
+            )
+        document = ObservationDocument(
             object_id=image.object_id,
             input_path=str(image.path),
             input_format=image.input_format,
@@ -545,6 +550,9 @@ class VisionPipeline:
             limitations=limitations,
             provenance=Provenance(parameters=runtime_config.to_dict()),
         )
+        if output is not None:
+            write_observation_summary_cn(document, output)
+        return document
 
     @staticmethod
     def _write_diagnostic(prep, arc_mask: np.ndarray, output: Path) -> Path | None:
