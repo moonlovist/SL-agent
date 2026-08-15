@@ -5,6 +5,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..core.config import VisionConfig
+from .astrometry import (
+    axial_misalignment_deg,
+    pixel_to_sky,
+    sky_axis_pa,
+    sky_separation_and_pa,
+)
 from .preprocess import PreprocessedImage, VisionDependencyError
 
 
@@ -18,6 +24,8 @@ class StabilityDetection:
     total_runs: int
     axis_ratio: float | None = None
     tangential_misalignment_deg: float | None = None
+    radius_arcsec: float | None = None
+    sky_position_angle_deg: float | None = None
 
 
 @dataclass
@@ -37,6 +45,10 @@ class ArcSegment:
     connects_to_inner_region: bool
     pixels_y: np.ndarray
     pixels_x: np.ndarray
+    centroid_ra_deg: float | None
+    centroid_dec_deg: float | None
+    radius_arcsec: float | None
+    sky_position_angle_deg: float | None
 
 
 def position_angle(x: float, y: float, nucleus_yx: tuple[int, int]) -> float:
@@ -140,6 +152,11 @@ def threshold_stability(
     results = []
     for cluster in clusters:
         x, y = float(cluster["x"]), float(cluster["y"])
+        radius_arcsec, sky_pa = sky_separation_and_pa(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+            (x, y),
+        )
         results.append(
             StabilityDetection(
                 x=x,
@@ -148,6 +165,8 @@ def threshold_stability(
                 position_angle_deg=position_angle(x, y, prep.nucleus_yx),
                 survival=len(cluster["runs"]),
                 total_runs=len(config.snr_thresholds),
+                radius_arcsec=radius_arcsec,
+                sky_position_angle_deg=sky_pa,
             )
         )
     return sorted(results, key=lambda item: item.survival, reverse=True), level_map
@@ -184,18 +203,33 @@ def sep_consensus(
                 iy = min(max(int(round(y)), 0), ring.shape[0] - 1)
                 if not ring[iy, ix]:
                     continue
-                radial_angle = np.degrees(
-                    np.arctan2(y - prep.nucleus_yx[0], x - prep.nucleus_yx[1])
+                radius_arcsec, sky_pa = sky_separation_and_pa(
+                    prep.image,
+                    (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+                    (x, y),
                 )
-                misalignment = float(
-                    abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
+                axis_sky_pa = sky_axis_pa(
+                    prep.image, x, y, float(item["theta"])
                 )
+                if sky_pa is not None and axis_sky_pa is not None:
+                    misalignment = axial_misalignment_deg(
+                        axis_sky_pa, (sky_pa + 90.0) % 180.0
+                    )
+                else:
+                    radial_angle = np.degrees(
+                        np.arctan2(y - prep.nucleus_yx[0], x - prep.nucleus_yx[1])
+                    )
+                    misalignment = float(
+                        abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
+                    )
                 detections.append(
                     {
                         "x": x,
                         "y": y,
                         "axis_ratio": float(item["a"] / max(item["b"], 1e-9)),
                         "misalignment": misalignment,
+                        "radius_arcsec": radius_arcsec,
+                        "sky_pa": sky_pa,
                     }
                 )
             runs.append(detections)
@@ -205,6 +239,11 @@ def sep_consensus(
     for cluster in clusters:
         samples = cluster["samples"]
         x, y = float(cluster["x"]), float(cluster["y"])
+        radius_arcsec, sky_pa = sky_separation_and_pa(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+            (x, y),
+        )
         results.append(
             StabilityDetection(
                 x=x,
@@ -217,6 +256,8 @@ def sep_consensus(
                 tangential_misalignment_deg=float(
                     np.median([item["misalignment"] for item in samples])
                 ),
+                radius_arcsec=radius_arcsec,
+                sky_position_angle_deg=sky_pa,
             )
         )
     return sorted(results, key=lambda item: item.survival, reverse=True)
@@ -261,22 +302,47 @@ def extract_arc_segments(
         ys, xs = np.where(arc_pixels)
         flux = float(prep.residual[arc_pixels].sum())
         noise = float(np.sqrt(np.square(prep.image.rms[arc_pixels]).sum()))
-        radial_angle = np.degrees(
-            np.arctan2(y - prep.nucleus_yx[0], x - prep.nucleus_yx[1])
+        radius_arcsec, sky_pa = sky_separation_and_pa(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+            (x, y),
         )
-        misalignment = float(
-            abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
-        )
+        axis_sky_pa = sky_axis_pa(prep.image, x, y, float(item["theta"]))
+        if sky_pa is not None and axis_sky_pa is not None:
+            misalignment = axial_misalignment_deg(
+                axis_sky_pa, (sky_pa + 90.0) % 180.0
+            )
+        else:
+            radial_angle = np.degrees(
+                np.arctan2(y - prep.nucleus_yx[0], x - prep.nucleus_yx[1])
+            )
+            misalignment = float(
+                abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
+            )
         inner_connection_region = radius <= (config.ring_inner_px + 1.0)
         inner_connection_fraction = float(
             np.count_nonzero(object_footprint & inner_connection_region)
             / max(np.count_nonzero(object_footprint), 1)
         )
+        centroid_x, centroid_y = float(xs.mean()), float(ys.mean())
+        centroid_ra, centroid_dec = pixel_to_sky(
+            prep.image, centroid_x, centroid_y
+        )
+        _, centroid_sky_pa = sky_separation_and_pa(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+            (centroid_x, centroid_y),
+        )
+        centroid_radius_arcsec = (
+            float(np.median(radius[arc_pixels]) * prep.image.pixel_scale_arcsec)
+            if prep.image.pixel_scale_arcsec is not None
+            else None
+        )
         segments.append(
             ArcSegment(
                 label=label,
-                x=float(xs.mean()),
-                y=float(ys.mean()),
+                x=centroid_x,
+                y=centroid_y,
                 pixel_count=int(arc_pixels.sum()),
                 flux=flux,
                 snr=flux / noise if noise > 0 else 0.0,
@@ -289,6 +355,10 @@ def extract_arc_segments(
                 connects_to_inner_region=inner_connection_fraction > 0.0,
                 pixels_y=ys,
                 pixels_x=xs,
+                centroid_ra_deg=centroid_ra,
+                centroid_dec_deg=centroid_dec,
+                radius_arcsec=centroid_radius_arcsec,
+                sky_position_angle_deg=centroid_sky_pa,
             )
         )
     arc_mask = footprint & snr_mask & ring

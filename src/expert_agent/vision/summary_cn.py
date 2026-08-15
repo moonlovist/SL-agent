@@ -33,6 +33,9 @@ def _translate_limitation(text: str) -> str:
         "No validated PSF model is supplied; PSF-specific artifact rejection is unavailable.": "没有提供经过验证的 PSF 模型，因此不能进行 PSF 专项伪影排除。",
         "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.": "盘连接性、多核心数量和残差不对称性只是筛查指标，不是经过标定的形态分类器。",
         "PNG noise was estimated from image pixels; no supplied RMS map was available.": "PNG 输入没有自带 RMS 噪声图，噪声由图像像素估计。",
+        "No validated celestial WCS/pixel scale is available; angular measurements remain in pixel geometry.": "没有可用的天球 WCS 或像素尺度，因此角距离仍只能使用像素表示。",
+        "No PSF image is present in the selected band; PSF-specific artifact rejection is unavailable.": "所选波段没有 PSF 图像，因此不能进行 PSF 专项伪影排除。",
+        "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented.": "FITS中存在PSF图像并已保存，但当前尚未实现结合PSF卷积的前景光建模。",
     }
     return translations.get(text, text)
 
@@ -62,7 +65,8 @@ def _quick_summary(document: ObservationDocument) -> str:
     elif len(document.structures) == 1:
         item = document.structures[0]
         structure_text = (
-            f"减除中心光后，程序在距离中心约 {item.radius_px:.2f} 像素处测得1个由 "
+            f"减除中心光后，程序在距离中心约 {item.radius_px:.2f} 像素"
+            f"（{_value(item.radius_arcsec)}角秒）处测得1个由 "
             f"{item.pixel_count} 个像素组成的结构：累计信噪比 {item.integrated_snr:.2f}，"
             f"环向覆盖 {item.angular_extent_deg:.2f}°，切向偏差 "
             f"{_value(item.tangential_misalignment_deg)}°，S/N 多阈值存活比例 "
@@ -104,6 +108,9 @@ def _structure_section(
         "",
         f"- 结构中心位置：({_value(structure.centroid_xy[0])}, {_value(structure.centroid_xy[1])}) 像素",
         f"- 距离图像中心：{_value(structure.radius_px)} 像素",
+        f"- 天空角距离：{_value(structure.radius_arcsec)} 角秒",
+        f"- 天球坐标：RA={_value(structure.centroid_ra_deg, 6)}°，Dec={_value(structure.centroid_dec_deg, 6)}°",
+        f"- 天空位置角：{_value(structure.sky_position_angle_deg)}°（从北向东计）",
         f"- 参与测量的像素数：{structure.pixel_count}",
         f"- 累计信噪比：{_value(structure.integrated_snr)}（不是透镜概率）",
         f"- 环向覆盖角度：{_value(structure.angular_extent_deg)}°",
@@ -159,6 +166,9 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
         f"- 是否带有输入数据提供的 RMS 噪声图：{_yes_no(document.data_quality.supplied_rms)}",
         f"- 有限像素比例：{document.data_quality.finite_fraction:.4f}",
         f"- 数据是否可用于视觉测量：{_yes_no(document.data_quality.usable)}",
+        f"- 天球 WCS 是否有效：{_yes_no(None if document.astrometry is None else document.astrometry.wcs_valid)}",
+        f"- 像素尺度：{_value(None if document.astrometry is None else document.astrometry.pixel_scale_arcsec, 4)} 角秒/像素",
+        f"- 中心天球坐标：RA={_value(None if document.astrometry is None else document.astrometry.center_ra_deg, 6)}°，Dec={_value(None if document.astrometry is None else document.astrometry.center_dec_deg, 6)}°",
         "",
         "## 2. 中心亮源与前景光减除",
         "",

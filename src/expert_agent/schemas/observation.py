@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.4.2"
+    pipeline_version: str = "0.5.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -53,6 +53,10 @@ class StructureObservation(StrictModel):
     centroid_xy: tuple[float, float]
     radius_px: float = Field(ge=0.0)
     position_angle_deg: float = Field(ge=0.0, lt=360.0)
+    centroid_ra_deg: float | None = None
+    centroid_dec_deg: float | None = None
+    radius_arcsec: float | None = Field(default=None, ge=0.0)
+    sky_position_angle_deg: float | None = Field(default=None, ge=0.0, lt=360.0)
     pixel_count: int = Field(ge=1)
     integrated_flux: float
     integrated_snr: float
@@ -118,8 +122,25 @@ class AlternativeIndicators(StrictModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class AstrometryObservation(StrictModel):
+    """WCS-derived sky mapping; never a target identity or lens decision."""
+
+    wcs_available: bool
+    wcs_valid: bool
+    frame: str | None = None
+    projection: str | None = None
+    pixel_scale_arcsec: float | None = Field(default=None, gt=0.0)
+    center_ra_deg: float | None = None
+    center_dec_deg: float | None = None
+    north_vector_xy: tuple[float, float] | None = None
+    east_vector_xy: tuple[float, float] | None = None
+    display_origin: Literal["lower", "upper"]
+    orientation_description: str
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1"] = "1.1"
+    schema_version: Literal["1.0", "1.1", "1.2"] = "1.2"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -130,6 +151,7 @@ class ObservationDocument(StrictModel):
     foreground_galaxy: ForegroundGalaxyObservation | None = None
     scene_geometry: SceneGeometryObservation | None = None
     alternative_indicators: AlternativeIndicators | None = None
+    astrometry: AstrometryObservation | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

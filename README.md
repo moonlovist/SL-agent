@@ -29,6 +29,8 @@ The target directory contains:
 - `observation.json`: versioned measurements only;
 - `vision_artifacts.npz`: pixel-level provenance;
 - `vision_diagnostic.png`: input/model/residual/mask QA;
+- `vision_field_context.png`: full FITS field with crop, search annulus, WCS N/E, and structure IDs;
+- `vision_rgb_context.png`: validated RGB-to-FITS orientation mapping and the same overlays;
 - `vision_snr_threshold_process.png`: every S/N threshold mask and survival layer;
 - `vision_sep_consensus.png`: stable detections across the SEP parameter grid;
 - `vision_arc_extraction.png`: the exact pixel-intersection path used for arc measurements;
@@ -56,8 +58,8 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.4 adds a human-readable visual trace bundle without changing the
-scientific detection or reasoning rules. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
+Version 0.5 adds WCS-aware sky coordinates, angular scales, sky position angles,
+and full-field/RGB location audits. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
 
 PNG input runs in a conservative reduced-measurement mode because rendered images
 do not carry calibrated flux or RMS maps. A high-S/N elongated PNG residual cannot

@@ -27,7 +27,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.1` records:
+`schema_version=1.2` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -37,7 +37,14 @@ This limitation is recorded in the Observation document and lowers confidence.
 - atomic measurements with IDs, reliability, methods, units, and correlation groups;
 - artifact paths, limitations, parameters, and pipeline version.
 
-Version 1.1 also records scene-level tangential geometry and explicitly labelled
+Version 1.2 adds celestial WCS provenance, pixel scale, sky coordinates for the
+measured center and residual structures, sky position angles, and explicit N/E
+display vectors. FITS diagnostics use an astronomical lower-origin display, and
+the full-field/RGB context figures map every reported structure back to its source
+location. These fields improve traceability; they do not decide whether a structure
+is a gravitational lens.
+
+Version 1.1 introduced scene-level tangential geometry and explicitly labelled
 screening proxies for inner connectivity, secondary central concentrations,
 180-degree residual asymmetry, core residual concentration, invalid pixels, and
 PSF availability. Proxy measurements remain observations: they are not calibrated
@@ -85,7 +92,7 @@ have a valid reasoning trace when the decision audit correctly abstains.
 
 ## Visual trace bundle
 
-Version 0.4 renders the actual intermediates used by the vision pipeline rather
+Version 0.5 renders the actual intermediates used by the vision pipeline rather
 than reconstructing illustrative approximations. The threshold detector and its
 diagnostic share `threshold_masks`; the SEP figure consumes the returned consensus
 detections; and the extraction figure consumes the final SEP footprint and arc
@@ -95,6 +102,18 @@ processing order, numerical-array meanings, and output paths.
 The active scientific channel is the raw foreground-subtracted residual divided by
 RMS. No wavelet denoising is applied. PNG diagnostics are human-readable audit
 views, while `vision_artifacts.npz` remains the numerical provenance record.
+
+FITS celestial WCS is retained in memory and validated at the measured center.
+Observation schema 1.2 records ICRS center coordinates, pixel scale, native N/E
+vectors, per-structure sky coordinates, angular separation, and sky PA. SEP major
+axes are transformed through the local WCS before tangential misalignment is
+calculated. FITS diagnostics use the native pixel grid with `origin=lower` and
+explicit N/E arrows; no unrecorded reprojection is performed.
+
+Two sample-dependent location audits connect measurements back to the source data.
+`vision_field_context.png` shows the full scientific field, crop, annulus, and IDs.
+When a sibling RGB preview passes orientation-correlation validation,
+`vision_rgb_context.png` records the chosen mapping and overlays the same geometry.
 
 The fixed architecture diagram is maintained once in `VISION_PROCESS_FLOW_CN.md`.
 Per-object output directories contain only sample-dependent diagnostic images; they

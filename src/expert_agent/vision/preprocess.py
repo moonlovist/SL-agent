@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.wcs.utils import proj_plane_pixel_scales
 
 from ..core.config import VisionConfig
 
@@ -23,6 +25,9 @@ class ImageData:
     rms: np.ndarray
     supplied_rms: bool
     finite_fraction: float
+    wcs: WCS | None
+    pixel_scale_arcsec: float | None
+    psf: np.ndarray | None
 
 
 @dataclass
@@ -91,6 +96,28 @@ def load_image(path: str | Path, band: str) -> ImageData:
             rms_name = f"{band}_RMS"
             if flux_name in hdul:
                 data = np.asarray(hdul[flux_name].data, dtype="=f8")
+                try:
+                    candidate_wcs = WCS(hdul[flux_name].header)
+                    wcs = candidate_wcs.celestial if candidate_wcs.has_celestial else None
+                    scales = (
+                        proj_plane_pixel_scales(wcs) * 3600.0
+                        if wcs is not None
+                        else np.asarray([])
+                    )
+                    pixel_scale_arcsec = (
+                        float(np.sqrt(scales[0] * scales[1]))
+                        if scales.size == 2 and np.all(np.isfinite(scales)) and np.all(scales > 0)
+                        else None
+                    )
+                except Exception:
+                    wcs = None
+                    pixel_scale_arcsec = None
+                psf_name = f"{band}_PSF"
+                psf = (
+                    np.asarray(hdul[psf_name].data, dtype="=f8")
+                    if psf_name in hdul and hdul[psf_name].data is not None
+                    else None
+                )
                 if rms_name in hdul:
                     rms = np.asarray(hdul[rms_name].data, dtype="=f8")
                     supplied_rms = True
@@ -103,6 +130,23 @@ def load_image(path: str | Path, band: str) -> ImageData:
                 sigma = robust_rms(data)
                 rms = np.full(data.shape, sigma, dtype=float)
                 supplied_rms = False
+                try:
+                    candidate_wcs = WCS(hdul[0].header)
+                    wcs = candidate_wcs.celestial if candidate_wcs.has_celestial else None
+                    scales = (
+                        proj_plane_pixel_scales(wcs) * 3600.0
+                        if wcs is not None
+                        else np.asarray([])
+                    )
+                    pixel_scale_arcsec = (
+                        float(np.sqrt(scales[0] * scales[1]))
+                        if scales.size == 2 and np.all(np.isfinite(scales)) and np.all(scales > 0)
+                        else None
+                    )
+                except Exception:
+                    wcs = None
+                    pixel_scale_arcsec = None
+                psf = None
             else:
                 raise ValueError(
                     f"FITS has no 2-D primary image or {flux_name} extension"
@@ -119,6 +163,9 @@ def load_image(path: str | Path, band: str) -> ImageData:
         rms = np.full(data.shape, max(sigma, 1e-8), dtype=float)
         supplied_rms = False
         input_format = "png"
+        wcs = None
+        pixel_scale_arcsec = None
+        psf = None
     else:
         raise ValueError(f"Unsupported input format: {resolved.suffix}")
 
@@ -141,6 +188,9 @@ def load_image(path: str | Path, band: str) -> ImageData:
         rms=rms,
         supplied_rms=supplied_rms,
         finite_fraction=finite_fraction,
+        wcs=wcs,
+        pixel_scale_arcsec=pixel_scale_arcsec,
+        psf=psf,
     )
 
 

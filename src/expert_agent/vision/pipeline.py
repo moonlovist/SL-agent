@@ -9,6 +9,7 @@ import numpy as np
 from ..core.config import VisionConfig
 from ..schemas.observation import (
     AlternativeIndicators,
+    AstrometryObservation,
     DataQuality,
     ForegroundGalaxyObservation,
     Measurement,
@@ -17,6 +18,7 @@ from ..schemas.observation import (
     SceneGeometryObservation,
     StructureObservation,
 )
+from .astrometry import orientation_vectors, pixel_to_sky
 from .detectors import (
     ArcSegment,
     StabilityDetection,
@@ -117,6 +119,10 @@ class VisionPipeline:
             entries = [
                 ("integrated_snr", float(segment.snr), None, "arc_pixels", base_reliability),
                 ("radius", float(segment.median_radius_px), "px", "arc_pixels", base_reliability),
+                ("radius_arcsec", segment.radius_arcsec, "arcsec", "wcs_transform", 1.0 if segment.radius_arcsec is not None else 0.0),
+                ("centroid_ra", segment.centroid_ra_deg, "deg", "wcs_transform", 1.0 if segment.centroid_ra_deg is not None else 0.0),
+                ("centroid_dec", segment.centroid_dec_deg, "deg", "wcs_transform", 1.0 if segment.centroid_dec_deg is not None else 0.0),
+                ("sky_position_angle", segment.sky_position_angle_deg, "deg", "wcs_transform", 1.0 if segment.sky_position_angle_deg is not None else 0.0),
                 ("angular_extent", float(segment.angular_extent_deg), "deg", "arc_pixels", base_reliability),
                 ("axis_ratio", float(axis_ratio), None, "sep_consensus", consensus_fraction or 0.4),
                 ("tangential_misalignment", float(misalignment), "deg", "sep_consensus", consensus_fraction or 0.4),
@@ -159,6 +165,8 @@ class VisionPipeline:
                         correlation_group=(
                             "shared_residual_detection"
                             if "survival" in kind
+                            else "astrometry"
+                            if method == "wcs_transform"
                             else "galaxy_connectivity"
                             if kind == "inner_connection_fraction"
                             else "residual_morphology"
@@ -173,6 +181,10 @@ class VisionPipeline:
                     centroid_xy=(segment.x, segment.y),
                     radius_px=segment.median_radius_px,
                     position_angle_deg=segment.position_angle_deg,
+                    centroid_ra_deg=segment.centroid_ra_deg,
+                    centroid_dec_deg=segment.centroid_dec_deg,
+                    radius_arcsec=segment.radius_arcsec,
+                    sky_position_angle_deg=segment.sky_position_angle_deg,
                     pixel_count=segment.pixel_count,
                     integrated_flux=segment.flux,
                     integrated_snr=segment.snr,
@@ -407,12 +419,12 @@ class VisionPipeline:
             (
                 "M_alt_psf_information_available",
                 "psf_information_available",
-                False,
+                image.psf is not None,
                 None,
                 1.0,
                 "input_metadata_check",
-                "Whether a validated PSF model was supplied to this pipeline",
-                ["not_measured"],
+                "Whether a PSF image is present in the selected FITS band",
+                [] if image.psf is not None else ["not_available"],
             ),
         ]
         for mid, kind, value, unit, reliability, method, description, item_flags in alternative_entries:
@@ -439,24 +451,28 @@ class VisionPipeline:
         artifacts: dict[str, str] = {}
         if output is not None:
             artifact_path = output / "vision_artifacts.npz"
-            np.savez_compressed(
-                artifact_path,
-                data=prep.image.data,
-                rms=prep.image.rms,
-                model=prep.model,
-                residual=prep.residual,
-                residual_snr=prep.residual_snr,
-                source_mask=prep.source_mask.astype(np.uint8),
-                fit_mask=prep.fit_mask.astype(np.uint8),
-                initial_segmentation=prep.segmentation,
-                residual_segmentation=residual_segmentation,
-                sep_footprint=footprint.astype(np.uint8),
-                arc_mask=arc_mask.astype(np.uint8),
-                threshold_level_map=level_map,
-                nucleus_yx=np.asarray(prep.nucleus_yx),
-            )
+            arrays = {
+                "data": prep.image.data,
+                "rms": prep.image.rms,
+                "model": prep.model,
+                "residual": prep.residual,
+                "residual_snr": prep.residual_snr,
+                "source_mask": prep.source_mask.astype(np.uint8),
+                "fit_mask": prep.fit_mask.astype(np.uint8),
+                "initial_segmentation": prep.segmentation,
+                "residual_segmentation": residual_segmentation,
+                "sep_footprint": footprint.astype(np.uint8),
+                "arc_mask": arc_mask.astype(np.uint8),
+                "threshold_level_map": level_map,
+                "nucleus_yx": np.asarray(prep.nucleus_yx),
+            }
+            if prep.image.psf is not None:
+                arrays["psf"] = prep.image.psf
+            np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
-            diagnostic_path = self._write_diagnostic(prep, arc_mask, output)
+            diagnostic_path = self._write_diagnostic(
+                prep, arc_mask, segments, runtime_config, output
+            )
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
             artifacts.update(
@@ -468,6 +484,7 @@ class VisionPipeline:
                     level_map=level_map,
                     footprint=footprint,
                     arc_mask=arc_mask,
+                    segments=segments,
                     output=output,
                 )
             )
@@ -478,17 +495,36 @@ class VisionPipeline:
             flags.append("no_significant_annular_structure")
         limitations = [
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
-            "Angular measurements are in pixel geometry unless a validated pixel scale is supplied.",
             "A single-band run cannot test source-color consistency.",
-            "No validated PSF model is supplied; PSF-specific artifact rejection is unavailable.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
         ]
+        if image.wcs is None or image.pixel_scale_arcsec is None:
+            limitations.append(
+                "No validated celestial WCS/pixel scale is available; angular measurements remain in pixel geometry."
+            )
+        if image.psf is None:
+            limitations.append(
+                "No PSF image is present in the selected band; PSF-specific artifact rejection is unavailable."
+            )
+        else:
+            limitations.append(
+                "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented."
+            )
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
         if output is not None:
             artifacts["observation_summary_cn"] = str(
                 output / "observation_summary_cn.md"
             )
+        center_xy = (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0]))
+        center_ra, center_dec = pixel_to_sky(image, *center_xy)
+        north_vector, east_vector = orientation_vectors(image, center_xy)
+        wcs_valid = (
+            image.wcs is not None
+            and center_ra is not None
+            and center_dec is not None
+            and image.pixel_scale_arcsec is not None
+        )
         document = ObservationDocument(
             object_id=image.object_id,
             input_path=str(image.path),
@@ -537,12 +573,34 @@ class VisionPipeline:
                 tidal_asymmetry=prep.tidal_asymmetry,
                 core_residual_fraction=prep.core_residual_fraction,
                 bad_pixel_fraction=1.0 - image.finite_fraction,
-                psf_information_available=False,
+                psf_information_available=image.psf is not None,
                 measurement_ids=[item[0] for item in alternative_entries],
                 limitations=[
                     "Connectivity and asymmetry are residual-image proxies.",
                     "No PSF-specific measurement is available.",
                 ],
+            ),
+            astrometry=AstrometryObservation(
+                wcs_available=image.wcs is not None,
+                wcs_valid=wcs_valid,
+                frame="ICRS" if image.wcs is not None else None,
+                projection=(
+                    "/".join(str(item) for item in image.wcs.wcs.ctype)
+                    if image.wcs is not None
+                    else None
+                ),
+                pixel_scale_arcsec=image.pixel_scale_arcsec,
+                center_ra_deg=center_ra,
+                center_dec_deg=center_dec,
+                north_vector_xy=north_vector,
+                east_vector_xy=east_vector,
+                display_origin="lower" if image.input_format == "fits" else "upper",
+                orientation_description=(
+                    "Native FITS pixel grid displayed with WCS north/east arrows; no reprojection applied."
+                    if image.wcs is not None
+                    else "Raster pixel orientation; no celestial WCS available."
+                ),
+                flags=[] if wcs_valid else ["wcs_unavailable_or_invalid"],
             ),
             structures=structures,
             measurements=measurements,
@@ -555,7 +613,13 @@ class VisionPipeline:
         return document
 
     @staticmethod
-    def _write_diagnostic(prep, arc_mask: np.ndarray, output: Path) -> Path | None:
+    def _write_diagnostic(
+        prep,
+        arc_mask: np.ndarray,
+        segments: list[ArcSegment],
+        config: VisionConfig,
+        output: Path,
+    ) -> Path | None:
         cache_dir = output / ".matplotlib"
         cache_dir.mkdir(parents=True, exist_ok=True)
         os.environ.setdefault("MPLCONFIGDIR", str(cache_dir))
@@ -571,14 +635,71 @@ class VisionPipeline:
         view = np.s_[y - half : y + half, x - half : x + half]
         figure, axes = plt.subplots(1, 4, figsize=(16, 4))
         panels = [prep.image.data, prep.model, prep.residual_snr, arc_mask]
-        titles = ["input", "galaxy model", "residual S/N", "measured arc pixels"]
+        titles = [
+            f"{prep.image.band}_FLUX input (central crop)",
+            "foreground light model",
+            "foreground-subtracted residual S/N",
+            "measured residual-structure pixels",
+        ]
         cmaps = ["gray", "gray", "coolwarm", "gray"]
-        for axis, panel, title, cmap in zip(axes, panels, titles, cmaps):
-            axis.imshow(panel[view], origin="upper", cmap=cmap)
+        origin = "lower" if prep.image.input_format == "fits" else "upper"
+        for panel_index, (axis, panel, title, cmap) in enumerate(
+            zip(axes, panels, titles, cmaps)
+        ):
+            shown = panel[view]
+            kwargs = {}
+            finite = shown[np.isfinite(shown)]
+            if finite.size and panel_index in {0, 1}:
+                low, high = np.percentile(finite, [1.0, 99.5])
+                if high > low:
+                    kwargs.update(vmin=float(low), vmax=float(high))
+            elif finite.size and panel_index == 2:
+                limit = float(np.percentile(np.abs(finite), 99.0))
+                if limit > 0:
+                    kwargs.update(vmin=-limit, vmax=limit)
+            axis.imshow(shown, origin=origin, cmap=cmap, **kwargs)
             axis.plot(half, half, "c+", ms=10, mew=1.5)
+            for radius, style in (
+                (config.ring_inner_px, "--"),
+                (config.ring_outer_px, "-"),
+            ):
+                axis.add_patch(
+                    plt.Circle(
+                        (half, half), radius, fill=False, color="yellow",
+                        linestyle=style, linewidth=0.8, alpha=0.9,
+                    )
+                )
+            for structure_index, segment in enumerate(segments, start=1):
+                local_x = segment.x - (prep.nucleus_yx[1] - half)
+                local_y = segment.y - (prep.nucleus_yx[0] - half)
+                axis.plot(local_x, local_y, "mx", ms=6, mew=1.2)
+                axis.annotate(
+                    f"S{structure_index}", (local_x + 2, local_y + 2),
+                    color="magenta", fontsize=7, weight="bold",
+                )
             axis.set_title(title)
             axis.set_xticks([])
             axis.set_yticks([])
+        north, east = orientation_vectors(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+        )
+        if north is not None and east is not None:
+            base_x, base_y, length = 12.0, 12.0, 10.0
+            for vector, label, color in (
+                (north, "N", "lime"), (east, "E", "cyan")
+            ):
+                axes[0].annotate(
+                    "",
+                    xy=(base_x + vector[0] * length, base_y + vector[1] * length),
+                    xytext=(base_x, base_y),
+                    arrowprops=dict(arrowstyle="->", color=color, lw=1.5),
+                )
+                axes[0].text(
+                    base_x + vector[0] * (length + 3),
+                    base_y + vector[1] * (length + 3),
+                    label, color=color, fontsize=8, weight="bold",
+                )
         figure.tight_layout()
         path = output / "vision_diagnostic.png"
         figure.savefig(path, dpi=120)
