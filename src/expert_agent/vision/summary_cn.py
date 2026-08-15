@@ -169,6 +169,17 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
         f"- 天球 WCS 是否有效：{_yes_no(None if document.astrometry is None else document.astrometry.wcs_valid)}",
         f"- 像素尺度：{_value(None if document.astrometry is None else document.astrometry.pixel_scale_arcsec, 4)} 角秒/像素",
         f"- 中心天球坐标：RA={_value(None if document.astrometry is None else document.astrometry.center_ra_deg, 6)}°，Dec={_value(None if document.astrometry is None else document.astrometry.center_dec_deg, 6)}°",
+        f"- 是否符合 Euclid Q1 SLDE 数据切图契约：{_yes_no(None if document.euclid_q1_input is None else document.euclid_q1_input.compatible)}",
+        (
+            "- 缺失的 Euclid Q1 扩展："
+            + (
+                "未记录"
+                if document.euclid_q1_input is None
+                else "、".join(document.euclid_q1_input.missing_hdus)
+                if document.euclid_q1_input.missing_hdus
+                else "无"
+            )
+        ),
         "",
         "## 2. 中心亮源与前景光减除",
         "",

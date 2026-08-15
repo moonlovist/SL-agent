@@ -9,7 +9,7 @@ import numpy as np
 
 from ..core.config import VisionConfig
 from .astrometry import orientation_vectors, pixel_to_sky
-from .detectors import ArcSegment, StabilityDetection, threshold_masks
+from .detectors import ResidualStructure, StabilityDetection, threshold_masks
 from .preprocess import PreprocessedImage
 
 
@@ -56,6 +56,88 @@ def _display_limits(array: np.ndarray) -> tuple[float, float]:
 
 def _origin(prep: PreprocessedImage) -> str:
     return "lower" if prep.image.input_format == "fits" else "upper"
+
+
+def normalize_euclid_display(array: np.ndarray) -> np.ndarray:
+    """Normalize flux for human display without changing scientific arrays."""
+    values = np.asarray(array, dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return np.zeros_like(values)
+    low, high = np.percentile(finite, [1.0, 99.85])
+    if high <= low:
+        return np.zeros_like(values)
+    normalized = (np.nan_to_num(values, nan=low) - low) / (high - low)
+    return np.clip(normalized, 0.0, 1.0)
+
+
+def arcsinh_stretch(normalized: np.ndarray, q: float = 500.0) -> np.ndarray:
+    values = np.clip(np.asarray(normalized, dtype=float), 0.0, 1.0)
+    return np.arcsinh(q * values) / np.arcsinh(q)
+
+
+def midtone_transfer(normalized: np.ndarray, m: float) -> np.ndarray:
+    values = np.clip(np.asarray(normalized, dtype=float), 0.0, 1.0)
+    m = float(np.clip(m, 1e-4, 1.0 - 1e-4))
+    denominator = (2.0 * m - 1.0) * values - m
+    return np.divide(
+        (m - 1.0) * values,
+        denominator,
+        out=np.zeros_like(values),
+        where=np.abs(denominator) > 1e-12,
+    )
+
+
+def solve_midtone_parameter(
+    normalized: np.ndarray, target_mean: float = 0.2
+) -> float:
+    height, width = normalized.shape
+    half_y, half_x = min(50, height // 2), min(50, width // 2)
+    cy, cx = height // 2, width // 2
+    central = normalized[cy - half_y : cy + half_y, cx - half_x : cx + half_x]
+    low, high = 1e-4, 1.0 - 1e-4
+    for _ in range(48):
+        middle = (low + high) / 2.0
+        mean = float(np.mean(midtone_transfer(central, middle)))
+        if mean > target_mean:
+            low = middle
+        else:
+            high = middle
+    return (low + high) / 2.0
+
+
+def write_expert_views(prep: PreprocessedImage, output: Path) -> Path:
+    """Write clean Euclid-style VIS views intended for human/agent inspection."""
+    plt = _matplotlib(output)
+    normalized = normalize_euclid_display(prep.image.data)
+    arcsinh = arcsinh_stretch(normalized, q=500.0)
+    mtf_parameter = solve_midtone_parameter(normalized, target_mean=0.2)
+    mtf = midtone_transfer(normalized, mtf_parameter)
+    figure, axes = plt.subplots(2, 2, figsize=(9, 9))
+    origin = _origin(prep)
+    cy, cx = prep.nucleus_yx
+    half = min(50, cy, cx, arcsinh.shape[0] - cy, arcsinh.shape[1] - cx)
+    crop = np.s_[cy - half : cy + half, cx - half : cx + half]
+    panels = (
+        (arcsinh, "VIS arcsinh全视场（Q=500）"),
+        (mtf, f"VIS MTF全视场（m={mtf_parameter:.4f}）"),
+        (arcsinh[crop], "VIS arcsinh中央100×100像素"),
+        (mtf[crop], "VIS MTF中央100×100像素"),
+    )
+    for axis, (values, title) in zip(axes.ravel(), panels):
+        axis.imshow(values, origin=origin, cmap="gray", vmin=0, vmax=1)
+        axis.set_title(title)
+        axis.set_xticks([])
+        axis.set_yticks([])
+    figure.suptitle(
+        "Euclid风格专家观察图（仅改变显示，不改变测量数据）\n"
+        "99.85%高值裁剪；无搜索圆、裁剪框或结构标签"
+    )
+    figure.tight_layout()
+    path = output / "vision_expert_views.png"
+    figure.savefig(path, dpi=140)
+    plt.close(figure)
+    return path
 
 
 def write_threshold_process(
@@ -182,16 +264,16 @@ def write_sep_consensus(
     return path
 
 
-def write_arc_extraction(
+def write_residual_structure_extraction(
     prep: PreprocessedImage,
     config: VisionConfig,
     footprint: np.ndarray,
-    arc_mask: np.ndarray,
+    residual_structure_mask: np.ndarray,
     output: Path,
 ) -> Path:
     plt = _matplotlib(output)
     ys, xs, half = _view(prep)
-    snr_mask = prep.residual_snr >= config.arc_snr_low
+    snr_mask = prep.residual_snr >= config.structure_snr_low
     residual_view = prep.residual[ys, xs]
     vmin, vmax = _display_limits(residual_view)
     figure, axes = plt.subplots(1, 4, figsize=(16, 4.3))
@@ -201,16 +283,16 @@ def write_arc_extraction(
     axes[1].imshow(footprint[ys, xs], origin=origin, cmap="gray")
     axes[1].set_title("2. SEP 候选结构范围")
     axes[2].imshow(snr_mask[ys, xs], origin=origin, cmap="gray")
-    axes[2].set_title(f"3. S/N ≥ {config.arc_snr_low:.2f}σ")
+    axes[2].set_title(f"3. S/N ≥ {config.structure_snr_low:.2f}σ")
     axes[3].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
-    yy, xx = np.where(arc_mask[ys, xs])
+    yy, xx = np.where(residual_structure_mask[ys, xs])
     axes[3].scatter(xx, yy, s=3, c="red")
     axes[3].set_title("4. 两者交集 = 测量残差结构像素")
     for axis in axes:
         _mark(axis, half)
     figure.suptitle("候选残差结构像素提取过程（不等同于透镜弧；红十字为中心）")
     figure.tight_layout()
-    path = output / "vision_arc_extraction.png"
+    path = output / "vision_residual_structure_extraction.png"
     figure.savefig(path, dpi=120)
     plt.close(figure)
     return path
@@ -219,7 +301,7 @@ def write_arc_extraction(
 def write_field_context(
     prep: PreprocessedImage,
     config: VisionConfig,
-    segments: list[ArcSegment],
+    segments: list[ResidualStructure],
     output: Path,
 ) -> Path:
     """Map the analyzed crop and every measured structure onto the full field."""
@@ -315,7 +397,7 @@ def write_field_context(
 def write_rgb_context(
     prep: PreprocessedImage,
     config: VisionConfig,
-    segments: list[ArcSegment],
+    segments: list[ResidualStructure],
     output: Path,
 ) -> Path | None:
     """Overlay the analysis region on a sibling RGB preview after orientation matching."""
@@ -475,6 +557,13 @@ def write_manifest(
         "input_size_bytes": input_path.stat().st_size,
         "input_sha256": digest.hexdigest(),
         "band": prep.image.band,
+        "euclid_q1_input": {
+            "profile": "euclid_q1_strong_lens_candidate_cutout_v0.0.3",
+            "compatible": prep.image.euclid_q1_compatible,
+            "available_hdus": list(prep.image.available_hdus),
+            "missing_hdus": list(prep.image.euclid_q1_missing_hdus),
+            "expected_shape": [300, 300],
+        },
         "astrometry": {
             "wcs_available": prep.image.wcs is not None,
             "pixel_scale_arcsec": prep.image.pixel_scale_arcsec,
@@ -505,7 +594,8 @@ def write_manifest(
             "source_mask": "contaminating-source exclusion mask",
             "threshold_level_map": "number of accepted S/N threshold levels survived",
             "sep_footprint": "SEP footprint used by residual-structure extraction",
-            "arc_mask": "pixels used for final arc-structure measurements",
+            "residual_structure_mask": "unclassified residual pixels used for structure measurements",
+            "arc_mask": "deprecated compatibility alias of residual_structure_mask",
         },
         "notes": [
             "PNG files are human-readable diagnostics; NPZ arrays remain the numerical evidence.",
@@ -525,14 +615,17 @@ def write_visual_audit_bundle(
     consensus_detections: list[StabilityDetection],
     level_map: np.ndarray,
     footprint: np.ndarray,
-    arc_mask: np.ndarray,
-    segments: list[ArcSegment],
+    residual_structure_mask: np.ndarray,
+    segments: list[ResidualStructure],
     output: Path,
 ) -> dict[str, str]:
     try:
         threshold_path = write_threshold_process(prep, config, threshold_detections, level_map, output)
         sep_path = write_sep_consensus(prep, config, consensus_detections, output)
-        arc_path = write_arc_extraction(prep, config, footprint, arc_mask, output)
+        structure_path = write_residual_structure_extraction(
+            prep, config, footprint, residual_structure_mask, output
+        )
+        expert_views_path = write_expert_views(prep, output)
         field_path = write_field_context(prep, config, segments, output)
         rgb_path = write_rgb_context(prep, config, segments, output)
     except ImportError:
@@ -542,7 +635,8 @@ def write_visual_audit_bundle(
         "overview_diagnostic": str(output / "vision_diagnostic.png"),
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
-        "arc_extraction_diagnostic": str(arc_path),
+        "residual_structure_extraction_diagnostic": str(structure_path),
+        "expert_views_diagnostic": str(expert_views_path),
         "field_context_diagnostic": str(field_path),
         "vision_manifest": str(output / "vision_manifest.json"),
     }

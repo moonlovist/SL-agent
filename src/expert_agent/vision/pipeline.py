@@ -11,6 +11,7 @@ from ..schemas.observation import (
     AlternativeIndicators,
     AstrometryObservation,
     DataQuality,
+    EuclidQ1InputObservation,
     ForegroundGalaxyObservation,
     Measurement,
     ObservationDocument,
@@ -20,10 +21,10 @@ from ..schemas.observation import (
 )
 from .astrometry import orientation_vectors, pixel_to_sky
 from .detectors import (
-    ArcSegment,
+    ResidualStructure,
     StabilityDetection,
     circular_span,
-    extract_arc_segments,
+    extract_residual_structures,
     sep_consensus,
     threshold_stability,
 )
@@ -33,7 +34,7 @@ from .summary_cn import write_observation_summary_cn
 
 
 def _nearest(
-    segment: ArcSegment, detections: list[StabilityDetection], max_distance: float = 4.0
+    segment: ResidualStructure, detections: list[StabilityDetection], max_distance: float = 4.0
 ) -> StabilityDetection | None:
     if not detections:
         return None
@@ -78,12 +79,14 @@ class VisionPipeline:
                 sep_deblend_cont=(0.01,),
                 sep_detect_sigma=max(3.0, self.config.sep_detect_sigma),
                 sep_min_survival=1,
-                arc_snr_low=max(3.0, self.config.arc_snr_low),
+                residual_structure_snr_low=max(
+                    3.0, self.config.structure_snr_low
+                ),
             )
         prep = preprocess(image, runtime_config)
         threshold_detections, level_map = threshold_stability(prep, runtime_config)
         consensus_detections = sep_consensus(prep, runtime_config)
-        segments, residual_segmentation, footprint, arc_mask = extract_arc_segments(
+        segments, residual_segmentation, footprint, residual_structure_mask = extract_residual_structures(
             prep, runtime_config
         )
 
@@ -117,13 +120,13 @@ class VisionPipeline:
             )
             base_reliability = min(1.0, max(0.0, abs(segment.snr) / 20.0))
             entries = [
-                ("integrated_snr", float(segment.snr), None, "arc_pixels", base_reliability),
-                ("radius", float(segment.median_radius_px), "px", "arc_pixels", base_reliability),
+                ("integrated_snr", float(segment.snr), None, "residual_structure_pixels", base_reliability),
+                ("radius", float(segment.median_radius_px), "px", "residual_structure_pixels", base_reliability),
                 ("radius_arcsec", segment.radius_arcsec, "arcsec", "wcs_transform", 1.0 if segment.radius_arcsec is not None else 0.0),
                 ("centroid_ra", segment.centroid_ra_deg, "deg", "wcs_transform", 1.0 if segment.centroid_ra_deg is not None else 0.0),
                 ("centroid_dec", segment.centroid_dec_deg, "deg", "wcs_transform", 1.0 if segment.centroid_dec_deg is not None else 0.0),
                 ("sky_position_angle", segment.sky_position_angle_deg, "deg", "wcs_transform", 1.0 if segment.sky_position_angle_deg is not None else 0.0),
-                ("angular_extent", float(segment.angular_extent_deg), "deg", "arc_pixels", base_reliability),
+                ("angular_extent", float(segment.angular_extent_deg), "deg", "residual_structure_pixels", base_reliability),
                 ("axis_ratio", float(axis_ratio), None, "sep_consensus", consensus_fraction or 0.4),
                 ("tangential_misalignment", float(misalignment), "deg", "sep_consensus", consensus_fraction or 0.4),
                 (
@@ -259,7 +262,7 @@ class VisionPipeline:
                 total_coverage,
                 "deg",
                 min(1.0, sum(item.pixel_count for item in structures) / 40.0),
-                "arc_pixel_union",
+                "residual_structure_union",
                 "Minimum circular span containing all detected arc pixels",
             ),
             (
@@ -462,7 +465,9 @@ class VisionPipeline:
                 "initial_segmentation": prep.segmentation,
                 "residual_segmentation": residual_segmentation,
                 "sep_footprint": footprint.astype(np.uint8),
-                "arc_mask": arc_mask.astype(np.uint8),
+                "residual_structure_mask": residual_structure_mask.astype(np.uint8),
+                # Compatibility alias for v0.5 and earlier analysis notebooks.
+                "arc_mask": residual_structure_mask.astype(np.uint8),
                 "threshold_level_map": level_map,
                 "nucleus_yx": np.asarray(prep.nucleus_yx),
             }
@@ -471,7 +476,7 @@ class VisionPipeline:
             np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
             diagnostic_path = self._write_diagnostic(
-                prep, arc_mask, segments, runtime_config, output
+                prep, residual_structure_mask, segments, runtime_config, output
             )
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
@@ -483,7 +488,7 @@ class VisionPipeline:
                     consensus_detections=consensus_detections,
                     level_map=level_map,
                     footprint=footprint,
-                    arc_mask=arc_mask,
+                    residual_structure_mask=residual_structure_mask,
                     segments=segments,
                     output=output,
                 )
@@ -512,6 +517,10 @@ class VisionPipeline:
             )
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
+        if image.input_format == "fits" and not image.euclid_q1_compatible:
+            limitations.append(
+                "The FITS file does not fully match the Euclid Q1 300x300, VIS/Y/J/H FLUX/PSF/RMS cutout contract."
+            )
         if output is not None:
             artifacts["observation_summary_cn"] = str(
                 output / "observation_summary_cn.md"
@@ -602,6 +611,32 @@ class VisionPipeline:
                 ),
                 flags=[] if wcs_valid else ["wcs_unavailable_or_invalid"],
             ),
+            euclid_q1_input=EuclidQ1InputObservation(
+                profile="euclid_q1_strong_lens_candidate_cutout_v0.0.3",
+                compatible=image.euclid_q1_compatible,
+                available_hdus=list(image.available_hdus),
+                missing_hdus=list(image.euclid_q1_missing_hdus),
+                available_bands=[
+                    band
+                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
+                    if f"{band}_FLUX" in image.available_hdus
+                ],
+                psf_bands=[
+                    band
+                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
+                    if f"{band}_PSF" in image.available_hdus
+                ],
+                rms_bands=[
+                    band
+                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
+                    if f"{band}_RMS" in image.available_hdus
+                ],
+                flags=(
+                    []
+                    if image.euclid_q1_compatible
+                    else ["not_full_euclid_q1_cutout_contract"]
+                ),
+            ),
             structures=structures,
             measurements=measurements,
             artifacts=artifacts,
@@ -615,8 +650,8 @@ class VisionPipeline:
     @staticmethod
     def _write_diagnostic(
         prep,
-        arc_mask: np.ndarray,
-        segments: list[ArcSegment],
+        residual_structure_mask: np.ndarray,
+        segments: list[ResidualStructure],
         config: VisionConfig,
         output: Path,
     ) -> Path | None:
@@ -634,7 +669,7 @@ class VisionPipeline:
         half = min(60, y, x, prep.image.data.shape[0] - y, prep.image.data.shape[1] - x)
         view = np.s_[y - half : y + half, x - half : x + half]
         figure, axes = plt.subplots(1, 4, figsize=(16, 4))
-        panels = [prep.image.data, prep.model, prep.residual_snr, arc_mask]
+        panels = [prep.image.data, prep.model, prep.residual_snr, residual_structure_mask]
         titles = [
             f"{prep.image.band}_FLUX input (central crop)",
             "foreground light model",

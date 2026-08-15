@@ -29,7 +29,7 @@ class StabilityDetection:
 
 
 @dataclass
-class ArcSegment:
+class ResidualStructure:
     label: int
     x: float
     y: float
@@ -263,9 +263,9 @@ def sep_consensus(
     return sorted(results, key=lambda item: item.survival, reverse=True)
 
 
-def extract_arc_segments(
+def extract_residual_structures(
     prep: PreprocessedImage, config: VisionConfig
-) -> tuple[list[ArcSegment], np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[list[ResidualStructure], np.ndarray, np.ndarray, np.ndarray]:
     try:
         import sep
         from scipy import ndimage
@@ -285,9 +285,9 @@ def extract_arc_segments(
         deblend_cont=0.005,
         segmentation_map=True,
     )
-    snr_mask = prep.residual_snr >= config.arc_snr_low
+    snr_mask = prep.residual_snr >= config.structure_snr_low
     footprint = np.zeros(prep.image.data.shape, dtype=bool)
-    segments: list[ArcSegment] = []
+    segments: list[ResidualStructure] = []
     for index, item in enumerate(objects):
         x, y = float(item["x"]), float(item["y"])
         object_radius = float(np.hypot(x - prep.nucleus_yx[1], y - prep.nucleus_yx[0]))
@@ -296,12 +296,12 @@ def extract_arc_segments(
         label = index + 1
         object_footprint = ndimage.binary_dilation(segmentation == label, iterations=1)
         footprint |= object_footprint
-        arc_pixels = object_footprint & snr_mask & ring
-        if int(arc_pixels.sum()) < config.snr_min_area:
+        structure_pixels = object_footprint & snr_mask & ring
+        if int(structure_pixels.sum()) < config.snr_min_area:
             continue
-        ys, xs = np.where(arc_pixels)
-        flux = float(prep.residual[arc_pixels].sum())
-        noise = float(np.sqrt(np.square(prep.image.rms[arc_pixels]).sum()))
+        ys, xs = np.where(structure_pixels)
+        flux = float(prep.residual[structure_pixels].sum())
+        noise = float(np.sqrt(np.square(prep.image.rms[structure_pixels]).sum()))
         radius_arcsec, sky_pa = sky_separation_and_pa(
             prep.image,
             (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
@@ -334,21 +334,21 @@ def extract_arc_segments(
             (centroid_x, centroid_y),
         )
         centroid_radius_arcsec = (
-            float(np.median(radius[arc_pixels]) * prep.image.pixel_scale_arcsec)
+            float(np.median(radius[structure_pixels]) * prep.image.pixel_scale_arcsec)
             if prep.image.pixel_scale_arcsec is not None
             else None
         )
         segments.append(
-            ArcSegment(
+            ResidualStructure(
                 label=label,
                 x=centroid_x,
                 y=centroid_y,
-                pixel_count=int(arc_pixels.sum()),
+                pixel_count=int(structure_pixels.sum()),
                 flux=flux,
                 snr=flux / noise if noise > 0 else 0.0,
-                median_radius_px=float(np.median(radius[arc_pixels])),
+                median_radius_px=float(np.median(radius[structure_pixels])),
                 position_angle_deg=position_angle(float(xs.mean()), float(ys.mean()), prep.nucleus_yx),
-                angular_extent_deg=circular_span(pa[arc_pixels]),
+                angular_extent_deg=circular_span(pa[structure_pixels]),
                 axis_ratio=float(item["a"] / max(item["b"], 1e-9)),
                 tangential_misalignment_deg=misalignment,
                 inner_connection_fraction=inner_connection_fraction,
@@ -361,5 +361,11 @@ def extract_arc_segments(
                 sky_position_angle_deg=centroid_sky_pa,
             )
         )
-    arc_mask = footprint & snr_mask & ring
-    return segments, segmentation, footprint, arc_mask
+    residual_structure_mask = footprint & snr_mask & ring
+    return segments, segmentation, footprint, residual_structure_mask
+
+
+# Import compatibility for v0.5-era callers. New code must use neutral residual
+# structure terminology because detection does not establish lensing identity.
+ArcSegment = ResidualStructure
+extract_arc_segments = extract_residual_structures

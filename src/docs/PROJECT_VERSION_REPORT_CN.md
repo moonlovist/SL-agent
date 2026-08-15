@@ -1457,6 +1457,16 @@ Observer
 
 ---
 
+# Lens Expert Agent v0.6.0（2026-08-15）
+
+本版本把视觉层检测对象从带有结论暗示的“弧”改为“未分类残差结构”。Observation schema升级到1.3，新增Euclid Q1 SLDE切图契约检查，记录300×300尺寸以及VIS/Y/J/H的FLUX、PSF、RMS扩展是否齐全。
+
+新增 `vision_expert_views.png`，使用Euclid论文所述的VIS arcsinh（Q=500）、99.85%高值裁剪思想和自动MTF中间调，分别展示完整视场与中央100×100像素。该图不含搜索圆、裁剪框或S1/S2标签，只服务人工与未来Agent观察；科学测量数组不变。原 `arc_mask` NPZ键作为兼容别名保留，新正式键为 `residual_structure_mask`。
+
+本阶段没有修改前景模型、S/N门槛或SEP规则，也没有重跑既有194份批量结果。14项自动化测试通过，并对3个代表性Euclid Q1样本完成纯视觉回归，结构数量保持不变。
+
+---
+
 # 后续版本
 
 （每次完成并验证一个可运行版本后，在这里继续追加。）

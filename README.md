@@ -33,7 +33,8 @@ The target directory contains:
 - `vision_rgb_context.png`: validated RGB-to-FITS orientation mapping and the same overlays;
 - `vision_snr_threshold_process.png`: every S/N threshold mask and survival layer;
 - `vision_sep_consensus.png`: stable detections across the SEP parameter grid;
-- `vision_arc_extraction.png`: the exact pixel-intersection path used for arc measurements;
+- `vision_residual_structure_extraction.png`: the exact pixel-intersection path used for unclassified residual-structure measurements;
+- `vision_expert_views.png`: clean Euclid-style VIS arcsinh and MTF views at full-field and central 100×100 scales;
 - `vision_manifest.json`: runtime parameters, processing steps, output paths, and input hash;
 - `observation_summary_cn.md`: deterministic Chinese explanation of the measured Observation only;
 - `reasoning.json`: hypotheses, evidence, contradictions, decision, confidence, and layered audits;

@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.5.0"
+    pipeline_version: str = "0.6.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -139,8 +139,22 @@ class AstrometryObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class EuclidQ1InputObservation(StrictModel):
+    """Validation of the fixed Euclid Q1 lens-candidate cutout contract."""
+
+    profile: str
+    compatible: bool
+    expected_shape: tuple[int, int] = (300, 300)
+    available_hdus: list[str] = Field(default_factory=list)
+    missing_hdus: list[str] = Field(default_factory=list)
+    available_bands: list[str] = Field(default_factory=list)
+    psf_bands: list[str] = Field(default_factory=list)
+    rms_bands: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2"] = "1.2"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3"] = "1.3"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -152,6 +166,7 @@ class ObservationDocument(StrictModel):
     scene_geometry: SceneGeometryObservation | None = None
     alternative_indicators: AlternativeIndicators | None = None
     astrometry: AstrometryObservation | None = None
+    euclid_q1_input: EuclidQ1InputObservation | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

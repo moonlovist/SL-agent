@@ -20,8 +20,18 @@ class VisionConfig:
     sep_min_area: int = 5
     sep_min_survival: int = 8
     cluster_distance_px: float = 3.0
-    arc_snr_low: float = 2.0
+    residual_structure_snr_low: float = 2.0
+    # Deprecated input alias retained for external v0.5 configuration scripts.
+    arc_snr_low: float | None = None
     near_core_radius_px: float = 6.5
+
+    @property
+    def structure_snr_low(self) -> float:
+        return (
+            float(self.arc_snr_low)
+            if self.arc_snr_low is not None
+            else float(self.residual_structure_snr_low)
+        )
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)

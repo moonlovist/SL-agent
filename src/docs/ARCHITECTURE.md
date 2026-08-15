@@ -27,7 +27,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.2` records:
+`schema_version=1.3` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -43,6 +43,11 @@ display vectors. FITS diagnostics use an astronomical lower-origin display, and
 the full-field/RGB context figures map every reported structure back to its source
 location. These fields improve traceability; they do not decide whether a structure
 is a gravitational lens.
+
+Version 1.3 validates the fixed Euclid Q1 SLDE cutout contract (300×300 pixels
+with VIS/Y/J/H FLUX, PSF, and RMS extensions), renames the scientific extraction
+product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
+expert views. The legacy `arc_mask` NPZ key remains only as a compatibility alias.
 
 Version 1.1 introduced scene-level tangential geometry and explicitly labelled
 screening proxies for inner connectivity, secondary central concentrations,
