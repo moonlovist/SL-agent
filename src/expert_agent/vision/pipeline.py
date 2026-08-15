@@ -13,6 +13,7 @@ from ..schemas.observation import (
     DataQuality,
     EuclidQ1InputObservation,
     ForegroundGalaxyObservation,
+    ForegroundModelComparisonObservation,
     Measurement,
     ObservationDocument,
     Provenance,
@@ -29,6 +30,7 @@ from .detectors import (
     threshold_stability,
 )
 from .diagnostics import write_visual_audit_bundle
+from .foreground_models import fit_psf_mge_comparison
 from .preprocess import load_image, preprocess
 from .summary_cn import write_observation_summary_cn
 
@@ -89,9 +91,74 @@ class VisionPipeline:
         segments, residual_segmentation, footprint, residual_structure_mask = extract_residual_structures(
             prep, runtime_config
         )
+        comparison = fit_psf_mge_comparison(prep)
+        comparison_survival: float | None = None
+        residual_correlation: float | None = None
+        if comparison.success and comparison.residual is not None:
+            comparison_snr = np.divide(
+                comparison.residual,
+                prep.image.rms,
+                out=np.zeros_like(comparison.residual),
+                where=prep.image.rms > 0,
+            )
+            measured_pixels = residual_structure_mask.astype(bool)
+            if measured_pixels.any():
+                comparison_survival = float(
+                    np.mean(
+                        comparison_snr[measured_pixels]
+                        >= runtime_config.structure_snr_low
+                    )
+                )
+            yy, xx = np.indices(prep.image.data.shape)
+            radius = np.hypot(xx - prep.nucleus_yx[1], yy - prep.nucleus_yx[0])
+            annulus = (
+                (radius >= runtime_config.ring_inner_px)
+                & (radius <= runtime_config.ring_outer_px)
+                & np.isfinite(prep.residual)
+                & np.isfinite(comparison.residual)
+            )
+            if int(annulus.sum()) >= 3:
+                value = float(
+                    np.corrcoef(prep.residual[annulus], comparison.residual[annulus])[0, 1]
+                )
+                residual_correlation = value if np.isfinite(value) else None
 
         measurements: list[Measurement] = []
         structures: list[StructureObservation] = []
+        measurements.extend(
+            [
+                Measurement(
+                    id="M_model_comparison_success",
+                    kind="foreground_model_comparison_success",
+                    value=comparison.success,
+                    reliability=1.0,
+                    method=comparison.method,
+                    description="Whether the audit-only PSF-convolved MGE comparison fit completed",
+                    correlation_group="foreground_model_comparison",
+                    flags=comparison.flags,
+                ),
+                Measurement(
+                    id="M_model_comparison_structure_survival",
+                    kind="measured_structure_pixel_survival_fraction",
+                    value=comparison_survival,
+                    reliability=0.65 if comparison_survival is not None else 0.0,
+                    method=comparison.method,
+                    description="Fraction of primary measured-structure pixels still above the same S/N threshold under the comparison subtraction",
+                    correlation_group="foreground_model_comparison",
+                    flags=["audit_only", "not_used_for_detection"],
+                ),
+                Measurement(
+                    id="M_model_comparison_residual_correlation",
+                    kind="foreground_subtraction_residual_correlation",
+                    value=residual_correlation,
+                    reliability=0.65 if residual_correlation is not None else 0.0,
+                    method=comparison.method,
+                    description="Correlation of primary and comparison residuals inside the configured annulus",
+                    correlation_group="foreground_model_comparison",
+                    flags=["audit_only", "not_used_for_detection"],
+                ),
+            ]
+        )
         all_angles: list[np.ndarray] = []
         for index, segment in enumerate(segments, start=1):
             structure_id = f"S{index}"
@@ -473,6 +540,9 @@ class VisionPipeline:
             }
             if prep.image.psf is not None:
                 arrays["psf"] = prep.image.psf
+            if comparison.success and comparison.model is not None and comparison.residual is not None:
+                arrays["comparison_psf_mge_model"] = comparison.model
+                arrays["comparison_psf_mge_residual"] = comparison.residual
             np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
             diagnostic_path = self._write_diagnostic(
@@ -490,6 +560,7 @@ class VisionPipeline:
                     footprint=footprint,
                     residual_structure_mask=residual_structure_mask,
                     segments=segments,
+                    foreground_comparison=comparison,
                     output=output,
                 )
             )
@@ -636,6 +707,18 @@ class VisionPipeline:
                     if image.euclid_q1_compatible
                     else ["not_full_euclid_q1_cutout_contract"]
                 ),
+            ),
+            foreground_model_comparison=ForegroundModelComparisonObservation(
+                primary_method=prep.model_method,
+                comparison_method=comparison.method,
+                comparison_success=comparison.success,
+                psf_applied=comparison.psf_applied,
+                used_for_detection=False,
+                primary_residual_robust_rms=prep.residual_robust_rms,
+                comparison_residual_robust_rms=comparison.residual_robust_rms,
+                measured_structure_pixel_survival_fraction=comparison_survival,
+                residual_correlation=residual_correlation,
+                flags=comparison.flags,
             ),
             structures=structures,
             measurements=measurements,

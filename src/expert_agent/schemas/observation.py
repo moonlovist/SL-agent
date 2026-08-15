@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.6.0"
+    pipeline_version: str = "0.7.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -153,8 +153,25 @@ class EuclidQ1InputObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class ForegroundModelComparisonObservation(StrictModel):
+    """Audit-only comparison; it does not replace the detection model."""
+
+    primary_method: str
+    comparison_method: str
+    comparison_success: bool
+    psf_applied: bool
+    used_for_detection: bool = False
+    primary_residual_robust_rms: float = Field(ge=0.0)
+    comparison_residual_robust_rms: float | None = Field(default=None, ge=0.0)
+    measured_structure_pixel_survival_fraction: float | None = Field(
+        default=None, ge=0.0, le=1.0
+    )
+    residual_correlation: float | None = Field(default=None, ge=-1.0, le=1.0)
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3"] = "1.3"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.4"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -167,6 +184,7 @@ class ObservationDocument(StrictModel):
     alternative_indicators: AlternativeIndicators | None = None
     astrometry: AstrometryObservation | None = None
     euclid_q1_input: EuclidQ1InputObservation | None = None
+    foreground_model_comparison: ForegroundModelComparisonObservation | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

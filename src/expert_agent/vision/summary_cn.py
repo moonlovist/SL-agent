@@ -145,6 +145,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     foreground = document.foreground_galaxy
     geometry = document.scene_geometry
     alternatives = document.alternative_indicators
+    model_comparison = document.foreground_model_comparison
 
     lines = [
         f"# 视觉观察中文摘要：{document.object_id}",
@@ -194,6 +195,20 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 f"其测量椭率为 {_value(foreground.ellipticity, 3)}，"
                 f"因此按本摘要的描述规则记为“{_foreground_shape(foreground.ellipticity)}”。",
                 "",
+            ]
+        )
+    if model_comparison is not None:
+        lines.extend(
+            [
+                "",
+                "### 前景星系两种擦除方法的比较",
+                "",
+                f"- 第二种PSF-MGE比较模型是否成功：{_yes_no(model_comparison.comparison_success)}",
+                f"- 当前模型残差RMS：{_value(model_comparison.primary_residual_robust_rms, 6)}",
+                f"- PSF-MGE残差RMS：{_value(model_comparison.comparison_residual_robust_rms, 6)}",
+                f"- 原测量结构像素换一种擦法后仍超过门槛的比例：{_value(model_comparison.measured_structure_pixel_survival_fraction, 3)}",
+                f"- 两种残差在搜索环内的相关程度：{_value(model_comparison.residual_correlation, 3)}",
+                "- 重要：第二种模型当前只用于暴露模型敏感性，没有参与结构检测或最终判断。",
             ]
         )
     if document.data_quality.model_success:

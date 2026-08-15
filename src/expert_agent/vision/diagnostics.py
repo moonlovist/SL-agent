@@ -10,6 +10,7 @@ import numpy as np
 from ..core.config import VisionConfig
 from .astrometry import orientation_vectors, pixel_to_sky
 from .detectors import ResidualStructure, StabilityDetection, threshold_masks
+from .foreground_models import ForegroundModelComparison
 from .preprocess import PreprocessedImage
 
 
@@ -135,6 +136,54 @@ def write_expert_views(prep: PreprocessedImage, output: Path) -> Path:
     )
     figure.tight_layout()
     path = output / "vision_expert_views.png"
+    figure.savefig(path, dpi=140)
+    plt.close(figure)
+    return path
+
+
+def write_foreground_model_comparison(
+    prep: PreprocessedImage,
+    comparison: ForegroundModelComparison,
+    output: Path,
+) -> Path | None:
+    if not comparison.success or comparison.model is None or comparison.residual is None:
+        return None
+    plt = _matplotlib(output)
+    ys, xs, _ = _view(prep)
+    origin = _origin(prep)
+    data_view = prep.image.data[ys, xs]
+    primary_model = prep.model[ys, xs]
+    primary_residual = prep.residual[ys, xs]
+    comparison_model = comparison.model[ys, xs]
+    comparison_residual = comparison.residual[ys, xs]
+    model_difference = primary_model - comparison_model
+    data_low, data_high = np.percentile(data_view[np.isfinite(data_view)], [1.0, 99.5])
+    residual_values = np.concatenate(
+        [primary_residual.ravel(), comparison_residual.ravel(), model_difference.ravel()]
+    )
+    residual_values = residual_values[np.isfinite(residual_values)]
+    residual_limit = float(np.percentile(np.abs(residual_values), 99.0))
+    residual_limit = max(residual_limit, 1e-12)
+    figure, axes = plt.subplots(2, 3, figsize=(13, 8))
+    panels = (
+        (data_view, "1. 原始VIS中央切图", "gray", data_low, data_high),
+        (primary_model, f"2. 当前模型\n{prep.model_method}", "gray", data_low, data_high),
+        (primary_residual, "3. 当前模型擦除后", "coolwarm", -residual_limit, residual_limit),
+        (comparison_model, "4. PSF-MGE比较模型", "gray", data_low, data_high),
+        (comparison_residual, "5. PSF-MGE擦除后", "coolwarm", -residual_limit, residual_limit),
+        (model_difference, "6. 两块‘橡皮擦’的差异", "coolwarm", -residual_limit, residual_limit),
+    )
+    for axis, (values, title, cmap, vmin, vmax) in zip(axes.ravel(), panels):
+        axis.imshow(values, origin=origin, cmap=cmap, vmin=vmin, vmax=vmax)
+        axis.set_title(title)
+        axis.set_xticks([])
+        axis.set_yticks([])
+    figure.suptitle(
+        "前景星系擦除方法对比（PSF-MGE当前仅用于审计，不参与结构检测）\n"
+        "红/蓝表示正/负残差；两种结果都保留的结构更不依赖单一模型"
+    )
+    figure.tight_layout()
+    path = output / "vision_foreground_model_comparison.png"
     figure.savefig(path, dpi=140)
     plt.close(figure)
     return path
@@ -596,6 +645,8 @@ def write_manifest(
             "sep_footprint": "SEP footprint used by residual-structure extraction",
             "residual_structure_mask": "unclassified residual pixels used for structure measurements",
             "arc_mask": "deprecated compatibility alias of residual_structure_mask",
+            "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
+            "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
         },
         "notes": [
             "PNG files are human-readable diagnostics; NPZ arrays remain the numerical evidence.",
@@ -617,6 +668,7 @@ def write_visual_audit_bundle(
     footprint: np.ndarray,
     residual_structure_mask: np.ndarray,
     segments: list[ResidualStructure],
+    foreground_comparison: ForegroundModelComparison,
     output: Path,
 ) -> dict[str, str]:
     try:
@@ -626,6 +678,9 @@ def write_visual_audit_bundle(
             prep, config, footprint, residual_structure_mask, output
         )
         expert_views_path = write_expert_views(prep, output)
+        model_comparison_path = write_foreground_model_comparison(
+            prep, foreground_comparison, output
+        )
         field_path = write_field_context(prep, config, segments, output)
         rgb_path = write_rgb_context(prep, config, segments, output)
     except ImportError:
@@ -640,6 +695,8 @@ def write_visual_audit_bundle(
         "field_context_diagnostic": str(field_path),
         "vision_manifest": str(output / "vision_manifest.json"),
     }
+    if model_comparison_path is not None:
+        files["foreground_model_comparison_diagnostic"] = str(model_comparison_path)
     if rgb_path is not None:
         files["rgb_context_diagnostic"] = str(rgb_path)
     manifest_path = write_manifest(prep, config, files, output)

@@ -1,6 +1,6 @@
 # Lens Expert Agent 全面介绍与使用说明书
 
-> 适用版本：`lens-expert-agent 0.6.0`（Euclid Q1输入契约与未分类残差结构版 MWA）
+> 适用版本：`lens-expert-agent 0.7.0`（前景星系减除双模型审计版 MWA）
 >
 > v0.3 阅读提示：系统现在有三位科学“复核员”。ObservationAuditor 检查测量能不能信，EvidenceAuditor 检查证据有没有重复或夸大，DecisionAuditor 检查最终结论应当确认、降级还是弃权。原 ReasoningAuditor 仍只检查程序结构和引用完整性。`summary.json` 中的最终分类以 DecisionAuditor 审核后的结果为准，原始初判仍会保留，方便追溯。
 > 适用系统：Windows + PowerShell；Python 3.11 或更高版本  
@@ -738,6 +738,7 @@ outputs/
     ├── vision_sep_consensus.png
     ├── vision_residual_structure_extraction.png
     ├── vision_expert_views.png
+    ├── vision_foreground_model_comparison.png
     ├── vision_manifest.json
     ├── reasoning.json
     ├── summary.json
@@ -783,6 +784,8 @@ outputs/
 - `arc_mask`：为旧分析脚本保留的兼容别名，内容与上一项相同；
 - `threshold_level_map`：多阈值检测层级；
 - `nucleus_yx`：中心坐标。
+- `comparison_psf_mge_model`：只供审计的PSF-MGE对照前景模型（拟合成功时存在）；
+- `comparison_psf_mge_residual`：对照模型减除后的残差（拟合成功时存在）。
 
 它不是普通图片，可用 NumPy 读取：
 
@@ -801,7 +804,7 @@ residual_snr = artifact["residual_snr"]
 1. 输入图；
 2. 前景星系模型；
 3. 残差信噪比图；
-4. 测得的候选弧像素。
+4. 测得的未分类残差结构像素。
 
 青色十字标记系统识别的中心。
 
@@ -821,6 +824,7 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
 - `vision_residual_structure_extraction.png`：残差、SEP范围、S/N掩膜以及最终用于测量的未分类交集像素；
 - `vision_expert_views.png`：Euclid风格VIS arcsinh/MTF全视场与中央100×100观察图；
+- `vision_foreground_model_comparison.png`：比较正式前景模型与PSF-MGE审计模型；它只用于发现“换一种减除方法就消失”的模型敏感结构，不参与正式检测；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。
 
 固定的视觉架构流程不随样本变化，只在 `src/docs/VISION_PROCESS_FLOW_CN.md` 中维护一份，不再复制到每个样本输出目录。

@@ -86,6 +86,7 @@ class ReportWriter(BaseAgent):
             "sep_consensus_diagnostic": "SEP consensus process",
             "residual_structure_extraction_diagnostic": "unclassified residual-structure extraction process",
             "expert_views_diagnostic": "Euclid-style VIS expert views",
+            "foreground_model_comparison_diagnostic": "foreground-subtraction model comparison",
             "field_context_diagnostic": "full-field structure location audit",
             "rgb_context_diagnostic": "RGB-to-FITS structure location audit",
             "vision_manifest": "trace manifest",
