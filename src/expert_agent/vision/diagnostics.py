@@ -606,13 +606,6 @@ def write_manifest(
         "input_size_bytes": input_path.stat().st_size,
         "input_sha256": digest.hexdigest(),
         "band": prep.image.band,
-        "euclid_q1_input": {
-            "profile": "euclid_q1_strong_lens_candidate_cutout_v0.0.3",
-            "compatible": prep.image.euclid_q1_compatible,
-            "available_hdus": list(prep.image.available_hdus),
-            "missing_hdus": list(prep.image.euclid_q1_missing_hdus),
-            "expected_shape": [300, 300],
-        },
         "astrometry": {
             "wcs_available": prep.image.wcs is not None,
             "pixel_scale_arcsec": prep.image.pixel_scale_arcsec,

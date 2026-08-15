@@ -28,17 +28,6 @@ class ImageData:
     wcs: WCS | None
     pixel_scale_arcsec: float | None
     psf: np.ndarray | None
-    available_hdus: tuple[str, ...] = ()
-    euclid_q1_compatible: bool = False
-    euclid_q1_missing_hdus: tuple[str, ...] = ()
-
-
-EUCLID_Q1_BANDS = ("VIS", "NIR_Y", "NIR_J", "NIR_H")
-EUCLID_Q1_REQUIRED_HDUS = tuple(
-    f"{band}_{kind}"
-    for band in EUCLID_Q1_BANDS
-    for kind in ("FLUX", "PSF", "RMS")
-)
 
 
 @dataclass
@@ -103,12 +92,6 @@ def load_image(path: str | Path, band: str) -> ImageData:
     object_id = resolved.stem
     if suffix in {".fits", ".fit", ".fts"}:
         with fits.open(resolved, memmap=False) as hdul:
-            available_hdus = tuple(
-                str(item.name).upper() for item in hdul if str(item.name).upper() != "PRIMARY"
-            )
-            missing_hdus = tuple(
-                name for name in EUCLID_Q1_REQUIRED_HDUS if name not in available_hdus
-            )
             flux_name = f"{band}_FLUX"
             rms_name = f"{band}_RMS"
             if flux_name in hdul:
@@ -169,7 +152,6 @@ def load_image(path: str | Path, band: str) -> ImageData:
                     f"FITS has no 2-D primary image or {flux_name} extension"
                 )
         input_format = "fits"
-        euclid_q1_compatible = not missing_hdus and data.shape == (300, 300)
     elif suffix == ".png":
         try:
             from PIL import Image
@@ -184,9 +166,6 @@ def load_image(path: str | Path, band: str) -> ImageData:
         wcs = None
         pixel_scale_arcsec = None
         psf = None
-        available_hdus = ()
-        missing_hdus = EUCLID_Q1_REQUIRED_HDUS
-        euclid_q1_compatible = False
     else:
         raise ValueError(f"Unsupported input format: {resolved.suffix}")
 
@@ -212,9 +191,6 @@ def load_image(path: str | Path, band: str) -> ImageData:
         wcs=wcs,
         pixel_scale_arcsec=pixel_scale_arcsec,
         psf=psf,
-        available_hdus=available_hdus,
-        euclid_q1_compatible=euclid_q1_compatible,
-        euclid_q1_missing_hdus=missing_hdus,
     )
 
 

@@ -11,7 +11,6 @@ from ..schemas.observation import (
     AlternativeIndicators,
     AstrometryObservation,
     DataQuality,
-    EuclidQ1InputObservation,
     ForegroundGalaxyObservation,
     ForegroundModelComparisonObservation,
     Measurement,
@@ -584,14 +583,10 @@ class VisionPipeline:
             )
         else:
             limitations.append(
-                "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented."
+                "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution."
             )
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
-        if image.input_format == "fits" and not image.euclid_q1_compatible:
-            limitations.append(
-                "The FITS file does not fully match the Euclid Q1 300x300, VIS/Y/J/H FLUX/PSF/RMS cutout contract."
-            )
         if output is not None:
             artifacts["observation_summary_cn"] = str(
                 output / "observation_summary_cn.md"
@@ -681,32 +676,6 @@ class VisionPipeline:
                     else "Raster pixel orientation; no celestial WCS available."
                 ),
                 flags=[] if wcs_valid else ["wcs_unavailable_or_invalid"],
-            ),
-            euclid_q1_input=EuclidQ1InputObservation(
-                profile="euclid_q1_strong_lens_candidate_cutout_v0.0.3",
-                compatible=image.euclid_q1_compatible,
-                available_hdus=list(image.available_hdus),
-                missing_hdus=list(image.euclid_q1_missing_hdus),
-                available_bands=[
-                    band
-                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
-                    if f"{band}_FLUX" in image.available_hdus
-                ],
-                psf_bands=[
-                    band
-                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
-                    if f"{band}_PSF" in image.available_hdus
-                ],
-                rms_bands=[
-                    band
-                    for band in ("VIS", "NIR_Y", "NIR_J", "NIR_H")
-                    if f"{band}_RMS" in image.available_hdus
-                ],
-                flags=(
-                    []
-                    if image.euclid_q1_compatible
-                    else ["not_full_euclid_q1_cutout_contract"]
-                ),
             ),
             foreground_model_comparison=ForegroundModelComparisonObservation(
                 primary_method=prep.model_method,

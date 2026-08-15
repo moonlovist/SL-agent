@@ -51,10 +51,11 @@ structure pixels, and writes a six-panel comparison figure. The comparison model
 is explicitly excluded from detection and decision; it exposes model-sensitive
 residuals without silently changing the official measurement path.
 
-Version 1.3 validates the fixed Euclid Q1 SLDE cutout contract (300×300 pixels
-with VIS/Y/J/H FLUX, PSF, and RMS extensions), renames the scientific extraction
+Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
 expert views. The legacy `arc_mask` NPZ key remains only as a compatibility alias.
+Pipeline 0.7.1 removes that fixed-size/12-extension validation from new runs.
+The legacy schema field remains optional only so older Observation files still load.
 
 Version 1.1 introduced scene-level tangential geometry and explicitly labelled
 screening proxies for inner connectivity, secondary central concentrations,

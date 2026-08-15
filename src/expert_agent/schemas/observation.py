@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.7.0"
+    pipeline_version: str = "0.7.1"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -140,7 +140,7 @@ class AstrometryObservation(StrictModel):
 
 
 class EuclidQ1InputObservation(StrictModel):
-    """Validation of the fixed Euclid Q1 lens-candidate cutout contract."""
+    """Deprecated legacy field retained only for reading older observations."""
 
     profile: str
     compatible: bool
@@ -183,7 +183,7 @@ class ObservationDocument(StrictModel):
     scene_geometry: SceneGeometryObservation | None = None
     alternative_indicators: AlternativeIndicators | None = None
     astrometry: AstrometryObservation | None = None
-    euclid_q1_input: EuclidQ1InputObservation | None = None
+    euclid_q1_input: EuclidQ1InputObservation | None = None  # legacy; no longer emitted
     foreground_model_comparison: ForegroundModelComparisonObservation | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
