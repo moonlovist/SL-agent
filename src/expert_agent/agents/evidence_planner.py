@@ -86,11 +86,27 @@ class EvidencePlannerAgent(BaseAgent):
             ),
             EvidenceQuestion(
                 id="Q5",
-                question="Do candidate images have consistent colors across bands?",
+                question="Do candidate images have consistent colors across bands, and are the color measurements reliable at this signal level?",
                 target_hypotheses=["H1", "H2", "H3"],
-                measurement_kinds=["color_consistency"],
+                measurement_kinds=["color_consistency", "color_measurement_uncertainty", "band_count"],
                 priority="medium",
-                reason="Consistent source colors can link multiple images, but the current single-band pipeline may not provide this test.",
+                reason="Comparable colors can link multiple images, but color inferred at low S/N is not reliable and the current single-band pipeline may not provide this test.",
+            ),
+            EvidenceQuestion(
+                id="Q8",
+                question="If several compact candidate images are present, do they form a plausible common-centre configuration rather than lying on one side?",
+                target_hypotheses=["H1", "H2", "H3"],
+                measurement_kinds=["multi_image_group_count", "opposite_side_configuration", "candidate_image_radius_consistency"],
+                priority="medium",
+                reason="A collection of bright structures is not automatically a double or quad lens system; their arrangement about one centre must be measured.",
+            ),
+            EvidenceQuestion(
+                id="Q9",
+                question="Do the candidate images share a compatible morphology or point-source character, without separate galaxy-like shapes or independent bright cores?",
+                target_hypotheses=["H1", "H2", "H3", "H4"],
+                measurement_kinds=["candidate_image_morphology_consistency", "point_source_likeness", "independent_bright_core_count"],
+                priority="medium",
+                reason="Different intrinsic galaxy morphologies or independent bright cores can imitate a multiple-image configuration.",
             ),
         ]
         state.evidence_plan = sorted(

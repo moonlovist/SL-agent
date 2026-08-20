@@ -43,7 +43,13 @@ class ReportWriter(BaseAgent):
         hypothesis_case_lines: list[str] = []
         for hypothesis in state.hypotheses:
             analysis = state.hypothesis_analyses[hypothesis.id]
-            missing = ", ".join(item.question_id for item in analysis.missing_evidence) or "none"
+            missing = (
+                "\n".join(
+                    f"  - {item.question_id}: {item.question} Why it matters: {item.reason}"
+                    for item in analysis.missing_evidence
+                )
+                or "none"
+            )
             hypothesis_case_lines.extend(
                 [
                     f"### {hypothesis.id}: {hypothesis.name}",
@@ -51,7 +57,8 @@ class ReportWriter(BaseAgent):
                     f"- Current status: {analysis.status}",
                     f"- Supporting evidence: {', '.join(analysis.supporting_evidence_refs) or 'none'}",
                     f"- Opposing evidence: {', '.join(analysis.opposing_evidence_refs) or 'none'}",
-                    f"- Missing evidence questions: {missing}",
+                    "- Missing evidence questions:",
+                    missing,
                     f"- Unexplained relevant measurements: {', '.join(analysis.unexplained_relevant_observation_refs) or 'none'}",
                     "",
                 ]
