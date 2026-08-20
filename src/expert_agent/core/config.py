@@ -21,6 +21,17 @@ class VisionConfig:
     sep_min_survival: int = 8
     cluster_distance_px: float = 3.0
     residual_structure_snr_low: float = 2.0
+    # Model-driven posterior ring search.  These are exploratory measurement
+    # settings, not a lens classification rule or a calibrated Euclid cut.
+    ring_model_width_px: float = 1.5
+    ring_model_snr_threshold: float = 0.5
+    ring_model_min_coverage: float = 0.80
+    ring_model_angle_bins: int = 72
+    ring_model_center_offset_px: float = 2.0
+    ring_model_center_steps: int = 5
+    ring_model_axis_ratios: tuple[float, ...] = (1.0, 0.9, 0.8, 0.7)
+    ring_model_position_angles_deg: tuple[float, ...] = (0.0, 30.0, 60.0, 90.0, 120.0, 150.0)
+    ring_model_max_candidates: int = 5
     # Deprecated input alias retained for external v0.5 configuration scripts.
     arc_snr_low: float | None = None
     near_core_radius_px: float = 6.5

@@ -232,6 +232,30 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     else:
         lines.extend(["没有结构进入最终测量列表。", ""])
 
+    lines.extend(["## 3.1 后验圆/椭圆环模板测量", ""])
+    if document.ring_candidates:
+        lines.extend(
+            [
+                "这里的候选来自：先完成 SEP 残差检测，再沿圆或椭圆环带采样弱信号。它只描述环状残差，不等同于爱因斯坦环或强透镜。",
+                "",
+            ]
+        )
+        for item in document.ring_candidates:
+            lines.extend(
+                [
+                    f"### {item.id}",
+                    "",
+                    f"- 模板中心：({_value(item.center_xy[0])}, {_value(item.center_xy[1])}) 像素；半长轴：{_value(item.semi_major_radius_px)} 像素；轴比：{_value(item.axis_ratio, 3)}",
+                    f"- 环带中位 S/N：{_value(item.median_on_ring_snr, 3)}；相对相邻环带的 S/N 差：{_value(item.on_minus_off_ring_snr, 3)}",
+                    f"- S/N ≥ {item.snr_threshold:.2f} 的角向覆盖比例：{item.positive_coverage_fraction:.1%}；最长连续覆盖：{item.longest_contiguous_coverage_deg:.1f}°",
+                    f"- 是否通过当前探索性初筛：{_yes_no(item.passes_initial_screen)}（初筛阈值尚未用标注样本标定）",
+                    f"- 候选来源：{', '.join(item.proposal_sources)}",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["没有保留后验圆/椭圆环模板测量。", ""])
+
     lines.extend(["## 4. 场景整体信息", ""])
     if geometry is not None:
         lines.extend(

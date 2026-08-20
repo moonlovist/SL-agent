@@ -9,7 +9,7 @@ import numpy as np
 
 from ..core.config import VisionConfig
 from .astrometry import orientation_vectors, pixel_to_sky
-from .detectors import ResidualStructure, StabilityDetection, threshold_masks
+from .detectors import RingModelCandidate, ResidualStructure, StabilityDetection, threshold_masks
 from .foreground_models import ForegroundModelComparison
 from .preprocess import PreprocessedImage
 
@@ -347,6 +347,60 @@ def write_residual_structure_extraction(
     return path
 
 
+def write_posterior_ring_detection(
+    prep: PreprocessedImage,
+    ring_candidates: list[RingModelCandidate],
+    output: Path,
+) -> Path:
+    """Show what the post-SEP annulus templates measured, with no lens label."""
+    plt = _matplotlib(output)
+    from matplotlib.patches import Ellipse as PlotEllipse
+
+    ys, xs, half = _view(prep)
+    residual_view = prep.residual[ys, xs]
+    snr_view = prep.residual_snr[ys, xs]
+    vmin, vmax = _display_limits(residual_view)
+    snr_limit = max(2.0, float(np.percentile(np.abs(snr_view[np.isfinite(snr_view)]), 99.0)))
+    figure, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+    origin = _origin(prep)
+    axes[0].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
+    axes[1].imshow(snr_view, origin=origin, cmap="coolwarm", vmin=-snr_limit, vmax=snr_limit)
+    for index, candidate in enumerate(ring_candidates, start=1):
+        local_x = candidate.center_x - (prep.nucleus_yx[1] - half)
+        local_y = candidate.center_y - (prep.nucleus_yx[0] - half)
+        color = "lime" if candidate.passes_initial_screen else "orange"
+        for axis in axes:
+            axis.add_patch(
+                PlotEllipse(
+                    (local_x, local_y),
+                    2.0 * candidate.semi_major_radius_px,
+                    2.0 * candidate.semi_major_radius_px * candidate.axis_ratio,
+                    angle=candidate.position_angle_deg,
+                    fill=False,
+                    edgecolor=color,
+                    linewidth=1.1 + 2.0 * candidate.positive_coverage_fraction,
+                )
+            )
+            axis.annotate(
+                f"R{index}: cover={candidate.positive_coverage_fraction:.2f}, "
+                f"ΔS/N={candidate.on_minus_off_ring_snr:.2f}",
+                (local_x + 2, local_y + 2), color=color, fontsize=7,
+            )
+    for axis in axes:
+        _mark(axis, half)
+    axes[0].set_title("foreground-subtracted residual")
+    axes[1].set_title("residual S/N")
+    figure.suptitle(
+        "Posterior circular/elliptical ring templates after SEP\n"
+        "green = passes exploratory coverage screen; orange = retained measurement only; neither is a lens decision"
+    )
+    figure.tight_layout()
+    path = output / "vision_posterior_ring_detection.png"
+    figure.savefig(path, dpi=140)
+    plt.close(figure)
+    return path
+
+
 def write_field_context(
     prep: PreprocessedImage,
     config: VisionConfig,
@@ -661,6 +715,7 @@ def write_visual_audit_bundle(
     footprint: np.ndarray,
     residual_structure_mask: np.ndarray,
     segments: list[ResidualStructure],
+    ring_candidates: list[RingModelCandidate],
     foreground_comparison: ForegroundModelComparison,
     output: Path,
 ) -> dict[str, str]:
@@ -670,6 +725,7 @@ def write_visual_audit_bundle(
         structure_path = write_residual_structure_extraction(
             prep, config, footprint, residual_structure_mask, output
         )
+        ring_path = write_posterior_ring_detection(prep, ring_candidates, output)
         expert_views_path = write_expert_views(prep, output)
         model_comparison_path = write_foreground_model_comparison(
             prep, foreground_comparison, output
@@ -684,6 +740,7 @@ def write_visual_audit_bundle(
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
         "residual_structure_extraction_diagnostic": str(structure_path),
+        "posterior_ring_detection_diagnostic": str(ring_path),
         "expert_views_diagnostic": str(expert_views_path),
         "field_context_diagnostic": str(field_path),
         "vision_manifest": str(output / "vision_manifest.json"),

@@ -27,7 +27,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.4` records:
+`schema_version=1.5` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -50,6 +50,17 @@ records residual correlation and the survival fraction of already measured
 structure pixels, and writes a six-panel comparison figure. The comparison model
 is explicitly excluded from detection and decision; it exposes model-sensitive
 residuals without silently changing the official measurement path.
+
+Version 1.5 adds a posterior circular/elliptical annulus measurement channel.
+It runs after SEP extraction but does not require SEP to see every ring pixel:
+foreground-centred circular templates with small centre offsets, plus
+foreground-centred elliptical templates, sample residual S/N along an annular
+band.  It records angular positive-S/N coverage, longest contiguous coverage,
+on-band S/N, and an adjacent-band contrast.  The initial 0.5-S/N and 80-percent
+coverage settings are explicitly exploratory and uncalibrated.  A retained or
+screen-passing ring template is not an Einstein-ring or lens label.  This channel
+shares the primary foreground-subtracted residual and is therefore correlated
+with SEP measurements; it is assigned a separate correlation group for audit.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
@@ -139,5 +150,6 @@ do not duplicate a static flowchart.
 - WCS/pixel-scale validation;
 - merger/core and tidal-asymmetry measurements;
 - calibration on labelled positive and hard-negative datasets;
+- posterior multi-image grouping and cross-band consistency measurements;
 - optional schema-constrained LLM explanations that may summarize cited evidence
   but cannot alter measurements, scores, gates, or audit results.

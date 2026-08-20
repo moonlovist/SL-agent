@@ -16,6 +16,7 @@ from ..schemas.observation import (
     Measurement,
     ObservationDocument,
     Provenance,
+    RingCandidateObservation,
     SceneGeometryObservation,
     StructureObservation,
 )
@@ -25,6 +26,7 @@ from .detectors import (
     StabilityDetection,
     circular_span,
     extract_residual_structures,
+    posterior_ring_candidates,
     sep_consensus,
     threshold_stability,
 )
@@ -90,6 +92,7 @@ class VisionPipeline:
         segments, residual_segmentation, footprint, residual_structure_mask = extract_residual_structures(
             prep, runtime_config
         )
+        ring_models = posterior_ring_candidates(prep, runtime_config, segments)
         comparison = fit_psf_mge_comparison(prep)
         comparison_survival: float | None = None
         residual_correlation: float | None = None
@@ -124,6 +127,7 @@ class VisionPipeline:
 
         measurements: list[Measurement] = []
         structures: list[StructureObservation] = []
+        ring_candidates: list[RingCandidateObservation] = []
         measurements.extend(
             [
                 Measurement(
@@ -282,6 +286,64 @@ class VisionPipeline:
                 + 360
             ) % 360
             all_angles.append(angles)
+
+        for index, candidate in enumerate(ring_models, start=1):
+            candidate_id = f"R{index}"
+            entries = [
+                ("semi_major_radius", candidate.semi_major_radius_px, "px", "ring_template_grid"),
+                ("axis_ratio", candidate.axis_ratio, None, "ring_template_grid"),
+                ("position_angle", candidate.position_angle_deg, "deg", "ring_template_grid"),
+                ("positive_coverage_fraction", candidate.positive_coverage_fraction, None, "annular_snr_sampling"),
+                ("longest_contiguous_coverage", candidate.longest_contiguous_coverage_deg, "deg", "annular_snr_sampling"),
+                ("median_on_ring_snr", candidate.median_on_ring_snr, None, "annular_snr_sampling"),
+                ("on_minus_off_ring_snr", candidate.on_minus_off_ring_snr, None, "adjacent_annulus_comparison"),
+                ("passes_initial_screen", candidate.passes_initial_screen, None, "posterior_ring_screen"),
+            ]
+            measurement_ids: list[str] = []
+            for kind, value, unit, method in entries:
+                measurement_id = f"M_{candidate_id}_{kind}"
+                measurement_ids.append(measurement_id)
+                measurements.append(
+                    Measurement(
+                        id=measurement_id,
+                        kind=f"ring_{kind}",
+                        value=value,
+                        unit=unit,
+                        reliability=0.45 if kind not in {"passes_initial_screen", "positive_coverage_fraction"} else 0.55,
+                        method=method,
+                        description=(
+                            f"{kind.replace('_', ' ')} measured for posterior {candidate_id}; "
+                            "this is an annular residual measurement, not a lens label"
+                        ),
+                        structure_id=candidate_id,
+                        correlation_group="posterior_ring_model",
+                        flags=["not_a_lens_decision", "thresholds_not_calibrated"],
+                    )
+                )
+            flags = ["not_a_lens_decision", "thresholds_not_calibrated"]
+            if not candidate.passes_initial_screen:
+                flags.append("below_initial_ring_screen")
+            if candidate.axis_ratio < 0.999:
+                flags.append("elliptical_template")
+            ring_candidates.append(
+                RingCandidateObservation(
+                    id=candidate_id,
+                    center_xy=(candidate.center_x, candidate.center_y),
+                    semi_major_radius_px=candidate.semi_major_radius_px,
+                    axis_ratio=candidate.axis_ratio,
+                    position_angle_deg=candidate.position_angle_deg,
+                    width_px=candidate.width_px,
+                    snr_threshold=candidate.snr_threshold,
+                    positive_coverage_fraction=candidate.positive_coverage_fraction,
+                    longest_contiguous_coverage_deg=candidate.longest_contiguous_coverage_deg,
+                    median_on_ring_snr=candidate.median_on_ring_snr,
+                    on_minus_off_ring_snr=candidate.on_minus_off_ring_snr,
+                    passes_initial_screen=candidate.passes_initial_screen,
+                    proposal_sources=candidate.proposal_sources,
+                    measurement_ids=measurement_ids,
+                    flags=flags,
+                )
+            )
 
         radii = [item.median_radius_px for item in structures]
         common_radius_cv = (
@@ -537,6 +599,8 @@ class VisionPipeline:
                 "threshold_level_map": level_map,
                 "nucleus_yx": np.asarray(prep.nucleus_yx),
             }
+            for index, candidate in enumerate(ring_models, start=1):
+                arrays[f"ring_candidate_mask_R{index}"] = candidate.on_ring_mask.astype(np.uint8)
             if prep.image.psf is not None:
                 arrays["psf"] = prep.image.psf
             if comparison.success and comparison.model is not None and comparison.residual is not None:
@@ -559,6 +623,7 @@ class VisionPipeline:
                     footprint=footprint,
                     residual_structure_mask=residual_structure_mask,
                     segments=segments,
+                    ring_candidates=ring_models,
                     foreground_comparison=comparison,
                     output=output,
                 )
@@ -568,10 +633,13 @@ class VisionPipeline:
         flags = list(prep.flags)
         if not structures:
             flags.append("no_significant_annular_structure")
+        if not any(item.passes_initial_screen for item in ring_candidates):
+            flags.append("no_ring_template_passed_initial_screen")
         limitations = [
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
+            "Posterior ring-template thresholds are exploratory measurements, not calibrated strong-lens criteria.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
             limitations.append(
@@ -689,6 +757,7 @@ class VisionPipeline:
                 residual_correlation=residual_correlation,
                 flags=comparison.flags,
             ),
+            ring_candidates=ring_candidates,
             structures=structures,
             measurements=measurements,
             artifacts=artifacts,

@@ -51,6 +51,30 @@ class ResidualStructure:
     sky_position_angle_deg: float | None
 
 
+@dataclass
+class RingModelCandidate:
+    """Posterior circular/elliptical annulus measurement.
+
+    It is intentionally a geometric measurement only.  Passing its initial
+    screen does not identify an Einstein ring or a gravitational lens.
+    """
+
+    center_x: float
+    center_y: float
+    semi_major_radius_px: float
+    axis_ratio: float
+    position_angle_deg: float
+    width_px: float
+    snr_threshold: float
+    positive_coverage_fraction: float
+    longest_contiguous_coverage_deg: float
+    median_on_ring_snr: float
+    on_minus_off_ring_snr: float
+    passes_initial_screen: bool
+    proposal_sources: list[str]
+    on_ring_mask: np.ndarray
+
+
 def position_angle(x: float, y: float, nucleus_yx: tuple[int, int]) -> float:
     return float(
         (np.degrees(np.arctan2(-(x - nucleus_yx[1]), -(y - nucleus_yx[0]))) + 360)
@@ -64,6 +88,190 @@ def circular_span(angles: np.ndarray) -> float:
     ordered = np.sort(np.mod(angles, 360.0))
     gaps = np.diff(np.concatenate([ordered, ordered[:1] + 360.0]))
     return float(360.0 - gaps.max())
+
+
+def _longest_circular_run(values: np.ndarray) -> int:
+    """Length of the longest True run in a circular boolean array."""
+    if not values.size or not np.any(values):
+        return 0
+    if np.all(values):
+        return int(values.size)
+    doubled = np.concatenate([values, values])
+    best = current = 0
+    for value in doubled:
+        current = current + 1 if value else 0
+        best = max(best, current)
+    return int(min(best, values.size))
+
+
+def _annulus_measurement(
+    residual_snr: np.ndarray,
+    source_mask: np.ndarray,
+    yy: np.ndarray,
+    xx: np.ndarray,
+    center_x: float,
+    center_y: float,
+    semi_major_radius_px: float,
+    axis_ratio: float,
+    position_angle_deg: float,
+    width_px: float,
+    snr_threshold: float,
+    angle_bins: int,
+) -> tuple[float, float, float, float, np.ndarray] | None:
+    """Measure weak positive residuals along one circular/elliptical band."""
+    angle = np.deg2rad(position_angle_deg)
+    dx = xx - center_x
+    dy = yy - center_y
+    # Image y grows downward, which only changes the PA convention, not the
+    # annulus itself.  The convention is recorded as pixel geometry.
+    x_rot = dx * np.cos(angle) + dy * np.sin(angle)
+    y_rot = -dx * np.sin(angle) + dy * np.cos(angle)
+    elliptical_radius = np.hypot(x_rot, y_rot / max(axis_ratio, 1e-6))
+    elliptical_angle = (np.arctan2(y_rot / max(axis_ratio, 1e-6), x_rot) + 2 * np.pi) % (2 * np.pi)
+    valid = np.isfinite(residual_snr) & ~source_mask
+    on_ring = valid & (np.abs(elliptical_radius - semi_major_radius_px) <= width_px)
+    if int(on_ring.sum()) < max(12, angle_bins // 2):
+        return None
+    bin_index = np.minimum(
+        (elliptical_angle / (2 * np.pi) * angle_bins).astype(int), angle_bins - 1
+    )
+    # A per-bin median would repeatedly materialize 72 full-size boolean
+    # images for every template.  A bin mean is adequate for this first-pass
+    # coverage screen and keeps the 300x300 Euclid scan practical.
+    selected_bins = bin_index[on_ring]
+    selected_snr = residual_snr[on_ring]
+    counts = np.bincount(selected_bins, minlength=angle_bins)
+    sums = np.bincount(selected_bins, weights=selected_snr, minlength=angle_bins)
+    bin_values = np.divide(
+        sums, counts, out=np.full(angle_bins, np.nan), where=counts > 0
+    )
+    available = np.isfinite(bin_values)
+    if int(available.sum()) < max(8, angle_bins // 3):
+        return None
+    positive = available & (bin_values >= snr_threshold)
+    coverage = float(np.count_nonzero(positive) / np.count_nonzero(available))
+    longest = float(_longest_circular_run(positive) * 360.0 / angle_bins)
+    median_on = float(np.median(residual_snr[on_ring]))
+    # Adjacent bands establish whether the candidate is locally ring-enhanced,
+    # rather than a smooth foreground-model residual at all radii.
+    gap = 2.5 * width_px
+    off_ring = valid & (
+        (np.abs(elliptical_radius - (semi_major_radius_px - gap)) <= width_px)
+        | (np.abs(elliptical_radius - (semi_major_radius_px + gap)) <= width_px)
+    )
+    median_off = float(np.median(residual_snr[off_ring])) if np.any(off_ring) else 0.0
+    return coverage, longest, median_on, median_on - median_off, on_ring
+
+
+def posterior_ring_candidates(
+    prep: PreprocessedImage,
+    config: VisionConfig,
+    segments: list[ResidualStructure],
+) -> list[RingModelCandidate]:
+    """Search posterior circular/elliptical templates after SEP extraction.
+
+    The foreground centre supplies the physically motivated starting point.
+    Small circular centre offsets protect against a slightly imperfect light
+    centre; elliptical templates are tried at the measured centre.  SEP
+    residual structures are used only to annotate template support, never as a
+    requirement, because a low-surface-brightness ring may be invisible to SEP.
+    """
+    candidates: list[RingModelCandidate] = []
+    offsets = np.linspace(
+        -config.ring_model_center_offset_px,
+        config.ring_model_center_offset_px,
+        max(1, config.ring_model_center_steps),
+    )
+    center_x, center_y = float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])
+    yy, xx = np.indices(prep.residual_snr.shape)
+    radii = np.arange(
+        np.ceil(config.ring_inner_px + config.ring_model_width_px),
+        np.floor(config.ring_outer_px - config.ring_model_width_px) + 1,
+        1.0,
+    )
+    geometries: list[tuple[float, float, float, float, str]] = []
+    for offset_x in offsets:
+        for offset_y in offsets:
+            geometries.append((center_x + float(offset_x), center_y + float(offset_y), 1.0, 0.0, "foreground_center_circle_grid"))
+    for axis_ratio in config.ring_model_axis_ratios:
+        if axis_ratio >= 0.999:
+            continue
+        for position_angle in config.ring_model_position_angles_deg:
+            geometries.append((center_x, center_y, float(axis_ratio), float(position_angle), "foreground_center_ellipse_grid"))
+
+    for candidate_x, candidate_y, axis_ratio, position_angle, source in geometries:
+        for radius in radii:
+            measured = _annulus_measurement(
+                prep.residual_snr,
+                prep.source_mask,
+                yy,
+                xx,
+                candidate_x,
+                candidate_y,
+                float(radius),
+                axis_ratio,
+                position_angle,
+                config.ring_model_width_px,
+                config.ring_model_snr_threshold,
+                config.ring_model_angle_bins,
+            )
+            if measured is None:
+                continue
+            coverage, longest, median_on, contrast, on_ring = measured
+            proposal_sources = [source]
+            if any(
+                abs(np.hypot(item.x - candidate_x, item.y - candidate_y) - radius)
+                <= 2.0 * config.ring_model_width_px
+                for item in segments
+            ):
+                proposal_sources.append("sep_residual_seed")
+            candidates.append(
+                RingModelCandidate(
+                    center_x=candidate_x,
+                    center_y=candidate_y,
+                    semi_major_radius_px=float(radius),
+                    axis_ratio=axis_ratio,
+                    position_angle_deg=position_angle,
+                    width_px=config.ring_model_width_px,
+                    snr_threshold=config.ring_model_snr_threshold,
+                    positive_coverage_fraction=coverage,
+                    longest_contiguous_coverage_deg=longest,
+                    median_on_ring_snr=median_on,
+                    on_minus_off_ring_snr=contrast,
+                    passes_initial_screen=(
+                        coverage >= config.ring_model_min_coverage and contrast > 0.0
+                    ),
+                    proposal_sources=proposal_sources,
+                    on_ring_mask=on_ring,
+                )
+            )
+
+    # Keep spatially distinct high-scoring templates.  A positive local
+    # contrast is deliberately only a ranking term; it is not a lens decision.
+    ranked = sorted(
+        candidates,
+        key=lambda item: (
+            item.passes_initial_screen,
+            item.positive_coverage_fraction,
+            item.on_minus_off_ring_snr,
+            item.longest_contiguous_coverage_deg,
+        ),
+        reverse=True,
+    )
+    selected: list[RingModelCandidate] = []
+    for item in ranked:
+        duplicate = any(
+            np.hypot(item.center_x - old.center_x, item.center_y - old.center_y) < 1.0
+            and abs(item.semi_major_radius_px - old.semi_major_radius_px) < max(1.0, item.width_px)
+            and abs(item.axis_ratio - old.axis_ratio) < 0.06
+            and abs(((item.position_angle_deg - old.position_angle_deg + 90.0) % 180.0) - 90.0) < 15.0
+            for old in selected
+        )
+        if not duplicate:
+            selected.append(item)
+        if len(selected) >= config.ring_model_max_candidates:
+            break
+    return selected
 
 
 def _ring_geometry(prep: PreprocessedImage, config: VisionConfig):

@@ -279,6 +279,42 @@ class EvidenceAgent(BaseAgent):
                         "Continuity with foreground light weakens a background-source interpretation, although blending can mimic a connection.",
                     )
 
+        # A posterior ring template is deliberately weak, model-dependent
+        # evidence.  It supplements SEP components but cannot by itself make a
+        # lens decision, because galaxy-subtraction residuals can also be
+        # annular.
+        for ring in document.ring_candidates:
+            ring_measurements = {
+                item.kind: item
+                for item in document.measurements
+                if item.structure_id == ring.id
+            }
+            coverage = ring_measurements.get("ring_positive_coverage_fraction")
+            contrast = ring_measurements.get("ring_on_minus_off_ring_snr")
+            screen = ring_measurements.get("ring_passes_initial_screen")
+            if ring.passes_initial_screen and coverage is not None and contrast is not None:
+                strength = min(0.55, 0.25 + 0.35 * ring.positive_coverage_fraction)
+                add(
+                    "H1",
+                    f"{ring.id} is a posterior annular residual candidate with {ring.positive_coverage_fraction:.2%} positive angular coverage.",
+                    [item for item in (coverage, contrast, screen) if item is not None],
+                    "support",
+                    strength,
+                    0.45,
+                    "posterior_ring_model",
+                    "A coherent annular residual around the measured center is compatible with an Einstein-ring-like morphology, but the template thresholds are exploratory and foreground-model dependent.",
+                )
+                add(
+                    "H4",
+                    f"{ring.id} is not explained by a purely local negative/positive annulus comparison alone.",
+                    [item for item in (coverage, contrast) if item is not None],
+                    "oppose",
+                    min(0.35, strength),
+                    0.30,
+                    "posterior_ring_model",
+                    "Positive annular contrast weakens a pure random-noise explanation, but it does not exclude subtraction residuals or intrinsic galaxy rings.",
+                )
+
         common_radius = by_kind.get("common_radius_cv", [])
         if common_radius and common_radius[0].value is not None:
             cv = float(common_radius[0].value)

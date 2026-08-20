@@ -38,6 +38,23 @@ class ObserverAgent(BaseAgent):
                     else None
                 ),
                 "structure_count": len(document.structures),
+                "ring_candidate_count": len(document.ring_candidates),
+                "ring_candidates": [
+                    {
+                        "id": item.id,
+                        "center_xy": list(item.center_xy),
+                        "semi_major_radius_px": item.semi_major_radius_px,
+                        "axis_ratio": item.axis_ratio,
+                        "positive_coverage_fraction": item.positive_coverage_fraction,
+                        "longest_contiguous_coverage_deg": item.longest_contiguous_coverage_deg,
+                        "median_on_ring_snr": item.median_on_ring_snr,
+                        "on_minus_off_ring_snr": item.on_minus_off_ring_snr,
+                        "passes_initial_screen": item.passes_initial_screen,
+                        "proposal_sources": item.proposal_sources,
+                        "measurement_ids": item.measurement_ids,
+                    }
+                    for item in document.ring_candidates
+                ],
                 "structures": [
                     {
                         "id": item.id,
@@ -65,6 +82,7 @@ class ObserverAgent(BaseAgent):
             "observation_normalization",
             {
                 "structure_count": len(document.structures),
+                "ring_candidate_count": len(document.ring_candidates),
                 "measurement_count": len(document.measurements),
                 "classification_performed": False,
             },

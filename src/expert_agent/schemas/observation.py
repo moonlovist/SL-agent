@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.7.1"
+    pipeline_version: str = "0.8.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -170,8 +170,28 @@ class ForegroundModelComparisonObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class RingCandidateObservation(StrictModel):
+    """A model-driven annular residual measurement, not a lens decision."""
+
+    id: str
+    center_xy: tuple[float, float]
+    semi_major_radius_px: float = Field(gt=0.0)
+    axis_ratio: float = Field(gt=0.0, le=1.0)
+    position_angle_deg: float = Field(ge=0.0, lt=180.0)
+    width_px: float = Field(gt=0.0)
+    snr_threshold: float
+    positive_coverage_fraction: float = Field(ge=0.0, le=1.0)
+    longest_contiguous_coverage_deg: float = Field(ge=0.0, le=360.0)
+    median_on_ring_snr: float
+    on_minus_off_ring_snr: float
+    passes_initial_screen: bool
+    proposal_sources: list[str] = Field(default_factory=list)
+    measurement_ids: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.4"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] = "1.5"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -185,6 +205,7 @@ class ObservationDocument(StrictModel):
     astrometry: AstrometryObservation | None = None
     euclid_q1_input: EuclidQ1InputObservation | None = None  # legacy; no longer emitted
     foreground_model_comparison: ForegroundModelComparisonObservation | None = None
+    ring_candidates: list[RingCandidateObservation] = Field(default_factory=list)
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)
