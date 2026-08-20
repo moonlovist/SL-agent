@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.8.2"
+    pipeline_version: str = "0.9.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -188,8 +188,40 @@ class RingCandidateObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class RecoveredPathSegmentObservation(StrictModel):
+    """Pixels newly recovered inside a geometric search path."""
+
+    id: str
+    centroid_xy: tuple[float, float]
+    pixel_count: int = Field(gt=0)
+    integrated_snr: float
+    angular_extent_deg: float = Field(ge=0.0, le=360.0)
+
+
+class GeometricPathObservation(StrictModel):
+    """A search proposal; the path itself is not an observed ring."""
+
+    id: str
+    mode: Literal["arc_seeded", "center_fallback"]
+    seed_structure_ids: list[str] = Field(default_factory=list)
+    linked_structure_ids: list[str] = Field(default_factory=list)
+    center_xy: tuple[float, float]
+    semi_major_radius_px: float = Field(gt=0.0)
+    axis_ratio: float = Field(gt=0.0, le=1.0)
+    position_angle_deg: float = Field(ge=0.0, lt=180.0)
+    half_width_px: float = Field(gt=0.0)
+    fit_scatter_px: float | None = Field(default=None, ge=0.0)
+    median_on_path_snr: float
+    on_minus_off_path_snr: float
+    above_local_background_fraction: float = Field(ge=0.0, le=1.0)
+    longest_above_local_background_deg: float = Field(ge=0.0, le=360.0)
+    recovered_segments: list[RecoveredPathSegmentObservation] = Field(default_factory=list)
+    measurement_ids: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"] = "1.6"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"] = "1.7"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -204,6 +236,7 @@ class ObservationDocument(StrictModel):
     euclid_q1_input: EuclidQ1InputObservation | None = None  # legacy; no longer emitted
     foreground_model_comparison: ForegroundModelComparisonObservation | None = None
     ring_candidates: list[RingCandidateObservation] = Field(default_factory=list)
+    geometric_paths: list[GeometricPathObservation] = Field(default_factory=list)
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

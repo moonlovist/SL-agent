@@ -27,7 +27,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.6` records:
+`schema_version=1.7` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -63,6 +63,13 @@ instead, with no pass/fail field and no direct evidence weight. A retained ring
 template is not an Einstein-ring or lens label. This channel
 shares the primary foreground-subtracted residual and is therefore correlated
 with SEP measurements; it is assigned a separate correlation group for audit.
+
+Version 1.7 replaces the formal v1.5/v1.6 posterior-ring output with a unified
+geometry-guided path search. Detected residual structures seed constrained
+circular/elliptical routes; a centre-constrained fallback is used only inside
+the same module when no seed exists. The route, its seed/linked structures, and
+newly recovered pixel segments are stored separately. Unfilled route pixels are
+not observations, and path generation does not contribute direct lens evidence.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF

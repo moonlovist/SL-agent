@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from expert_agent.core.config import VisionConfig
-from expert_agent.vision.detectors import posterior_ring_candidates
+from expert_agent.vision.detectors import ResidualStructure, geometric_path_search
 from expert_agent.vision.preprocess import ImageData, PreprocessedImage
 
 
@@ -32,25 +32,77 @@ def _prep_from_residual_snr(residual_snr: np.ndarray) -> PreprocessedImage:
     )
 
 
-def test_posterior_ring_search_recovers_low_per_pixel_snr_ring() -> None:
+def _seed_from_mask(mask: np.ndarray, prep: PreprocessedImage) -> ResidualStructure:
+    ys, xs = np.where(mask)
+    angles = (
+        np.degrees(np.arctan2(-(xs - prep.nucleus_yx[1]), -(ys - prep.nucleus_yx[0])))
+        + 360.0
+    ) % 360.0
+    ordered = np.sort(angles)
+    gaps = np.diff(np.concatenate([ordered, ordered[:1] + 360.0]))
+    return ResidualStructure(
+        label=1, x=float(xs.mean()), y=float(ys.mean()), pixel_count=int(mask.sum()),
+        flux=float(prep.residual[mask].sum()), snr=8.0,
+        median_radius_px=float(np.median(np.hypot(xs - prep.nucleus_yx[1], ys - prep.nucleus_yx[0]))),
+        position_angle_deg=90.0, angular_extent_deg=float(360.0 - gaps.max()),
+        axis_ratio=2.0, tangential_misalignment_deg=0.0,
+        inner_connection_fraction=0.0, connects_to_inner_region=False,
+        pixels_y=ys, pixels_x=xs, centroid_ra_deg=None, centroid_dec_deg=None,
+        radius_arcsec=None, sky_position_angle_deg=None,
+    )
+
+
+def test_arc_guided_path_recovers_a_separate_arc_segment() -> None:
     size = 61
     yy, xx = np.indices((size, size))
     radius = np.hypot(xx - 30.0, yy - 30.0)
-    # Each pixel is only modestly significant, but it coherently follows one
-    # annulus -- the precise failure mode the posterior model targets.
-    residual_snr = 1.1 * np.exp(-0.5 * ((radius - 12.0) / 1.0) ** 2)
+    angle = np.arctan2(yy - 30.0, xx - 30.0)
+    radial_band = np.abs(radius - 12.0) <= 1.0
+    seed_mask = radial_band & (np.abs(angle) < 0.35)
+    second_arc = radial_band & (np.abs(np.abs(angle) - np.pi) < 0.35)
+    residual_snr = np.zeros((size, size), dtype=float)
+    residual_snr[seed_mask] = 4.0
+    residual_snr[second_arc] = 3.0
     prep = _prep_from_residual_snr(residual_snr)
+    seed = _seed_from_mask(seed_mask, prep)
     config = VisionConfig(
         ring_inner_px=4.0, ring_outer_px=20.0,
-        ring_model_center_offset_px=0.0, ring_model_center_steps=1,
-        ring_model_axis_ratios=(1.0,), ring_model_position_angles_deg=(0.0,),
-        ring_model_max_candidates=3,
+        path_center_offset_px=0.0, path_center_steps=1,
+        path_axis_ratios=(1.0,), path_position_angles_deg=(0.0,),
+        path_max_candidates=3,
     )
 
-    candidates = posterior_ring_candidates(prep, config, [])
+    candidates = geometric_path_search(prep, config, [seed])
 
     assert candidates
     best = candidates[0]
+    assert best.mode == "arc_seeded"
+    assert best.seed_indices == [0]
     assert abs(best.semi_major_radius_px - 12.0) <= 1.0
-    assert best.above_local_background_fraction > 0.0
-    assert best.on_minus_off_ring_snr > 0.0
+    assert best.recovered_segments
+    assert any(item.x < 30.0 for item in best.recovered_segments)
+    assert not np.any(best.recovered_mask[seed_mask])
+
+
+def test_center_fallback_can_recover_ring_pixels_without_a_seed() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    ring = np.abs(radius - 12.0) <= 1.0
+    residual_snr = np.zeros((size, size), dtype=float)
+    residual_snr[ring] = 3.0
+    prep = _prep_from_residual_snr(residual_snr)
+    config = VisionConfig(
+        ring_inner_px=4.0, ring_outer_px=20.0,
+        path_center_offset_px=0.0, path_center_steps=1,
+        path_axis_ratios=(1.0,), path_position_angles_deg=(0.0,),
+        path_max_candidates=1,
+    )
+
+    candidates = geometric_path_search(prep, config, [])
+
+    assert candidates
+    assert candidates[0].mode == "center_fallback"
+    assert not candidates[0].seed_indices
+    assert candidates[0].recovered_segments
+    assert abs(candidates[0].semi_major_radius_px - 12.0) <= 1.0

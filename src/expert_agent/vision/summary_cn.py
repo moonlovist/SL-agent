@@ -232,29 +232,37 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     else:
         lines.extend(["没有结构进入最终测量列表。", ""])
 
-    lines.extend(["## 3.1 后验圆/椭圆环模板测量", ""])
-    if document.ring_candidates:
+    lines.extend(["## 3.1 几何路径引导搜索", ""])
+    if document.geometric_paths:
         lines.extend(
             [
-                "这里的候选来自：先完成 SEP 残差检测，再沿圆或椭圆环带采样弱信号。它只描述环状残差，不等同于爱因斯坦环或强透镜。",
+                "这里的圆/椭圆只是一条搜索路线：优先由已检测结构提供线索，在路线附近寻找原先漏掉的真实亮像素。路线空白部分不算结构，也不等同于爱因斯坦环或强透镜。",
                 "",
             ]
         )
-        for item in document.ring_candidates:
+        for item in document.geometric_paths:
             lines.extend(
                 [
                     f"### {item.id}",
                     "",
-                    f"- 模板中心：({_value(item.center_xy[0])}, {_value(item.center_xy[1])}) 像素；半长轴：{_value(item.semi_major_radius_px)} 像素；轴比：{_value(item.axis_ratio, 3)}",
-                    f"- 环带中位 S/N：{_value(item.median_on_ring_snr, 3)}；相对相邻环带的 S/N 差：{_value(item.on_minus_off_ring_snr, 3)}",
-                    f"- 高于相邻环带局部背景的角向比例：{item.above_local_background_fraction:.1%}；最长连续区段：{item.longest_above_local_background_deg:.1f}°",
-                    "- 这是描述性模板测量，不设“通过/不通过”门槛，也不产生透镜结论。",
-                    f"- 候选来源：{', '.join(item.proposal_sources)}",
+                    f"- 启动方式：{item.mode}；种子结构：{', '.join(item.seed_structure_ids) or '无（中心后备）'}",
+                    f"- 路线中心：({_value(item.center_xy[0])}, {_value(item.center_xy[1])}) 像素；半长轴：{_value(item.semi_major_radius_px)} 像素；轴比：{_value(item.axis_ratio, 3)}",
+                    f"- 搜索半宽：{_value(item.half_width_px)} 像素；种子拟合离散：{_value(item.fit_scatter_px)} 像素",
+                    f"- 路线中位 S/N：{_value(item.median_on_path_snr, 3)}；相对邻近路线的 S/N 差：{_value(item.on_minus_off_path_snr, 3)}",
+                    f"- 已有关联结构：{', '.join(item.linked_structure_ids) or '无'}；沿路线新找到的独立像素段：{len(item.recovered_segments)} 个",
+                    "- 路线只提供搜索提示；只有新找到的像素段是实际观察结果。",
                     "",
                 ]
             )
+            for recovered in item.recovered_segments:
+                lines.append(
+                    f"  - {recovered.id}：中心({_value(recovered.centroid_xy[0])}, {_value(recovered.centroid_xy[1])})，"
+                    f"{recovered.pixel_count}像素，累计S/N={_value(recovered.integrated_snr, 2)}，角向跨度={_value(recovered.angular_extent_deg)}°"
+                )
+            if item.recovered_segments:
+                lines.append("")
     else:
-        lines.extend(["没有保留后验圆/椭圆环模板测量。", ""])
+        lines.extend(["没有生成可用的几何搜索路线。", ""])
 
     lines.extend(["## 4. 场景整体信息", ""])
     if geometry is not None:

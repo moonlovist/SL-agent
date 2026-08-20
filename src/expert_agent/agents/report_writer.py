@@ -33,6 +33,14 @@ class ReportWriter(BaseAgent):
             )
             for item in document.structures
         ] or ["- No significant annular structure was measured."]
+        path_lines = [
+            (
+                f"- {item.id}: mode={item.mode}, seeds={','.join(item.seed_structure_ids) or 'none'}, "
+                f"linked={','.join(item.linked_structure_ids) or 'none'}, "
+                f"new segments={len(item.recovered_segments)}; the path is a search route, not a ring claim"
+            )
+            for item in document.geometric_paths
+        ] or ["- No geometry-guided search path was retained."]
         hypothesis_lines = [
             (
                 f"- {row.hypothesis_id} `{row.hypothesis}`: evidence={row.evidence_score:.3f}, "
@@ -94,6 +102,7 @@ class ReportWriter(BaseAgent):
             "residual_structure_extraction_diagnostic": "unclassified residual-structure extraction process",
             "expert_views_diagnostic": "Euclid-style VIS expert views",
             "foreground_model_comparison_diagnostic": "foreground-subtraction model comparison",
+            "geometric_path_search_diagnostic": "geometry-guided missed-structure search",
             "field_context_diagnostic": "full-field structure location audit",
             "rgb_context_diagnostic": "RGB-to-FITS structure location audit",
             "vision_manifest": "trace manifest",
@@ -125,6 +134,10 @@ class ReportWriter(BaseAgent):
                 "## Structured observations",
                 "",
                 *structure_lines,
+                "",
+                "## Geometry-guided missed-structure search",
+                "",
+                *path_lines,
                 "",
                 "## Competing hypotheses",
                 "",

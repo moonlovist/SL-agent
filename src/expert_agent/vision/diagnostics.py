@@ -9,7 +9,7 @@ import numpy as np
 
 from ..core.config import VisionConfig
 from .astrometry import orientation_vectors, pixel_to_sky
-from .detectors import RingModelCandidate, ResidualStructure, StabilityDetection, threshold_masks
+from .detectors import GeometricPathCandidate, ResidualStructure, StabilityDetection, threshold_masks
 from .foreground_models import ForegroundModelComparison
 from .preprocess import PreprocessedImage
 
@@ -347,12 +347,12 @@ def write_residual_structure_extraction(
     return path
 
 
-def write_posterior_ring_detection(
+def write_geometric_path_search(
     prep: PreprocessedImage,
-    ring_candidates: list[RingModelCandidate],
+    geometric_paths: list[GeometricPathCandidate],
     output: Path,
 ) -> Path:
-    """Show what the post-SEP annulus templates measured, with no lens label."""
+    """Show proposed search paths and only the pixels newly recovered on them."""
     plt = _matplotlib(output)
     from matplotlib.patches import Ellipse as PlotEllipse
 
@@ -365,7 +365,7 @@ def write_posterior_ring_detection(
     origin = _origin(prep)
     axes[0].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
     axes[1].imshow(snr_view, origin=origin, cmap="coolwarm", vmin=-snr_limit, vmax=snr_limit)
-    for index, candidate in enumerate(ring_candidates, start=1):
+    for index, candidate in enumerate(geometric_paths, start=1):
         local_x = candidate.center_x - (prep.nucleus_yx[1] - half)
         local_y = candidate.center_y - (prep.nucleus_yx[0] - half)
         color = "deepskyblue"
@@ -382,20 +382,22 @@ def write_posterior_ring_detection(
                 )
             )
             axis.annotate(
-                f"R{index}: local-bg={candidate.above_local_background_fraction:.2f}, "
-                f"ΔS/N={candidate.on_minus_off_ring_snr:.2f}",
+                f"G{index}: {candidate.mode}, new={len(candidate.recovered_segments)}",
                 (local_x + 2, local_y + 2), color=color, fontsize=7,
             )
+            if np.any(candidate.recovered_mask):
+                recovered_y, recovered_x = np.where(candidate.recovered_mask[ys, xs])
+                axis.scatter(recovered_x, recovered_y, s=7, c="magenta", marker="s")
     for axis in axes:
         _mark(axis, half)
     axes[0].set_title("foreground-subtracted residual")
     axes[1].set_title("residual S/N")
     figure.suptitle(
-        "Posterior circular/elliptical ring templates after SEP\n"
-        "blue = descriptive measurement template; no pass/fail threshold and no lens decision"
+        "Geometry-guided residual search after SEP\n"
+        "blue = search route; magenta = newly recovered real pixels; route is not a ring claim"
     )
     figure.tight_layout()
-    path = output / "vision_posterior_ring_detection.png"
+    path = output / "vision_geometric_path_search.png"
     figure.savefig(path, dpi=140)
     plt.close(figure)
     return path
@@ -715,7 +717,7 @@ def write_visual_audit_bundle(
     footprint: np.ndarray,
     residual_structure_mask: np.ndarray,
     segments: list[ResidualStructure],
-    ring_candidates: list[RingModelCandidate],
+    geometric_paths: list[GeometricPathCandidate],
     foreground_comparison: ForegroundModelComparison,
     output: Path,
 ) -> dict[str, str]:
@@ -725,7 +727,7 @@ def write_visual_audit_bundle(
         structure_path = write_residual_structure_extraction(
             prep, config, footprint, residual_structure_mask, output
         )
-        ring_path = write_posterior_ring_detection(prep, ring_candidates, output)
+        path_search_path = write_geometric_path_search(prep, geometric_paths, output)
         expert_views_path = write_expert_views(prep, output)
         model_comparison_path = write_foreground_model_comparison(
             prep, foreground_comparison, output
@@ -740,7 +742,7 @@ def write_visual_audit_bundle(
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
         "residual_structure_extraction_diagnostic": str(structure_path),
-        "posterior_ring_detection_diagnostic": str(ring_path),
+        "geometric_path_search_diagnostic": str(path_search_path),
         "expert_views_diagnostic": str(expert_views_path),
         "field_context_diagnostic": str(field_path),
         "vision_manifest": str(output / "vision_manifest.json"),

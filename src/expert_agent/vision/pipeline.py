@@ -13,9 +13,11 @@ from ..schemas.observation import (
     DataQuality,
     ForegroundGalaxyObservation,
     ForegroundModelComparisonObservation,
+    GeometricPathObservation,
     Measurement,
     ObservationDocument,
     Provenance,
+    RecoveredPathSegmentObservation,
     RingCandidateObservation,
     SceneGeometryObservation,
     StructureObservation,
@@ -26,7 +28,7 @@ from .detectors import (
     StabilityDetection,
     circular_span,
     extract_residual_structures,
-    posterior_ring_candidates,
+    geometric_path_search,
     sep_consensus,
     threshold_stability,
 )
@@ -92,7 +94,7 @@ class VisionPipeline:
         segments, residual_segmentation, footprint, residual_structure_mask = extract_residual_structures(
             prep, runtime_config
         )
-        ring_models = posterior_ring_candidates(prep, runtime_config, segments)
+        geometric_paths_raw = geometric_path_search(prep, runtime_config, segments)
         comparison = fit_psf_mge_comparison(prep)
         comparison_survival: float | None = None
         residual_correlation: float | None = None
@@ -127,7 +129,8 @@ class VisionPipeline:
 
         measurements: list[Measurement] = []
         structures: list[StructureObservation] = []
-        ring_candidates: list[RingCandidateObservation] = []
+        ring_candidates: list[RingCandidateObservation] = []  # legacy field; no longer emitted
+        geometric_paths: list[GeometricPathObservation] = []
         measurements.extend(
             [
                 Measurement(
@@ -287,16 +290,19 @@ class VisionPipeline:
             ) % 360
             all_angles.append(angles)
 
-        for index, candidate in enumerate(ring_models, start=1):
-            candidate_id = f"R{index}"
+        for index, candidate in enumerate(geometric_paths_raw, start=1):
+            candidate_id = f"G{index}"
             entries = [
-                ("semi_major_radius", candidate.semi_major_radius_px, "px", "ring_template_grid"),
-                ("axis_ratio", candidate.axis_ratio, None, "ring_template_grid"),
-                ("position_angle", candidate.position_angle_deg, "deg", "ring_template_grid"),
-                ("above_local_background_fraction", candidate.above_local_background_fraction, None, "adjacent_annulus_comparison"),
-                ("longest_above_local_background", candidate.longest_above_local_background_deg, "deg", "adjacent_annulus_comparison"),
-                ("median_on_ring_snr", candidate.median_on_ring_snr, None, "annular_snr_sampling"),
-                ("on_minus_off_ring_snr", candidate.on_minus_off_ring_snr, None, "adjacent_annulus_comparison"),
+                ("semi_major_radius", candidate.semi_major_radius_px, "px", "geometric_path_proposal"),
+                ("axis_ratio", candidate.axis_ratio, None, "geometric_path_proposal"),
+                ("position_angle", candidate.position_angle_deg, "deg", "geometric_path_proposal"),
+                ("half_width", candidate.half_width_px, "px", "seed_width_psf_and_fit_uncertainty"),
+                ("fit_scatter", candidate.fit_scatter_px, "px", "seed_path_fit"),
+                ("above_local_background_fraction", candidate.above_local_background_fraction, None, "adjacent_path_comparison"),
+                ("longest_above_local_background", candidate.longest_above_local_background_deg, "deg", "adjacent_path_comparison"),
+                ("median_on_path_snr", candidate.median_on_path_snr, None, "path_snr_sampling"),
+                ("on_minus_off_path_snr", candidate.on_minus_off_path_snr, None, "adjacent_path_comparison"),
+                ("recovered_segment_count", len(candidate.recovered_segments), None, "guided_residual_recovery"),
             ]
             measurement_ids: list[str] = []
             for kind, value, unit, method in entries:
@@ -305,36 +311,50 @@ class VisionPipeline:
                 measurements.append(
                     Measurement(
                         id=measurement_id,
-                        kind=f"ring_{kind}",
+                        kind=f"geometric_path_{kind}",
                         value=value,
                         unit=unit,
                         reliability=0.45,
                         method=method,
                         description=(
-                            f"{kind.replace('_', ' ')} measured for posterior {candidate_id}; "
-                            "this is an annular residual measurement, not a lens label"
+                            f"{kind.replace('_', ' ')} measured for {candidate_id}; "
+                            "the path guides a pixel search and is not an observed ring or lens label"
                         ),
                         structure_id=candidate_id,
-                        correlation_group="posterior_ring_model",
-                        flags=["not_a_lens_decision", "descriptive_template_measurement"],
+                        correlation_group="geometry_guided_residual_search",
+                        flags=["not_a_lens_decision", "search_route_not_structure"],
                     )
                 )
-            flags = ["not_a_lens_decision", "descriptive_template_measurement"]
-            if candidate.axis_ratio < 0.999:
-                flags.append("elliptical_template")
-            ring_candidates.append(
-                RingCandidateObservation(
+            recovered = [
+                RecoveredPathSegmentObservation(
+                    id=f"{candidate_id}N{recovered_index}",
+                    centroid_xy=(item.x, item.y),
+                    pixel_count=item.pixel_count,
+                    integrated_snr=item.integrated_snr,
+                    angular_extent_deg=item.angular_extent_deg,
+                )
+                for recovered_index, item in enumerate(candidate.recovered_segments, start=1)
+            ]
+            seed_ids = [f"S{item + 1}" for item in candidate.seed_indices]
+            linked_ids = [f"S{item + 1}" for item in candidate.linked_structure_indices]
+            flags = ["not_a_lens_decision", "search_route_not_structure", "single_iteration"]
+            geometric_paths.append(
+                GeometricPathObservation(
                     id=candidate_id,
+                    mode=candidate.mode,
+                    seed_structure_ids=seed_ids,
+                    linked_structure_ids=linked_ids,
                     center_xy=(candidate.center_x, candidate.center_y),
                     semi_major_radius_px=candidate.semi_major_radius_px,
                     axis_ratio=candidate.axis_ratio,
                     position_angle_deg=candidate.position_angle_deg,
-                    width_px=candidate.width_px,
+                    half_width_px=candidate.half_width_px,
+                    fit_scatter_px=candidate.fit_scatter_px,
                     above_local_background_fraction=candidate.above_local_background_fraction,
                     longest_above_local_background_deg=candidate.longest_above_local_background_deg,
-                    median_on_ring_snr=candidate.median_on_ring_snr,
-                    on_minus_off_ring_snr=candidate.on_minus_off_ring_snr,
-                    proposal_sources=candidate.proposal_sources,
+                    median_on_path_snr=candidate.median_on_path_snr,
+                    on_minus_off_path_snr=candidate.on_minus_off_path_snr,
+                    recovered_segments=recovered,
                     measurement_ids=measurement_ids,
                     flags=flags,
                 )
@@ -594,8 +614,9 @@ class VisionPipeline:
                 "threshold_level_map": level_map,
                 "nucleus_yx": np.asarray(prep.nucleus_yx),
             }
-            for index, candidate in enumerate(ring_models, start=1):
-                arrays[f"ring_candidate_mask_R{index}"] = candidate.on_ring_mask.astype(np.uint8)
+            for index, candidate in enumerate(geometric_paths_raw, start=1):
+                arrays[f"geometric_path_mask_G{index}"] = candidate.route_mask.astype(np.uint8)
+                arrays[f"geometric_path_recovered_mask_G{index}"] = candidate.recovered_mask.astype(np.uint8)
             if prep.image.psf is not None:
                 arrays["psf"] = prep.image.psf
             if comparison.success and comparison.model is not None and comparison.residual is not None:
@@ -618,7 +639,7 @@ class VisionPipeline:
                     footprint=footprint,
                     residual_structure_mask=residual_structure_mask,
                     segments=segments,
-                    ring_candidates=ring_models,
+                    geometric_paths=geometric_paths_raw,
                     foreground_comparison=comparison,
                     output=output,
                 )
@@ -632,7 +653,7 @@ class VisionPipeline:
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
-            "Posterior ring templates are descriptive measurements only; they contain no calibrated acceptance threshold or lens criterion.",
+            "Geometric paths only guide a local pixel search; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
             limitations.append(
@@ -751,6 +772,7 @@ class VisionPipeline:
                 flags=comparison.flags,
             ),
             ring_candidates=ring_candidates,
+            geometric_paths=geometric_paths,
             structures=structures,
             measurements=measurements,
             artifacts=artifacts,

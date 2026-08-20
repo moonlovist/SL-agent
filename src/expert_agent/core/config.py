@@ -21,15 +21,16 @@ class VisionConfig:
     sep_min_survival: int = 8
     cluster_distance_px: float = 3.0
     residual_structure_snr_low: float = 2.0
-    # Model-driven posterior ring search. These define the template grid only;
-    # no S/N or coverage acceptance cut is applied at this stage.
-    ring_model_width_px: float = 1.5
-    ring_model_angle_bins: int = 72
-    ring_model_center_offset_px: float = 2.0
-    ring_model_center_steps: int = 5
-    ring_model_axis_ratios: tuple[float, ...] = (1.0, 0.9, 0.8, 0.7)
-    ring_model_position_angles_deg: tuple[float, ...] = (0.0, 30.0, 60.0, 90.0, 120.0, 150.0)
-    ring_model_max_candidates: int = 5
+    # Geometry-guided path search. These settings define proposal geometry and
+    # reuse the existing residual_structure_snr_low for pixel recovery; they
+    # are not lens classification thresholds.
+    path_min_half_width_px: float = 1.5
+    path_angle_bins: int = 72
+    path_center_offset_px: float = 2.0
+    path_center_steps: int = 5
+    path_axis_ratios: tuple[float, ...] = (1.0, 0.9, 0.8, 0.7)
+    path_position_angles_deg: tuple[float, ...] = (0.0, 30.0, 60.0, 90.0, 120.0, 150.0)
+    path_max_candidates: int = 5
     # Deprecated input alias retained for external v0.5 configuration scripts.
     arc_snr_low: float | None = None
     near_core_radius_px: float = 6.5

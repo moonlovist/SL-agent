@@ -52,26 +52,43 @@ class ResidualStructure:
 
 
 @dataclass
-class RingModelCandidate:
-    """Posterior circular/elliptical annulus measurement.
+class RecoveredPathSegment:
+    """Real residual pixels found inside a proposed geometric search band."""
 
-    It is intentionally a geometric measurement only. It contains no
-    pre-calibrated acceptance cut and does not identify an Einstein ring or a
-    gravitational lens.
+    x: float
+    y: float
+    pixel_count: int
+    integrated_snr: float
+    angular_extent_deg: float
+    pixels_y: np.ndarray
+    pixels_x: np.ndarray
+
+
+@dataclass
+class GeometricPathCandidate:
+    """A search route proposed from an arc seed or the foreground centre.
+
+    The ellipse itself is not an observed structure. Only recovered_segments
+    contain newly measured image pixels.
     """
 
+    mode: str
+    seed_indices: list[int]
+    linked_structure_indices: list[int]
     center_x: float
     center_y: float
     semi_major_radius_px: float
     axis_ratio: float
     position_angle_deg: float
-    width_px: float
+    half_width_px: float
+    fit_scatter_px: float | None
+    median_on_path_snr: float
+    on_minus_off_path_snr: float
     above_local_background_fraction: float
     longest_above_local_background_deg: float
-    median_on_ring_snr: float
-    on_minus_off_ring_snr: float
-    proposal_sources: list[str]
-    on_ring_mask: np.ndarray
+    recovered_segments: list[RecoveredPathSegment]
+    route_mask: np.ndarray
+    recovered_mask: np.ndarray
 
 
 def position_angle(x: float, y: float, nucleus_yx: tuple[int, int]) -> float:
@@ -163,109 +180,250 @@ def _annulus_measurement(
     return fraction, longest, median_on, median_on - median_off, on_ring
 
 
+def _psf_half_width_px(prep: PreprocessedImage) -> float:
+    if prep.image.psf is None:
+        return 0.0
+    psf = np.asarray(prep.image.psf, dtype=float)
+    weights = np.clip(psf - np.nanmin(psf), 0.0, None)
+    total = float(np.nansum(weights))
+    if not np.isfinite(total) or total <= 0:
+        return 0.0
+    yy, xx = np.indices(psf.shape)
+    cx = float(np.nansum(xx * weights) / total)
+    cy = float(np.nansum(yy * weights) / total)
+    second_moment = float(np.nansum(((xx - cx) ** 2 + (yy - cy) ** 2) * weights) / total)
+    return float(np.sqrt(max(second_moment, 0.0) / 2.0))
+
+
+def _ellipse_radius(
+    yy: np.ndarray,
+    xx: np.ndarray,
+    center_x: float,
+    center_y: float,
+    axis_ratio: float,
+    position_angle_deg: float,
+) -> np.ndarray:
+    angle = np.deg2rad(position_angle_deg)
+    dx = xx - center_x
+    dy = yy - center_y
+    x_rot = dx * np.cos(angle) + dy * np.sin(angle)
+    y_rot = -dx * np.sin(angle) + dy * np.cos(angle)
+    return np.hypot(x_rot, y_rot / max(axis_ratio, 1e-6))
+
+
+def _recover_segments_on_path(
+    prep: PreprocessedImage,
+    config: VisionConfig,
+    route_mask: np.ndarray,
+    known_mask: np.ndarray,
+) -> tuple[list[RecoveredPathSegment], np.ndarray]:
+    try:
+        from scipy import ndimage
+    except ImportError as exc:
+        raise VisionDependencyError("geometry-guided search requires scipy") from exc
+    exclusion = ndimage.binary_dilation(known_mask, iterations=1)
+    signal = (
+        route_mask
+        & ~exclusion
+        & ~prep.source_mask
+        & np.isfinite(prep.residual_snr)
+        & (prep.residual_snr >= config.structure_snr_low)
+    )
+    labels, count = ndimage.label(signal)
+    recovered: list[RecoveredPathSegment] = []
+    recovered_mask = np.zeros_like(signal)
+    for label in range(1, count + 1):
+        mask = labels == label
+        if int(mask.sum()) < config.snr_min_area:
+            continue
+        ys, xs = np.where(mask)
+        angles = (
+            np.degrees(np.arctan2(-(xs - prep.nucleus_yx[1]), -(ys - prep.nucleus_yx[0])))
+            + 360.0
+        ) % 360.0
+        recovered.append(
+            RecoveredPathSegment(
+                x=float(xs.mean()),
+                y=float(ys.mean()),
+                pixel_count=int(mask.sum()),
+                integrated_snr=float(prep.residual_snr[mask].sum() / np.sqrt(mask.sum())),
+                angular_extent_deg=circular_span(angles),
+                pixels_y=ys,
+                pixels_x=xs,
+            )
+        )
+        recovered_mask |= mask
+    return recovered, recovered_mask
+
+
+def geometric_path_search(
+    prep: PreprocessedImage,
+    config: VisionConfig,
+    segments: list[ResidualStructure],
+) -> list[GeometricPathCandidate]:
+    """Use detected structures to propose paths and recover missed pixels.
+
+    If no seed exists, the same module uses centre-constrained fallback paths.
+    A path is a region to inspect, not evidence that a complete ring exists.
+    """
+    candidates: list[GeometricPathCandidate] = []
+    offsets = np.linspace(
+        -config.path_center_offset_px,
+        config.path_center_offset_px,
+        max(1, config.path_center_steps),
+    )
+    center_x, center_y = float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])
+    yy, xx = np.indices(prep.residual_snr.shape)
+    known_mask = np.zeros_like(prep.source_mask, dtype=bool)
+    for segment in segments:
+        known_mask[segment.pixels_y, segment.pixels_x] = True
+    geometries: list[tuple[float, float, float, float]] = []
+    for offset_x in offsets:
+        for offset_y in offsets:
+            geometries.append(
+                (center_x + float(offset_x), center_y + float(offset_y), 1.0, 0.0)
+            )
+    # Elliptical paths retain the measured foreground centre in this first
+    # implementation. Combining every centre offset with every q/PA would add
+    # many poorly constrained paths from a short seed and inflate runtime.
+    for axis_ratio in config.path_axis_ratios:
+        if axis_ratio >= 0.999:
+            continue
+        for position_angle in config.path_position_angles_deg:
+            geometries.append(
+                (center_x, center_y, float(axis_ratio), float(position_angle))
+            )
+
+    psf_width = _psf_half_width_px(prep)
+    if segments:
+        proposals: list[tuple[float, int, float, float, float, float, float]] = []
+        for seed_index, segment in enumerate(segments):
+            seed_y, seed_x = segment.pixels_y, segment.pixels_x
+            for candidate_x, candidate_y, axis_ratio, position_angle in geometries:
+                seed_radius = _ellipse_radius(
+                    seed_y.astype(float), seed_x.astype(float), candidate_x, candidate_y,
+                    axis_ratio, position_angle,
+                )
+                radius = float(np.median(seed_radius))
+                if not (config.ring_inner_px < radius < config.ring_outer_px):
+                    continue
+                scatter = float(1.4826 * np.median(np.abs(seed_radius - radius)))
+                fit_error = float(
+                    np.median(np.abs(seed_radius - radius))
+                    / max(config.path_min_half_width_px, psf_width, 1e-6)
+                )
+                proposals.append((fit_error, seed_index, candidate_x, candidate_y, axis_ratio, position_angle, radius))
+        proposals.sort(key=lambda item: item[0])
+        used_seeds: set[int] = set()
+        selected = []
+        for proposal in proposals:
+            if proposal[1] in used_seeds:
+                continue
+            selected.append(proposal)
+            used_seeds.add(proposal[1])
+            if len(selected) >= config.path_max_candidates:
+                break
+        proposal_rows = [("arc_seeded", row) for row in selected]
+    else:
+        proposal_rows = []
+        radii = np.arange(
+            np.ceil(config.ring_inner_px + config.path_min_half_width_px),
+            np.floor(config.ring_outer_px - config.path_min_half_width_px) + 1,
+            1.0,
+        )
+        fallback: list[tuple[float, tuple[float, int, float, float, float, float, float]]] = []
+        for candidate_x, candidate_y, axis_ratio, position_angle in geometries:
+            for radius in radii:
+                measured = _annulus_measurement(
+                    prep.residual_snr, prep.source_mask, yy, xx, candidate_x, candidate_y,
+                    float(radius), axis_ratio, position_angle,
+                    max(config.path_min_half_width_px, psf_width), config.path_angle_bins,
+                )
+                if measured is None:
+                    continue
+                _, _, _, contrast, _ = measured
+                row = (0.0, -1, candidate_x, candidate_y, axis_ratio, position_angle, float(radius))
+                fallback.append((contrast, row))
+        fallback.sort(key=lambda item: item[0], reverse=True)
+        distinct_fallback: list[tuple[float, int, float, float, float, float, float]] = []
+        for _, row in fallback:
+            _, _, row_x, row_y, row_q, row_pa, row_radius = row
+            duplicate = any(
+                np.hypot(row_x - old[2], row_y - old[3]) < 1.0
+                and abs(row_radius - old[6]) < max(1.0, config.path_min_half_width_px)
+                and abs(row_q - old[4]) < 0.06
+                and abs(((row_pa - old[5] + 90.0) % 180.0) - 90.0) < 15.0
+                for old in distinct_fallback
+            )
+            if not duplicate:
+                distinct_fallback.append(row)
+            if len(distinct_fallback) >= config.path_max_candidates:
+                break
+        proposal_rows = [("center_fallback", row) for row in distinct_fallback]
+
+    for mode, row in proposal_rows:
+        fit_error, seed_index, candidate_x, candidate_y, axis_ratio, position_angle, radius = row
+        if seed_index >= 0:
+            seed_radii = _ellipse_radius(
+                segments[seed_index].pixels_y.astype(float),
+                segments[seed_index].pixels_x.astype(float),
+                candidate_x, candidate_y, axis_ratio, position_angle,
+            )
+            scatter = float(1.4826 * np.median(np.abs(seed_radii - radius)))
+        else:
+            scatter = None
+        width = max(config.path_min_half_width_px, psf_width, scatter or 0.0)
+        measured = _annulus_measurement(
+            prep.residual_snr, prep.source_mask, yy, xx, candidate_x, candidate_y,
+            float(radius), axis_ratio, position_angle, width, config.path_angle_bins,
+        )
+        if measured is None:
+            continue
+        fraction, longest, median_on, contrast, route_mask = measured
+        recovered, recovered_mask = _recover_segments_on_path(
+            prep, config, route_mask, known_mask
+        )
+        linked = [
+            index for index, segment in enumerate(segments)
+            if np.any(route_mask[segment.pixels_y, segment.pixels_x])
+        ]
+        candidates.append(
+            GeometricPathCandidate(
+                mode=mode,
+                seed_indices=[] if seed_index < 0 else [seed_index],
+                linked_structure_indices=linked,
+                center_x=candidate_x,
+                center_y=candidate_y,
+                semi_major_radius_px=float(radius),
+                axis_ratio=axis_ratio,
+                position_angle_deg=position_angle,
+                half_width_px=width,
+                fit_scatter_px=scatter,
+                median_on_path_snr=median_on,
+                on_minus_off_path_snr=contrast,
+                above_local_background_fraction=fraction,
+                longest_above_local_background_deg=longest,
+                recovered_segments=recovered,
+                route_mask=route_mask,
+                recovered_mask=recovered_mask,
+            )
+        )
+        # A real pixel can be newly recovered only once. Later overlapping
+        # routes may still be recorded, but cannot duplicate earlier segments.
+        known_mask |= recovered_mask
+    return candidates
+
+
+# Compatibility aliases for v0.8 callers. New code uses geometric path terms.
+RingModelCandidate = GeometricPathCandidate
+
+
 def posterior_ring_candidates(
     prep: PreprocessedImage,
     config: VisionConfig,
     segments: list[ResidualStructure],
-) -> list[RingModelCandidate]:
-    """Search posterior circular/elliptical templates after SEP extraction.
-
-    The foreground centre supplies the physically motivated starting point.
-    Small circular centre offsets protect against a slightly imperfect light
-    centre; elliptical templates are tried at the measured centre.  SEP
-    residual structures are used only to annotate template support, never as a
-    requirement, because a low-surface-brightness ring may be invisible to SEP.
-    """
-    candidates: list[RingModelCandidate] = []
-    offsets = np.linspace(
-        -config.ring_model_center_offset_px,
-        config.ring_model_center_offset_px,
-        max(1, config.ring_model_center_steps),
-    )
-    center_x, center_y = float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])
-    yy, xx = np.indices(prep.residual_snr.shape)
-    radii = np.arange(
-        np.ceil(config.ring_inner_px + config.ring_model_width_px),
-        np.floor(config.ring_outer_px - config.ring_model_width_px) + 1,
-        1.0,
-    )
-    geometries: list[tuple[float, float, float, float, str]] = []
-    for offset_x in offsets:
-        for offset_y in offsets:
-            geometries.append((center_x + float(offset_x), center_y + float(offset_y), 1.0, 0.0, "foreground_center_circle_grid"))
-    for axis_ratio in config.ring_model_axis_ratios:
-        if axis_ratio >= 0.999:
-            continue
-        for position_angle in config.ring_model_position_angles_deg:
-            geometries.append((center_x, center_y, float(axis_ratio), float(position_angle), "foreground_center_ellipse_grid"))
-
-    for candidate_x, candidate_y, axis_ratio, position_angle, source in geometries:
-        for radius in radii:
-            measured = _annulus_measurement(
-                prep.residual_snr,
-                prep.source_mask,
-                yy,
-                xx,
-                candidate_x,
-                candidate_y,
-                float(radius),
-                axis_ratio,
-                position_angle,
-                config.ring_model_width_px,
-                config.ring_model_angle_bins,
-            )
-            if measured is None:
-                continue
-            fraction, longest, median_on, contrast, on_ring = measured
-            proposal_sources = [source]
-            if any(
-                abs(np.hypot(item.x - candidate_x, item.y - candidate_y) - radius)
-                <= 2.0 * config.ring_model_width_px
-                for item in segments
-            ):
-                proposal_sources.append("sep_residual_seed")
-            candidates.append(
-                RingModelCandidate(
-                    center_x=candidate_x,
-                    center_y=candidate_y,
-                    semi_major_radius_px=float(radius),
-                    axis_ratio=axis_ratio,
-                    position_angle_deg=position_angle,
-                    width_px=config.ring_model_width_px,
-                    above_local_background_fraction=fraction,
-                    longest_above_local_background_deg=longest,
-                    median_on_ring_snr=median_on,
-                    on_minus_off_ring_snr=contrast,
-                    proposal_sources=proposal_sources,
-                    on_ring_mask=on_ring,
-                )
-            )
-
-    # Keep spatially distinct templates ordered by their descriptive local
-    # contrast. This selects a manageable audit display, not accepted rings.
-    ranked = sorted(
-        candidates,
-        key=lambda item: (
-            item.on_minus_off_ring_snr,
-            item.above_local_background_fraction,
-            item.longest_above_local_background_deg,
-        ),
-        reverse=True,
-    )
-    selected: list[RingModelCandidate] = []
-    for item in ranked:
-        duplicate = any(
-            np.hypot(item.center_x - old.center_x, item.center_y - old.center_y) < 1.0
-            and abs(item.semi_major_radius_px - old.semi_major_radius_px) < max(1.0, item.width_px)
-            and abs(item.axis_ratio - old.axis_ratio) < 0.06
-            and abs(((item.position_angle_deg - old.position_angle_deg + 90.0) % 180.0) - 90.0) < 15.0
-            for old in selected
-        )
-        if not duplicate:
-            selected.append(item)
-        if len(selected) >= config.ring_model_max_candidates:
-            break
-    return selected
+) -> list[GeometricPathCandidate]:
+    return geometric_path_search(prep, config, segments)
 
 
 def _ring_geometry(prep: PreprocessedImage, config: VisionConfig):
