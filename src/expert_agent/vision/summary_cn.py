@@ -247,8 +247,8 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                     "",
                     f"- 模板中心：({_value(item.center_xy[0])}, {_value(item.center_xy[1])}) 像素；半长轴：{_value(item.semi_major_radius_px)} 像素；轴比：{_value(item.axis_ratio, 3)}",
                     f"- 环带中位 S/N：{_value(item.median_on_ring_snr, 3)}；相对相邻环带的 S/N 差：{_value(item.on_minus_off_ring_snr, 3)}",
-                    f"- S/N ≥ {item.snr_threshold:.2f} 的角向覆盖比例：{item.positive_coverage_fraction:.1%}；最长连续覆盖：{item.longest_contiguous_coverage_deg:.1f}°",
-                    f"- 是否通过当前探索性初筛：{_yes_no(item.passes_initial_screen)}（初筛阈值尚未用标注样本标定）",
+                    f"- 高于相邻环带局部背景的角向比例：{item.above_local_background_fraction:.1%}；最长连续区段：{item.longest_above_local_background_deg:.1f}°",
+                    "- 这是描述性模板测量，不设“通过/不通过”门槛，也不产生透镜结论。",
                     f"- 候选来源：{', '.join(item.proposal_sources)}",
                     "",
                 ]

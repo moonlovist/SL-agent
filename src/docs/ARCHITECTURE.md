@@ -27,7 +27,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.5` records:
+`schema_version=1.6` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -51,14 +51,16 @@ structure pixels, and writes a six-panel comparison figure. The comparison model
 is explicitly excluded from detection and decision; it exposes model-sensitive
 residuals without silently changing the official measurement path.
 
-Version 1.5 adds a posterior circular/elliptical annulus measurement channel.
+Version 1.5 added a posterior circular/elliptical annulus measurement channel.
 It runs after SEP extraction but does not require SEP to see every ring pixel:
 foreground-centred circular templates with small centre offsets, plus
 foreground-centred elliptical templates, sample residual S/N along an annular
 band.  It records angular positive-S/N coverage, longest contiguous coverage,
-on-band S/N, and an adjacent-band contrast.  The initial 0.5-S/N and 80-percent
-coverage settings are explicitly exploratory and uncalibrated.  A retained or
-screen-passing ring template is not an Einstein-ring or lens label.  This channel
+on-band S/N, and an adjacent-band contrast. Version 1.6 removes the initially
+implemented 0.5-S/N/80-percent hard screen because those numbers were meeting
+examples, not calibrated rules. It records descriptive local-background coverage
+instead, with no pass/fail field and no direct evidence weight. A retained ring
+template is not an Einstein-ring or lens label. This channel
 shares the primary foreground-subtracted residual and is therefore correlated
 with SEP measurements; it is assigned a separate correlation group for audit.
 

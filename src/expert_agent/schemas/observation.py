@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.8.0"
+    pipeline_version: str = "0.8.1"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -179,19 +179,17 @@ class RingCandidateObservation(StrictModel):
     axis_ratio: float = Field(gt=0.0, le=1.0)
     position_angle_deg: float = Field(ge=0.0, lt=180.0)
     width_px: float = Field(gt=0.0)
-    snr_threshold: float
-    positive_coverage_fraction: float = Field(ge=0.0, le=1.0)
-    longest_contiguous_coverage_deg: float = Field(ge=0.0, le=360.0)
+    above_local_background_fraction: float = Field(ge=0.0, le=1.0)
+    longest_above_local_background_deg: float = Field(ge=0.0, le=360.0)
     median_on_ring_snr: float
     on_minus_off_ring_snr: float
-    passes_initial_screen: bool
     proposal_sources: list[str] = Field(default_factory=list)
     measurement_ids: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] = "1.5"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"] = "1.6"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]

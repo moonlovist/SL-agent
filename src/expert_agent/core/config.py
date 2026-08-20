@@ -21,11 +21,9 @@ class VisionConfig:
     sep_min_survival: int = 8
     cluster_distance_px: float = 3.0
     residual_structure_snr_low: float = 2.0
-    # Model-driven posterior ring search.  These are exploratory measurement
-    # settings, not a lens classification rule or a calibrated Euclid cut.
+    # Model-driven posterior ring search. These define the template grid only;
+    # no S/N or coverage acceptance cut is applied at this stage.
     ring_model_width_px: float = 1.5
-    ring_model_snr_threshold: float = 0.5
-    ring_model_min_coverage: float = 0.80
     ring_model_angle_bins: int = 72
     ring_model_center_offset_px: float = 2.0
     ring_model_center_steps: int = 5

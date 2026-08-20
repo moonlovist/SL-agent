@@ -55,8 +55,9 @@ class ResidualStructure:
 class RingModelCandidate:
     """Posterior circular/elliptical annulus measurement.
 
-    It is intentionally a geometric measurement only.  Passing its initial
-    screen does not identify an Einstein ring or a gravitational lens.
+    It is intentionally a geometric measurement only. It contains no
+    pre-calibrated acceptance cut and does not identify an Einstein ring or a
+    gravitational lens.
     """
 
     center_x: float
@@ -65,12 +66,10 @@ class RingModelCandidate:
     axis_ratio: float
     position_angle_deg: float
     width_px: float
-    snr_threshold: float
-    positive_coverage_fraction: float
-    longest_contiguous_coverage_deg: float
+    above_local_background_fraction: float
+    longest_above_local_background_deg: float
     median_on_ring_snr: float
     on_minus_off_ring_snr: float
-    passes_initial_screen: bool
     proposal_sources: list[str]
     on_ring_mask: np.ndarray
 
@@ -115,7 +114,6 @@ def _annulus_measurement(
     axis_ratio: float,
     position_angle_deg: float,
     width_px: float,
-    snr_threshold: float,
     angle_bins: int,
 ) -> tuple[float, float, float, float, np.ndarray] | None:
     """Measure weak positive residuals along one circular/elliptical band."""
@@ -136,8 +134,8 @@ def _annulus_measurement(
         (elliptical_angle / (2 * np.pi) * angle_bins).astype(int), angle_bins - 1
     )
     # A per-bin median would repeatedly materialize 72 full-size boolean
-    # images for every template.  A bin mean is adequate for this first-pass
-    # coverage screen and keeps the 300x300 Euclid scan practical.
+    # images for every template. A bin mean is adequate for a descriptive
+    # template measurement and keeps the 300x300 Euclid scan practical.
     selected_bins = bin_index[on_ring]
     selected_snr = residual_snr[on_ring]
     counts = np.bincount(selected_bins, minlength=angle_bins)
@@ -148,9 +146,6 @@ def _annulus_measurement(
     available = np.isfinite(bin_values)
     if int(available.sum()) < max(8, angle_bins // 3):
         return None
-    positive = available & (bin_values >= snr_threshold)
-    coverage = float(np.count_nonzero(positive) / np.count_nonzero(available))
-    longest = float(_longest_circular_run(positive) * 360.0 / angle_bins)
     median_on = float(np.median(residual_snr[on_ring]))
     # Adjacent bands establish whether the candidate is locally ring-enhanced,
     # rather than a smooth foreground-model residual at all radii.
@@ -160,7 +155,12 @@ def _annulus_measurement(
         | (np.abs(elliptical_radius - (semi_major_radius_px + gap)) <= width_px)
     )
     median_off = float(np.median(residual_snr[off_ring])) if np.any(off_ring) else 0.0
-    return coverage, longest, median_on, median_on - median_off, on_ring
+    # This is a descriptive comparison with the *measured* adjacent annuli,
+    # not a fixed S/N threshold. It is never used as an acceptance decision.
+    above_local_background = available & (bin_values > median_off)
+    fraction = float(np.count_nonzero(above_local_background) / np.count_nonzero(available))
+    longest = float(_longest_circular_run(above_local_background) * 360.0 / angle_bins)
+    return fraction, longest, median_on, median_on - median_off, on_ring
 
 
 def posterior_ring_candidates(
@@ -212,12 +212,11 @@ def posterior_ring_candidates(
                 axis_ratio,
                 position_angle,
                 config.ring_model_width_px,
-                config.ring_model_snr_threshold,
                 config.ring_model_angle_bins,
             )
             if measured is None:
                 continue
-            coverage, longest, median_on, contrast, on_ring = measured
+            fraction, longest, median_on, contrast, on_ring = measured
             proposal_sources = [source]
             if any(
                 abs(np.hypot(item.x - candidate_x, item.y - candidate_y) - radius)
@@ -233,28 +232,23 @@ def posterior_ring_candidates(
                     axis_ratio=axis_ratio,
                     position_angle_deg=position_angle,
                     width_px=config.ring_model_width_px,
-                    snr_threshold=config.ring_model_snr_threshold,
-                    positive_coverage_fraction=coverage,
-                    longest_contiguous_coverage_deg=longest,
+                    above_local_background_fraction=fraction,
+                    longest_above_local_background_deg=longest,
                     median_on_ring_snr=median_on,
                     on_minus_off_ring_snr=contrast,
-                    passes_initial_screen=(
-                        coverage >= config.ring_model_min_coverage and contrast > 0.0
-                    ),
                     proposal_sources=proposal_sources,
                     on_ring_mask=on_ring,
                 )
             )
 
-    # Keep spatially distinct high-scoring templates.  A positive local
-    # contrast is deliberately only a ranking term; it is not a lens decision.
+    # Keep spatially distinct templates ordered by their descriptive local
+    # contrast. This selects a manageable audit display, not accepted rings.
     ranked = sorted(
         candidates,
         key=lambda item: (
-            item.passes_initial_screen,
-            item.positive_coverage_fraction,
             item.on_minus_off_ring_snr,
-            item.longest_contiguous_coverage_deg,
+            item.above_local_background_fraction,
+            item.longest_above_local_background_deg,
         ),
         reverse=True,
     )

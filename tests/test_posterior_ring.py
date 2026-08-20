@@ -51,7 +51,6 @@ def test_posterior_ring_search_recovers_low_per_pixel_snr_ring() -> None:
 
     assert candidates
     best = candidates[0]
-    assert best.passes_initial_screen
     assert abs(best.semi_major_radius_px - 12.0) <= 1.0
-    assert best.positive_coverage_fraction >= 0.80
+    assert best.above_local_background_fraction > 0.0
     assert best.on_minus_off_ring_snr > 0.0

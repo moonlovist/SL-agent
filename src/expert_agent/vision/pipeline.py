@@ -293,11 +293,10 @@ class VisionPipeline:
                 ("semi_major_radius", candidate.semi_major_radius_px, "px", "ring_template_grid"),
                 ("axis_ratio", candidate.axis_ratio, None, "ring_template_grid"),
                 ("position_angle", candidate.position_angle_deg, "deg", "ring_template_grid"),
-                ("positive_coverage_fraction", candidate.positive_coverage_fraction, None, "annular_snr_sampling"),
-                ("longest_contiguous_coverage", candidate.longest_contiguous_coverage_deg, "deg", "annular_snr_sampling"),
+                ("above_local_background_fraction", candidate.above_local_background_fraction, None, "adjacent_annulus_comparison"),
+                ("longest_above_local_background", candidate.longest_above_local_background_deg, "deg", "adjacent_annulus_comparison"),
                 ("median_on_ring_snr", candidate.median_on_ring_snr, None, "annular_snr_sampling"),
                 ("on_minus_off_ring_snr", candidate.on_minus_off_ring_snr, None, "adjacent_annulus_comparison"),
-                ("passes_initial_screen", candidate.passes_initial_screen, None, "posterior_ring_screen"),
             ]
             measurement_ids: list[str] = []
             for kind, value, unit, method in entries:
@@ -309,7 +308,7 @@ class VisionPipeline:
                         kind=f"ring_{kind}",
                         value=value,
                         unit=unit,
-                        reliability=0.45 if kind not in {"passes_initial_screen", "positive_coverage_fraction"} else 0.55,
+                        reliability=0.45,
                         method=method,
                         description=(
                             f"{kind.replace('_', ' ')} measured for posterior {candidate_id}; "
@@ -317,12 +316,10 @@ class VisionPipeline:
                         ),
                         structure_id=candidate_id,
                         correlation_group="posterior_ring_model",
-                        flags=["not_a_lens_decision", "thresholds_not_calibrated"],
+                        flags=["not_a_lens_decision", "descriptive_template_measurement"],
                     )
                 )
-            flags = ["not_a_lens_decision", "thresholds_not_calibrated"]
-            if not candidate.passes_initial_screen:
-                flags.append("below_initial_ring_screen")
+            flags = ["not_a_lens_decision", "descriptive_template_measurement"]
             if candidate.axis_ratio < 0.999:
                 flags.append("elliptical_template")
             ring_candidates.append(
@@ -333,12 +330,10 @@ class VisionPipeline:
                     axis_ratio=candidate.axis_ratio,
                     position_angle_deg=candidate.position_angle_deg,
                     width_px=candidate.width_px,
-                    snr_threshold=candidate.snr_threshold,
-                    positive_coverage_fraction=candidate.positive_coverage_fraction,
-                    longest_contiguous_coverage_deg=candidate.longest_contiguous_coverage_deg,
+                    above_local_background_fraction=candidate.above_local_background_fraction,
+                    longest_above_local_background_deg=candidate.longest_above_local_background_deg,
                     median_on_ring_snr=candidate.median_on_ring_snr,
                     on_minus_off_ring_snr=candidate.on_minus_off_ring_snr,
-                    passes_initial_screen=candidate.passes_initial_screen,
                     proposal_sources=candidate.proposal_sources,
                     measurement_ids=measurement_ids,
                     flags=flags,
@@ -633,13 +628,11 @@ class VisionPipeline:
         flags = list(prep.flags)
         if not structures:
             flags.append("no_significant_annular_structure")
-        if not any(item.passes_initial_screen for item in ring_candidates):
-            flags.append("no_ring_template_passed_initial_screen")
         limitations = [
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
-            "Posterior ring-template thresholds are exploratory measurements, not calibrated strong-lens criteria.",
+            "Posterior ring templates are descriptive measurements only; they contain no calibrated acceptance threshold or lens criterion.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
             limitations.append(

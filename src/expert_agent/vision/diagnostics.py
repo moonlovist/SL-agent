@@ -368,7 +368,7 @@ def write_posterior_ring_detection(
     for index, candidate in enumerate(ring_candidates, start=1):
         local_x = candidate.center_x - (prep.nucleus_yx[1] - half)
         local_y = candidate.center_y - (prep.nucleus_yx[0] - half)
-        color = "lime" if candidate.passes_initial_screen else "orange"
+        color = "deepskyblue"
         for axis in axes:
             axis.add_patch(
                 PlotEllipse(
@@ -378,11 +378,11 @@ def write_posterior_ring_detection(
                     angle=candidate.position_angle_deg,
                     fill=False,
                     edgecolor=color,
-                    linewidth=1.1 + 2.0 * candidate.positive_coverage_fraction,
+                    linewidth=1.5,
                 )
             )
             axis.annotate(
-                f"R{index}: cover={candidate.positive_coverage_fraction:.2f}, "
+                f"R{index}: local-bg={candidate.above_local_background_fraction:.2f}, "
                 f"ΔS/N={candidate.on_minus_off_ring_snr:.2f}",
                 (local_x + 2, local_y + 2), color=color, fontsize=7,
             )
@@ -392,7 +392,7 @@ def write_posterior_ring_detection(
     axes[1].set_title("residual S/N")
     figure.suptitle(
         "Posterior circular/elliptical ring templates after SEP\n"
-        "green = passes exploratory coverage screen; orange = retained measurement only; neither is a lens decision"
+        "blue = descriptive measurement template; no pass/fail threshold and no lens decision"
     )
     figure.tight_layout()
     path = output / "vision_posterior_ring_detection.png"

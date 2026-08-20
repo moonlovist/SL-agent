@@ -45,11 +45,10 @@ class ObserverAgent(BaseAgent):
                         "center_xy": list(item.center_xy),
                         "semi_major_radius_px": item.semi_major_radius_px,
                         "axis_ratio": item.axis_ratio,
-                        "positive_coverage_fraction": item.positive_coverage_fraction,
-                        "longest_contiguous_coverage_deg": item.longest_contiguous_coverage_deg,
+                        "above_local_background_fraction": item.above_local_background_fraction,
+                        "longest_above_local_background_deg": item.longest_above_local_background_deg,
                         "median_on_ring_snr": item.median_on_ring_snr,
                         "on_minus_off_ring_snr": item.on_minus_off_ring_snr,
-                        "passes_initial_screen": item.passes_initial_screen,
                         "proposal_sources": item.proposal_sources,
                         "measurement_ids": item.measurement_ids,
                     }
