@@ -26,6 +26,8 @@ class StabilityDetection:
     tangential_misalignment_deg: float | None = None
     radius_arcsec: float | None = None
     sky_position_angle_deg: float | None = None
+    pixels_y: np.ndarray | None = None
+    pixels_x: np.ndarray | None = None
 
 
 @dataclass
@@ -217,23 +219,49 @@ def _recover_segments_on_path(
     route_mask: np.ndarray,
     known_mask: np.ndarray,
 ) -> tuple[list[RecoveredPathSegment], np.ndarray]:
+    """Run SEP inside a geometric band and return only newly found pixels."""
     try:
+        import sep
         from scipy import ndimage
     except ImportError as exc:
-        raise VisionDependencyError("geometry-guided search requires scipy") from exc
+        raise VisionDependencyError("geometry-guided SEP search requires scipy and sep") from exc
     exclusion = ndimage.binary_dilation(known_mask, iterations=1)
-    signal = (
+    yy, xx = np.indices(route_mask.shape)
+    center_radius = np.hypot(
+        xx - float(prep.nucleus_yx[1]), yy - float(prep.nucleus_yx[0])
+    )
+    configured_search_region = (
+        (center_radius >= config.ring_inner_px)
+        & (center_radius <= config.ring_outer_px)
+    )
+    search_mask = (
         route_mask
+        & configured_search_region
         & ~exclusion
         & ~prep.source_mask
-        & np.isfinite(prep.residual_snr)
-        & (prep.residual_snr >= config.structure_snr_low)
     )
-    labels, count = ndimage.label(signal)
+    sep_mask = ~search_mask
+    residual = np.ascontiguousarray(prep.residual, dtype="=f8")
+    error = np.ascontiguousarray(prep.image.rms, dtype="=f8")
+    objects, segmentation = sep.extract(
+        residual,
+        config.sep_detect_sigma,
+        err=error,
+        mask=np.ascontiguousarray(sep_mask),
+        minarea=config.sep_min_area,
+        deblend_nthresh=32,
+        deblend_cont=0.005,
+        segmentation_map=True,
+    )
     recovered: list[RecoveredPathSegment] = []
-    recovered_mask = np.zeros_like(signal)
-    for label in range(1, count + 1):
-        mask = labels == label
+    recovered_mask = np.zeros_like(route_mask, dtype=bool)
+    for index, _ in enumerate(objects, start=1):
+        mask = (
+            (segmentation == index)
+            & search_mask
+            & np.isfinite(prep.residual_snr)
+            & (prep.residual_snr >= config.structure_snr_low)
+        )
         if int(mask.sum()) < config.snr_min_area:
             continue
         ys, xs = np.where(mask)
@@ -295,6 +323,7 @@ def geometric_path_search(
             )
 
     psf_width = _psf_half_width_px(prep)
+    seeded_rows: list[tuple[float, int, float, float, float, float, float]] = []
     if segments:
         proposals: list[tuple[float, int, float, float, float, float, float]] = []
         for seed_index, segment in enumerate(segments):
@@ -307,7 +336,6 @@ def geometric_path_search(
                 radius = float(np.median(seed_radius))
                 if not (config.ring_inner_px < radius < config.ring_outer_px):
                     continue
-                scatter = float(1.4826 * np.median(np.abs(seed_radius - radius)))
                 fit_error = float(
                     np.median(np.abs(seed_radius - radius))
                     / max(config.path_min_half_width_px, psf_width, 1e-6)
@@ -315,51 +343,59 @@ def geometric_path_search(
                 proposals.append((fit_error, seed_index, candidate_x, candidate_y, axis_ratio, position_angle, radius))
         proposals.sort(key=lambda item: item[0])
         used_seeds: set[int] = set()
-        selected = []
+        seeded_limit = max(1, config.path_max_candidates // 2)
         for proposal in proposals:
             if proposal[1] in used_seeds:
                 continue
-            selected.append(proposal)
+            seeded_rows.append(proposal)
             used_seeds.add(proposal[1])
-            if len(selected) >= config.path_max_candidates:
+            if len(seeded_rows) >= seeded_limit:
                 break
-        proposal_rows = [("arc_seeded", row) for row in selected]
-    else:
-        proposal_rows = []
-        radii = np.arange(
-            np.ceil(config.ring_inner_px + config.path_min_half_width_px),
-            np.floor(config.ring_outer_px - config.path_min_half_width_px) + 1,
-            1.0,
-        )
-        fallback: list[tuple[float, tuple[float, int, float, float, float, float, float]]] = []
-        for candidate_x, candidate_y, axis_ratio, position_angle in geometries:
-            for radius in radii:
-                measured = _annulus_measurement(
-                    prep.residual_snr, prep.source_mask, yy, xx, candidate_x, candidate_y,
-                    float(radius), axis_ratio, position_angle,
-                    max(config.path_min_half_width_px, psf_width), config.path_angle_bins,
-                )
-                if measured is None:
-                    continue
-                _, _, _, contrast, _ = measured
-                row = (0.0, -1, candidate_x, candidate_y, axis_ratio, position_angle, float(radius))
-                fallback.append((contrast, row))
-        fallback.sort(key=lambda item: item[0], reverse=True)
-        distinct_fallback: list[tuple[float, int, float, float, float, float, float]] = []
-        for _, row in fallback:
-            _, _, row_x, row_y, row_q, row_pa, row_radius = row
-            duplicate = any(
-                np.hypot(row_x - old[2], row_y - old[3]) < 1.0
-                and abs(row_radius - old[6]) < max(1.0, config.path_min_half_width_px)
-                and abs(row_q - old[4]) < 0.06
-                and abs(((row_pa - old[5] + 90.0) % 180.0) - 90.0) < 15.0
-                for old in distinct_fallback
+
+    # Centre-based fallback proposals are always retained alongside seeded
+    # routes. A stable but unrelated SEP island must not prevent recovery of a
+    # low-surface-brightness ring that SEP missed globally.
+    radii = np.arange(
+        np.ceil(config.ring_inner_px + config.path_min_half_width_px),
+        np.floor(config.ring_outer_px - config.path_min_half_width_px) + 1,
+        1.0,
+    )
+    fallback: list[tuple[float, tuple[float, int, float, float, float, float, float]]] = []
+    for candidate_x, candidate_y, axis_ratio, position_angle in geometries:
+        for radius in radii:
+            measured = _annulus_measurement(
+                prep.residual_snr, prep.source_mask, yy, xx, candidate_x, candidate_y,
+                float(radius), axis_ratio, position_angle,
+                max(config.path_min_half_width_px, psf_width), config.path_angle_bins,
             )
-            if not duplicate:
-                distinct_fallback.append(row)
-            if len(distinct_fallback) >= config.path_max_candidates:
-                break
-        proposal_rows = [("center_fallback", row) for row in distinct_fallback]
+            if measured is None:
+                continue
+            _, _, _, contrast, _ = measured
+            row = (0.0, -1, candidate_x, candidate_y, axis_ratio, position_angle, float(radius))
+            fallback.append((contrast, row))
+    fallback.sort(key=lambda item: item[0], reverse=True)
+    distinct_fallback: list[tuple[float, int, float, float, float, float, float]] = []
+    fallback_limit = max(0, config.path_max_candidates - len(seeded_rows))
+    for _, row in fallback:
+        if fallback_limit <= 0:
+            break
+        _, _, row_x, row_y, row_q, row_pa, row_radius = row
+        comparison_rows = seeded_rows + distinct_fallback
+        duplicate = any(
+            np.hypot(row_x - old[2], row_y - old[3]) < 1.0
+            and abs(row_radius - old[6]) < max(1.0, config.path_min_half_width_px)
+            and abs(row_q - old[4]) < 0.06
+            and abs(((row_pa - old[5] + 90.0) % 180.0) - 90.0) < 15.0
+            for old in comparison_rows
+        )
+        if not duplicate:
+            distinct_fallback.append(row)
+        if len(distinct_fallback) >= fallback_limit:
+            break
+    proposal_rows = [
+        *[("arc_seeded", row) for row in seeded_rows],
+        *[("center_fallback", row) for row in distinct_fallback],
+    ]
 
     for mode, row in proposal_rows:
         fit_error, seed_index, candidate_x, candidate_y, axis_ratio, position_angle, radius = row
@@ -537,31 +573,40 @@ def sep_consensus(
 ) -> list[StabilityDetection]:
     try:
         import sep
+        from scipy import ndimage
     except ImportError as exc:
-        raise VisionDependencyError("SEP consensus requires sep") from exc
+        raise VisionDependencyError("SEP consensus requires scipy and sep") from exc
     sep.set_sub_object_limit(100000)
     _, _, _, _, ring = _ring_geometry(prep, config)
     residual = np.ascontiguousarray(
         np.where(prep.source_mask, 0.0, prep.residual), dtype="=f8"
     )
     error = np.ascontiguousarray(prep.image.rms, dtype="=f8")
-    runs: list[list[dict[str, float]]] = []
+    clusters: list[dict[str, object]] = []
+    run_index = 0
     for nthresh in config.sep_nthresh:
         for deblend_cont in config.sep_deblend_cont:
-            objects = sep.extract(
+            objects, segmentation = sep.extract(
                 residual,
                 config.sep_detect_sigma,
                 err=error,
                 minarea=config.sep_min_area,
                 deblend_nthresh=nthresh,
                 deblend_cont=deblend_cont,
+                segmentation_map=True,
             )
-            detections = []
-            for item in objects:
+            for object_index, item in enumerate(objects, start=1):
                 x, y = float(item["x"]), float(item["y"])
                 ix = min(max(int(round(x)), 0), ring.shape[1] - 1)
                 iy = min(max(int(round(y)), 0), ring.shape[0] - 1)
                 if not ring[iy, ix]:
+                    continue
+                object_mask = (
+                    (segmentation == object_index)
+                    & ring
+                    & ~prep.source_mask
+                )
+                if not np.any(object_mask):
                     continue
                 radius_arcsec, sky_pa = sky_separation_and_pa(
                     prep.image,
@@ -582,23 +627,45 @@ def sep_consensus(
                     misalignment = float(
                         abs((np.degrees(item["theta"]) - (radial_angle + 90) + 90) % 180 - 90)
                     )
-                detections.append(
-                    {
-                        "x": x,
-                        "y": y,
-                        "axis_ratio": float(item["a"] / max(item["b"], 1e-9)),
-                        "misalignment": misalignment,
-                        "radius_arcsec": radius_arcsec,
-                        "sky_pa": sky_pa,
-                    }
-                )
-            runs.append(detections)
-    clusters = _cluster_detections(runs, config.cluster_distance_px)
-    total_runs = len(runs)
+                sample = {
+                    "x": x,
+                    "y": y,
+                    "axis_ratio": float(item["a"] / max(item["b"], 1e-9)),
+                    "misalignment": misalignment,
+                }
+                eligible: list[tuple[int, dict[str, object]]] = []
+                for cluster in clusters:
+                    cluster_mask = np.asarray(cluster["mask"], dtype=bool)
+                    overlap = int(
+                        np.count_nonzero(
+                            ndimage.binary_dilation(cluster_mask, iterations=1)
+                            & object_mask
+                        )
+                    )
+                    if overlap > 0:
+                        eligible.append((overlap, cluster))
+                if eligible:
+                    cluster = max(eligible, key=lambda value: value[0])[1]
+                    cluster["mask"] = np.asarray(cluster["mask"], dtype=bool) | object_mask
+                    cluster["runs"].add(run_index)
+                    cluster["samples"].append(sample)
+                else:
+                    clusters.append(
+                        {
+                            "mask": object_mask.copy(),
+                            "runs": {run_index},
+                            "samples": [sample],
+                        }
+                    )
+            run_index += 1
+    total_runs = run_index
     results = []
     for cluster in clusters:
         samples = cluster["samples"]
-        x, y = float(cluster["x"]), float(cluster["y"])
+        cluster_mask = np.asarray(cluster["mask"], dtype=bool)
+        pixels_y, pixels_x = np.where(cluster_mask)
+        x = float(np.mean([item["x"] for item in samples]))
+        y = float(np.mean([item["y"] for item in samples]))
         radius_arcsec, sky_pa = sky_separation_and_pa(
             prep.image,
             (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
@@ -618,9 +685,101 @@ def sep_consensus(
                 ),
                 radius_arcsec=radius_arcsec,
                 sky_position_angle_deg=sky_pa,
+                pixels_y=pixels_y,
+                pixels_x=pixels_x,
             )
         )
     return sorted(results, key=lambda item: item.survival, reverse=True)
+
+
+def consensus_residual_structures(
+    prep: PreprocessedImage,
+    config: VisionConfig,
+    detections: list[StabilityDetection],
+) -> tuple[list[ResidualStructure], np.ndarray, np.ndarray, np.ndarray]:
+    """Create internal geometry seeds from exact multi-run SEP pixel unions.
+
+    These seeds are not formal Observation structures. They must pass through
+    the geometry/model chain before any downstream exposure.
+    """
+    _, _, radius, _, ring = _ring_geometry(prep, config)
+    segmentation = np.zeros(prep.image.data.shape, dtype=np.int32)
+    footprint = np.zeros(prep.image.data.shape, dtype=bool)
+    seed_mask = np.zeros(prep.image.data.shape, dtype=bool)
+    segments: list[ResidualStructure] = []
+    for raw_index, detection in enumerate(detections, start=1):
+        if detection.pixels_y is None or detection.pixels_x is None:
+            continue
+        raw_mask = np.zeros(prep.image.data.shape, dtype=bool)
+        raw_mask[detection.pixels_y, detection.pixels_x] = True
+        footprint |= raw_mask
+        segmentation[raw_mask] = raw_index
+        if detection.survival < config.sep_min_survival:
+            continue
+        structure_pixels = (
+            raw_mask
+            & ring
+            & ~prep.source_mask
+            & np.isfinite(prep.residual_snr)
+            & (prep.residual_snr >= config.structure_snr_low)
+        )
+        if int(structure_pixels.sum()) < config.snr_min_area:
+            continue
+        ys, xs = np.where(structure_pixels)
+        flux = float(prep.residual[structure_pixels].sum())
+        noise = float(np.sqrt(np.square(prep.image.rms[structure_pixels]).sum()))
+        centroid_x, centroid_y = float(xs.mean()), float(ys.mean())
+        centroid_ra, centroid_dec = pixel_to_sky(
+            prep.image, centroid_x, centroid_y
+        )
+        radius_arcsec, centroid_sky_pa = sky_separation_and_pa(
+            prep.image,
+            (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+            (centroid_x, centroid_y),
+        )
+        angles = (
+            np.degrees(
+                np.arctan2(
+                    -(xs - prep.nucleus_yx[1]),
+                    -(ys - prep.nucleus_yx[0]),
+                )
+            )
+            + 360.0
+        ) % 360.0
+        inner_connection_region = radius <= (config.ring_inner_px + 1.0)
+        inner_connection_fraction = float(
+            np.count_nonzero(raw_mask & inner_connection_region)
+            / max(np.count_nonzero(raw_mask), 1)
+        )
+        seed_mask |= structure_pixels
+        segments.append(
+            ResidualStructure(
+                label=raw_index,
+                x=centroid_x,
+                y=centroid_y,
+                pixel_count=int(structure_pixels.sum()),
+                flux=flux,
+                snr=flux / noise if noise > 0 else 0.0,
+                median_radius_px=float(np.median(radius[structure_pixels])),
+                position_angle_deg=position_angle(
+                    centroid_x, centroid_y, prep.nucleus_yx
+                ),
+                angular_extent_deg=circular_span(angles),
+                axis_ratio=float(detection.axis_ratio or 1.0),
+                tangential_misalignment_deg=float(
+                    detection.tangential_misalignment_deg or 0.0
+                ),
+                inner_connection_fraction=inner_connection_fraction,
+                connects_to_inner_region=inner_connection_fraction > 0.0,
+                pixels_y=ys,
+                pixels_x=xs,
+                centroid_ra_deg=centroid_ra,
+                centroid_dec_deg=centroid_dec,
+                radius_arcsec=radius_arcsec,
+                sky_position_angle_deg=centroid_sky_pa,
+            )
+        )
+    return segments, segmentation, footprint, seed_mask
 
 
 def extract_residual_structures(

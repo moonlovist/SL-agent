@@ -3,7 +3,11 @@ from pathlib import Path
 import numpy as np
 
 from expert_agent.core.config import VisionConfig
-from expert_agent.vision.detectors import ResidualStructure, geometric_path_search
+from expert_agent.vision.detectors import (
+    ResidualStructure,
+    geometric_path_search,
+    sep_consensus,
+)
 from expert_agent.vision.preprocess import ImageData, PreprocessedImage
 
 
@@ -106,3 +110,95 @@ def test_center_fallback_can_recover_ring_pixels_without_a_seed() -> None:
     assert not candidates[0].seed_indices
     assert candidates[0].recovered_segments
     assert abs(candidates[0].semi_major_radius_px - 12.0) <= 1.0
+
+
+def test_sep_consensus_preserves_exact_detected_pixel_union() -> None:
+    residual_snr = np.zeros((61, 61), dtype=float)
+    residual_snr[29:32, 41:44] = 8.0
+    prep = _prep_from_residual_snr(residual_snr)
+    config = VisionConfig(
+        ring_inner_px=4.0,
+        ring_outer_px=20.0,
+        sep_nthresh=(16, 32),
+        sep_deblend_cont=(0.01, 0.001),
+        sep_detect_sigma=2.0,
+        sep_min_area=5,
+        sep_min_survival=2,
+    )
+
+    detections = sep_consensus(prep, config)
+
+    assert detections
+    detection = detections[0]
+    assert detection.pixels_y is not None
+    assert detection.pixels_x is not None
+    exact_pixels = set(zip(detection.pixels_y.tolist(), detection.pixels_x.tolist()))
+    assert (30, 42) in exact_pixels
+    assert (30, 18) not in exact_pixels
+    assert detection.survival == detection.total_runs == 4
+
+
+def test_center_fallback_remains_when_an_unrelated_sep_seed_exists() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    ring = np.abs(radius - 12.0) <= 1.0
+    residual_snr = np.zeros((size, size), dtype=float)
+    residual_snr[ring] = 3.0
+    prep = _prep_from_residual_snr(residual_snr)
+    unrelated_mask = np.zeros_like(ring)
+    unrelated_mask[20:23, 30:33] = True
+    seed = _seed_from_mask(unrelated_mask, prep)
+    config = VisionConfig(
+        ring_inner_px=4.0,
+        ring_outer_px=20.0,
+        path_center_offset_px=0.0,
+        path_center_steps=1,
+        path_axis_ratios=(1.0,),
+        path_position_angles_deg=(0.0,),
+        path_max_candidates=3,
+    )
+
+    candidates = geometric_path_search(prep, config, [seed])
+
+    assert any(candidate.mode == "arc_seeded" for candidate in candidates)
+    fallback = [candidate for candidate in candidates if candidate.mode == "center_fallback"]
+    assert fallback
+    assert any(
+        abs(candidate.semi_major_radius_px - 12.0) <= 1.0
+        and candidate.recovered_segments
+        for candidate in fallback
+    )
+
+
+def test_path_recovery_respects_configured_inner_search_boundary() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    valid_arc = (np.abs(radius - 8.0) <= 1.0) & (xx < 30)
+    central_residual = radius <= 2.5
+    residual_snr = np.zeros((size, size), dtype=float)
+    residual_snr[valid_arc] = 4.0
+    residual_snr[central_residual] = 10.0
+    prep = _prep_from_residual_snr(residual_snr)
+    config = VisionConfig(
+        ring_inner_px=4.0,
+        ring_outer_px=20.0,
+        path_center_offset_px=0.0,
+        path_center_steps=1,
+        path_axis_ratios=(1.0,),
+        path_position_angles_deg=(0.0,),
+        path_max_candidates=1,
+    )
+
+    candidates = geometric_path_search(prep, config, [])
+
+    assert candidates
+    recovered_pixels = [
+        (int(y), int(x))
+        for candidate in candidates
+        for segment in candidate.recovered_segments
+        for y, x in zip(segment.pixels_y, segment.pixels_x)
+    ]
+    assert recovered_pixels
+    assert all(np.hypot(x - 30.0, y - 30.0) >= 4.0 for y, x in recovered_pixels)

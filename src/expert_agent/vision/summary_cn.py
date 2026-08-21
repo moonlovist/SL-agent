@@ -36,6 +36,9 @@ def _translate_limitation(text: str) -> str:
         "No validated celestial WCS/pixel scale is available; angular measurements remain in pixel geometry.": "没有可用的天球 WCS 或像素尺度，因此角距离仍只能使用像素表示。",
         "No PSF image is present in the selected band; PSF-specific artifact rejection is unavailable.": "所选波段没有 PSF 图像，因此不能进行 PSF 专项伪影排除。",
         "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented.": "FITS中存在PSF图像并已保存，但当前尚未实现结合PSF卷积的前景光建模。",
+        "Raw SEP detections remain trace-only; only geometry-chain candidates are exposed, and none are promoted to scored structures before calibration.": "原始 SEP 检测只用于过程追溯；程序只对外记录经过几何链整理的候选，并且在完成标定审计前不会把任何候选送入当前评分。",
+        "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.": "几何路径只负责限制 SEP 再次搜索的位置；路径上没有亮像素的部分既不算环，也不能据此反对透镜解释。",
+        "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution.": "输入中有 PSF 图像，且审计用的比较模型使用了它；但当前主检测通道的前景减除尚未使用 PSF 卷积。",
     }
     return translations.get(text, text)
 
@@ -61,7 +64,7 @@ def _quick_summary(document: ObservationDocument) -> str:
         f"数据可用于视觉测量，程序在中心测得一个{shape}的亮度集中结构；{model}。"
     )
     if not document.structures:
-        structure_text = "减除中心光后，没有结构进入最终测量列表。"
+        structure_text = "减除中心光后，没有候选进入当前后端评分使用的正式结构列表。"
     elif len(document.structures) == 1:
         item = document.structures[0]
         structure_text = (
@@ -84,6 +87,10 @@ def _quick_summary(document: ObservationDocument) -> str:
     return (
         opening
         + structure_text
+        + (
+            f"视觉链另外保留了 {len(document.model_candidates)} 个待审计候选。"
+            if document.model_candidates else "视觉链没有保留待审计候选。"
+        )
         + "这些是视觉测量结果，不等同于透镜弧或多重像；当前摘要不判断该对象是否为强引力透镜。"
     )
 
@@ -195,7 +202,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 f"- 第二种PSF-MGE比较模型是否成功：{_yes_no(model_comparison.comparison_success)}",
                 f"- 当前模型残差RMS：{_value(model_comparison.primary_residual_robust_rms, 6)}",
                 f"- PSF-MGE残差RMS：{_value(model_comparison.comparison_residual_robust_rms, 6)}",
-                f"- 原测量结构像素换一种擦法后仍超过门槛的比例：{_value(model_comparison.measured_structure_pixel_survival_fraction, 3)}",
+                f"- 模型链候选像素换一种擦法后仍超过同一S/N门槛的比例：{_value(model_comparison.measured_structure_pixel_survival_fraction, 3)}",
                 f"- 两种残差在搜索环内的相关程度：{_value(model_comparison.residual_correlation, 3)}",
                 "- 重要：第二种模型当前只用于暴露模型敏感性，没有参与结构检测或最终判断。",
             ]
@@ -217,10 +224,10 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
             f"- 残差稳健 RMS：{document.data_quality.residual_robust_rms:.6g}",
             f"- 质量标记：{', '.join(document.data_quality.flags) or '无'}",
             "",
-            "## 3. 检测到的残差结构",
+            "## 3. 当前评分使用的正式结构",
             "",
-            f"程序在配置的中心环带内检测到 **{len(document.structures)}** 个满足当前筛选条件的结构。",
-            "这些结构是测量对象，不等同于透镜弧或多重像。",
+            f"当前共有 **{len(document.structures)}** 个结构进入后端证据评分。",
+            "v0.10 中未经标定的模型链候选不会自动进入这里。",
             "",
         ]
     )
@@ -230,9 +237,41 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 _structure_section(structure, threshold_runs, sep_runs)
             )
     else:
-        lines.extend(["没有结构进入最终测量列表。", ""])
+        lines.extend(["没有候选进入当前评分使用的正式结构列表。", ""])
 
-    lines.extend(["## 3.1 几何路径引导搜索", ""])
+    lines.extend(["## 3.1 SEP→几何模型链候选", ""])
+    lines.extend(
+        [
+            "SEP 先在全图提出原始线索；圆或椭圆只规定下一次应该到哪里继续找；程序随后把路线外像素遮住，在路线内再次运行 SEP。",
+            "下列候选仍需要前景减除、PSF、稳定性和人工标注等审计，本版不会用它们改变 A/B/C 结果。",
+            "",
+        ]
+    )
+    if document.model_candidates:
+        for item in document.model_candidates:
+            origin = "全图SEP稳定线索" if item.origin == "sep_seed" else "几何路线内SEP新检出"
+            status = {
+                "geometry_linked": "已与几何路线关联",
+                "geometry_recovered": "沿几何路线恢复",
+                "unexplained_residual": "尚未得到几何支持的残差线索",
+            }[item.status]
+            lines.extend(
+                [
+                    f"### {item.id}",
+                    "",
+                    f"- 来源：{origin}；状态：{status}",
+                    f"- 中心：({_value(item.centroid_xy[0])}, {_value(item.centroid_xy[1])}) 像素；距中心：{_value(item.radius_px)} 像素",
+                    f"- 像素数：{item.pixel_count}；累计S/N：{_value(item.integrated_snr)}；环向跨度：{_value(item.angular_extent_deg)}°",
+                    f"- 关联路线：{', '.join(item.path_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}",
+                    f"- 换用PSF-MGE比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
+                    "- 解释限制：这是待审计的结构候选，不是弧、环、多重像或透镜标签。",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["模型链没有保留待审计候选。", ""])
+
+    lines.extend(["## 3.2 几何路径引导搜索", ""])
     if document.geometric_paths:
         lines.extend(
             [
@@ -245,22 +284,15 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 [
                     f"### {item.id}",
                     "",
-                    f"- 启动方式：{item.mode}；种子结构：{', '.join(item.seed_structure_ids) or '无（中心后备）'}",
+                    f"- 启动方式：{item.mode}；种子候选：{', '.join(item.seed_candidate_ids) or '无（中心后备）'}",
                     f"- 路线中心：({_value(item.center_xy[0])}, {_value(item.center_xy[1])}) 像素；半长轴：{_value(item.semi_major_radius_px)} 像素；轴比：{_value(item.axis_ratio, 3)}",
                     f"- 搜索半宽：{_value(item.half_width_px)} 像素；种子拟合离散：{_value(item.fit_scatter_px)} 像素",
                     f"- 路线中位 S/N：{_value(item.median_on_path_snr, 3)}；相对邻近路线的 S/N 差：{_value(item.on_minus_off_path_snr, 3)}",
-                    f"- 已有关联结构：{', '.join(item.linked_structure_ids) or '无'}；沿路线新找到的独立像素段：{len(item.recovered_segments)} 个",
-                    "- 路线只提供搜索提示；只有新找到的像素段是实际观察结果。",
+                    f"- 已关联候选：{', '.join(item.linked_candidate_ids) or '无'}；沿路线新找到的候选：{', '.join(item.recovered_candidate_ids) or '无'}",
+                    "- 路线只提供搜索提示；路线内SEP真正检出的像素才会成为待审计候选。",
                     "",
                 ]
             )
-            for recovered in item.recovered_segments:
-                lines.append(
-                    f"  - {recovered.id}：中心({_value(recovered.centroid_xy[0])}, {_value(recovered.centroid_xy[1])})，"
-                    f"{recovered.pixel_count}像素，累计S/N={_value(recovered.integrated_snr, 2)}，角向跨度={_value(recovered.angular_extent_deg)}°"
-                )
-            if item.recovered_segments:
-                lines.append("")
     else:
         lines.extend(["没有生成可用的几何搜索路线。", ""])
 

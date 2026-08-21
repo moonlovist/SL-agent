@@ -33,11 +33,21 @@ class ReportWriter(BaseAgent):
             )
             for item in document.structures
         ] or ["- No significant annular structure was measured."]
+        candidate_lines = [
+            (
+                f"- {item.id}: origin={item.origin}, status={item.status}, "
+                f"radius={item.radius_px:.2f} px, pixels={item.pixel_count}, "
+                f"integrated S/N={item.integrated_snr:.1f}, paths={','.join(item.path_ids) or 'none'}; "
+                "pending audit and excluded from current scoring"
+            )
+            for item in document.model_candidates
+        ] or ["- No model-chain candidate was retained."]
         path_lines = [
             (
-                f"- {item.id}: mode={item.mode}, seeds={','.join(item.seed_structure_ids) or 'none'}, "
-                f"linked={','.join(item.linked_structure_ids) or 'none'}, "
-                f"new segments={len(item.recovered_segments)}; the path is a search route, not a ring claim"
+                f"- {item.id}: mode={item.mode}, seeds={','.join(item.seed_candidate_ids) or 'none'}, "
+                f"linked={','.join(item.linked_candidate_ids) or 'none'}, "
+                f"recovered candidates={','.join(item.recovered_candidate_ids) or 'none'}; "
+                "the path is a search route, not a ring claim"
             )
             for item in document.geometric_paths
         ] or ["- No geometry-guided search path was retained."]
@@ -99,7 +109,7 @@ class ReportWriter(BaseAgent):
             "overview_diagnostic": "overview diagnostic",
             "snr_threshold_process": "S/N threshold process",
             "sep_consensus_diagnostic": "SEP consensus process",
-            "residual_structure_extraction_diagnostic": "unclassified residual-structure extraction process",
+            "model_chain_diagnostic": "SEP-to-geometry model-chain process",
             "expert_views_diagnostic": "Euclid-style VIS expert views",
             "foreground_model_comparison_diagnostic": "foreground-subtraction model comparison",
             "geometric_path_search_diagnostic": "geometry-guided missed-structure search",
@@ -134,6 +144,10 @@ class ReportWriter(BaseAgent):
                 "## Structured observations",
                 "",
                 *structure_lines,
+                "",
+                "## Model-chain candidates pending audit",
+                "",
+                *candidate_lines,
                 "",
                 "## Geometry-guided missed-structure search",
                 "",

@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.9.0"
+    pipeline_version: str = "0.10.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -216,12 +216,38 @@ class GeometricPathObservation(StrictModel):
     above_local_background_fraction: float = Field(ge=0.0, le=1.0)
     longest_above_local_background_deg: float = Field(ge=0.0, le=360.0)
     recovered_segments: list[RecoveredPathSegmentObservation] = Field(default_factory=list)
+    seed_candidate_ids: list[str] = Field(default_factory=list)
+    linked_candidate_ids: list[str] = Field(default_factory=list)
+    recovered_candidate_ids: list[str] = Field(default_factory=list)
+    measurement_ids: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
+class ModelCandidateObservation(StrictModel):
+    """A SEP detection after geometry-chain processing, not a lens label."""
+
+    id: str
+    origin: Literal["sep_seed", "path_recovery"]
+    status: Literal["geometry_linked", "geometry_recovered", "unexplained_residual"]
+    raw_detection_ids: list[str] = Field(default_factory=list)
+    path_ids: list[str] = Field(default_factory=list)
+    centroid_xy: tuple[float, float]
+    radius_px: float = Field(ge=0.0)
+    position_angle_deg: float = Field(ge=0.0, lt=360.0)
+    pixel_count: int = Field(gt=0)
+    integrated_snr: float
+    angular_extent_deg: float = Field(ge=0.0, le=360.0)
+    sep_survival_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    foreground_comparison_survival_fraction: float | None = Field(
+        default=None, ge=0.0, le=1.0
+    )
+    near_core: bool
     measurement_ids: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"] = "1.7"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8"] = "1.8"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -237,6 +263,7 @@ class ObservationDocument(StrictModel):
     foreground_model_comparison: ForegroundModelComparisonObservation | None = None
     ring_candidates: list[RingCandidateObservation] = Field(default_factory=list)
     geometric_paths: list[GeometricPathObservation] = Field(default_factory=list)
+    model_candidates: list[ModelCandidateObservation] = Field(default_factory=list)
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

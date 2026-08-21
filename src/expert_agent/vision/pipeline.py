@@ -15,9 +15,9 @@ from ..schemas.observation import (
     ForegroundModelComparisonObservation,
     GeometricPathObservation,
     Measurement,
+    ModelCandidateObservation,
     ObservationDocument,
     Provenance,
-    RecoveredPathSegmentObservation,
     RingCandidateObservation,
     SceneGeometryObservation,
     StructureObservation,
@@ -27,8 +27,9 @@ from .detectors import (
     ResidualStructure,
     StabilityDetection,
     circular_span,
-    extract_residual_structures,
+    consensus_residual_structures,
     geometric_path_search,
+    position_angle,
     sep_consensus,
     threshold_stability,
 )
@@ -36,19 +37,6 @@ from .diagnostics import write_visual_audit_bundle
 from .foreground_models import fit_psf_mge_comparison
 from .preprocess import load_image, preprocess
 from .summary_cn import write_observation_summary_cn
-
-
-def _nearest(
-    segment: ResidualStructure, detections: list[StabilityDetection], max_distance: float = 4.0
-) -> StabilityDetection | None:
-    if not detections:
-        return None
-    ranked = sorted(
-        detections,
-        key=lambda item: np.hypot(item.x - segment.x, item.y - segment.y),
-    )
-    distance = float(np.hypot(ranked[0].x - segment.x, ranked[0].y - segment.y))
-    return ranked[0] if distance <= max_distance else None
 
 
 class VisionPipeline:
@@ -91,12 +79,12 @@ class VisionPipeline:
         prep = preprocess(image, runtime_config)
         threshold_detections, level_map = threshold_stability(prep, runtime_config)
         consensus_detections = sep_consensus(prep, runtime_config)
-        segments, residual_segmentation, footprint, residual_structure_mask = extract_residual_structures(
-            prep, runtime_config
+        segments, residual_segmentation, footprint, sep_seed_mask = consensus_residual_structures(
+            prep, runtime_config, consensus_detections
         )
         geometric_paths_raw = geometric_path_search(prep, runtime_config, segments)
         comparison = fit_psf_mge_comparison(prep)
-        comparison_survival: float | None = None
+        comparison_snr: np.ndarray | None = None
         residual_correlation: float | None = None
         if comparison.success and comparison.residual is not None:
             comparison_snr = np.divide(
@@ -105,14 +93,6 @@ class VisionPipeline:
                 out=np.zeros_like(comparison.residual),
                 where=prep.image.rms > 0,
             )
-            measured_pixels = residual_structure_mask.astype(bool)
-            if measured_pixels.any():
-                comparison_survival = float(
-                    np.mean(
-                        comparison_snr[measured_pixels]
-                        >= runtime_config.structure_snr_low
-                    )
-                )
             yy, xx = np.indices(prep.image.data.shape)
             radius = np.hypot(xx - prep.nucleus_yx[1], yy - prep.nucleus_yx[0])
             annulus = (
@@ -128,9 +108,185 @@ class VisionPipeline:
                 residual_correlation = value if np.isfinite(value) else None
 
         measurements: list[Measurement] = []
+        # Formal structures remain empty until the chained candidates have a
+        # calibrated promotion audit. Raw SEP output is trace data, not a
+        # second Observation evidence stream.
         structures: list[StructureObservation] = []
         ring_candidates: list[RingCandidateObservation] = []  # legacy field; no longer emitted
         geometric_paths: list[GeometricPathObservation] = []
+        model_candidates: list[ModelCandidateObservation] = []
+        model_candidate_masks: dict[str, np.ndarray] = {}
+
+        def comparison_fraction(mask: np.ndarray) -> float | None:
+            if comparison_snr is None or not np.any(mask):
+                return None
+            return float(
+                np.mean(
+                    comparison_snr[mask] >= runtime_config.structure_snr_low
+                )
+            )
+
+        seed_candidate_ids: dict[int, str] = {}
+        path_ids_by_seed: dict[int, list[str]] = {index: [] for index in range(len(segments))}
+        supported_path_ids_by_seed: dict[int, list[str]] = {
+            index: [] for index in range(len(segments))
+        }
+        for path_index, path_candidate in enumerate(geometric_paths_raw, start=1):
+            path_id = f"G{path_index}"
+            for seed_index in path_candidate.linked_structure_indices:
+                path_ids_by_seed.setdefault(seed_index, []).append(path_id)
+                # The path was fitted from the seed, so that fit cannot prove
+                # its own seed. Record geometry support only when the route is
+                # brighter than its adjacent control region and independently
+                # recovers additional pixels.
+                if (
+                    path_candidate.mode == "arc_seeded"
+                    and path_candidate.on_minus_off_path_snr > 0.0
+                    and path_candidate.recovered_segments
+                ):
+                    supported_path_ids_by_seed.setdefault(seed_index, []).append(path_id)
+
+        for seed_index, segment in enumerate(segments):
+            candidate_id = f"C{len(model_candidates) + 1}"
+            seed_candidate_ids[seed_index] = candidate_id
+            raw_detection = (
+                consensus_detections[segment.label - 1]
+                if 0 < segment.label <= len(consensus_detections)
+                else None
+            )
+            sep_fraction = (
+                raw_detection.survival / raw_detection.total_runs
+                if raw_detection is not None and raw_detection.total_runs
+                else None
+            )
+            mask = np.zeros(prep.image.data.shape, dtype=bool)
+            mask[segment.pixels_y, segment.pixels_x] = True
+            path_ids = path_ids_by_seed.get(seed_index, [])
+            status = (
+                "geometry_linked"
+                if supported_path_ids_by_seed.get(seed_index)
+                else "unexplained_residual"
+            )
+            near_core = segment.median_radius_px <= runtime_config.near_core_radius_px
+            model_survival = comparison_fraction(mask)
+            measurement_ids: list[str] = []
+            for kind, value, reliability in [
+                ("integrated_snr", segment.snr, min(0.6, abs(segment.snr) / 20.0)),
+                ("radius", segment.median_radius_px, 0.6),
+                ("sep_survival_fraction", sep_fraction, sep_fraction or 0.0),
+                ("foreground_comparison_survival_fraction", model_survival, 0.55 if model_survival is not None else 0.0),
+            ]:
+                measurement_id = f"M_{candidate_id}_{kind}"
+                measurement_ids.append(measurement_id)
+                measurements.append(
+                    Measurement(
+                        id=measurement_id,
+                        kind=f"model_candidate_{kind}",
+                        value=value,
+                        unit="px" if kind == "radius" else None,
+                        reliability=float(np.clip(reliability, 0.0, 1.0)),
+                        method="sep_to_geometry_model_chain",
+                        description=(
+                            f"{kind.replace('_', ' ')} for {candidate_id}; retained for model-chain audit "
+                            "and not exposed as a scored structure"
+                        ),
+                        structure_id=candidate_id,
+                        correlation_group="model_chain_candidates",
+                        flags=["not_scoring_input", "model_chain_unvalidated"],
+                    )
+                )
+            flags = ["not_scoring_input", "model_chain_unvalidated"]
+            if near_core:
+                flags.append("near_core_subtraction_sensitive")
+            model_candidates.append(
+                ModelCandidateObservation(
+                    id=candidate_id,
+                    origin="sep_seed",
+                    status=status,
+                    raw_detection_ids=[f"R{segment.label}"],
+                    path_ids=path_ids,
+                    centroid_xy=(segment.x, segment.y),
+                    radius_px=segment.median_radius_px,
+                    position_angle_deg=segment.position_angle_deg,
+                    pixel_count=segment.pixel_count,
+                    integrated_snr=segment.snr,
+                    angular_extent_deg=segment.angular_extent_deg,
+                    sep_survival_fraction=sep_fraction,
+                    foreground_comparison_survival_fraction=model_survival,
+                    near_core=near_core,
+                    measurement_ids=measurement_ids,
+                    flags=flags,
+                )
+            )
+            model_candidate_masks[candidate_id] = mask
+
+        recovered_ids_by_path: dict[int, list[str]] = {}
+        for path_index, path_candidate in enumerate(geometric_paths_raw, start=1):
+            path_id = f"G{path_index}"
+            for recovered in path_candidate.recovered_segments:
+                candidate_id = f"C{len(model_candidates) + 1}"
+                recovered_ids_by_path.setdefault(path_index - 1, []).append(candidate_id)
+                mask = np.zeros(prep.image.data.shape, dtype=bool)
+                mask[recovered.pixels_y, recovered.pixels_x] = True
+                dx = recovered.x - prep.nucleus_yx[1]
+                dy = recovered.y - prep.nucleus_yx[0]
+                radius_px = float(np.hypot(dx, dy))
+                angle_deg = position_angle(recovered.x, recovered.y, prep.nucleus_yx)
+                near_core = radius_px <= runtime_config.near_core_radius_px
+                model_survival = comparison_fraction(mask)
+                measurement_ids: list[str] = []
+                for kind, value, reliability in [
+                    ("integrated_snr", recovered.integrated_snr, min(0.55, abs(recovered.integrated_snr) / 20.0)),
+                    ("radius", radius_px, 0.55),
+                    ("foreground_comparison_survival_fraction", model_survival, 0.55 if model_survival is not None else 0.0),
+                ]:
+                    measurement_id = f"M_{candidate_id}_{kind}"
+                    measurement_ids.append(measurement_id)
+                    measurements.append(
+                        Measurement(
+                            id=measurement_id,
+                            kind=f"model_candidate_{kind}",
+                            value=value,
+                            unit="px" if kind == "radius" else None,
+                            reliability=float(np.clip(reliability, 0.0, 1.0)),
+                            method="geometry_masked_sep",
+                            description=(
+                                f"{kind.replace('_', ' ')} for {candidate_id}; detected by SEP inside {path_id} "
+                                "and not yet promoted to a scored structure"
+                            ),
+                            structure_id=candidate_id,
+                            correlation_group="model_chain_candidates",
+                            flags=["not_scoring_input", "model_chain_unvalidated"],
+                        )
+                    )
+                flags = ["not_scoring_input", "model_chain_unvalidated", "geometry_masked_sep"]
+                if near_core:
+                    flags.append("near_core_subtraction_sensitive")
+                model_candidates.append(
+                    ModelCandidateObservation(
+                        id=candidate_id,
+                        origin="path_recovery",
+                        status="geometry_recovered",
+                        path_ids=[path_id],
+                        centroid_xy=(recovered.x, recovered.y),
+                        radius_px=radius_px,
+                        position_angle_deg=angle_deg,
+                        pixel_count=recovered.pixel_count,
+                        integrated_snr=recovered.integrated_snr,
+                        angular_extent_deg=recovered.angular_extent_deg,
+                        foreground_comparison_survival_fraction=model_survival,
+                        near_core=near_core,
+                        measurement_ids=measurement_ids,
+                        flags=flags,
+                    )
+                )
+                model_candidate_masks[candidate_id] = mask
+
+        model_candidate_mask = np.zeros(prep.image.data.shape, dtype=bool)
+        for candidate in model_candidates:
+            if candidate.status != "unexplained_residual":
+                model_candidate_mask |= model_candidate_masks[candidate.id]
+        comparison_survival = comparison_fraction(model_candidate_mask)
         measurements.extend(
             [
                 Measurement(
@@ -149,7 +305,7 @@ class VisionPipeline:
                     value=comparison_survival,
                     reliability=0.65 if comparison_survival is not None else 0.0,
                     method=comparison.method,
-                    description="Fraction of primary measured-structure pixels still above the same S/N threshold under the comparison subtraction",
+                    description="Fraction of model-chain candidate pixels still above the same S/N threshold under the comparison subtraction",
                     correlation_group="foreground_model_comparison",
                     flags=["audit_only", "not_used_for_detection"],
                 ),
@@ -165,131 +321,6 @@ class VisionPipeline:
                 ),
             ]
         )
-        all_angles: list[np.ndarray] = []
-        for index, segment in enumerate(segments, start=1):
-            structure_id = f"S{index}"
-            threshold_match = _nearest(segment, threshold_detections)
-            consensus_match = _nearest(segment, consensus_detections)
-            threshold_fraction = (
-                threshold_match.survival / threshold_match.total_runs
-                if threshold_match
-                else None
-            )
-            consensus_fraction = (
-                consensus_match.survival / consensus_match.total_runs
-                if consensus_match
-                else None
-            )
-            axis_ratio = (
-                consensus_match.axis_ratio
-                if consensus_match and consensus_match.axis_ratio is not None
-                else segment.axis_ratio
-            )
-            misalignment = (
-                consensus_match.tangential_misalignment_deg
-                if consensus_match
-                and consensus_match.tangential_misalignment_deg is not None
-                else segment.tangential_misalignment_deg
-            )
-            base_reliability = min(1.0, max(0.0, abs(segment.snr) / 20.0))
-            entries = [
-                ("integrated_snr", float(segment.snr), None, "residual_structure_pixels", base_reliability),
-                ("radius", float(segment.median_radius_px), "px", "residual_structure_pixels", base_reliability),
-                ("radius_arcsec", segment.radius_arcsec, "arcsec", "wcs_transform", 1.0 if segment.radius_arcsec is not None else 0.0),
-                ("centroid_ra", segment.centroid_ra_deg, "deg", "wcs_transform", 1.0 if segment.centroid_ra_deg is not None else 0.0),
-                ("centroid_dec", segment.centroid_dec_deg, "deg", "wcs_transform", 1.0 if segment.centroid_dec_deg is not None else 0.0),
-                ("sky_position_angle", segment.sky_position_angle_deg, "deg", "wcs_transform", 1.0 if segment.sky_position_angle_deg is not None else 0.0),
-                ("angular_extent", float(segment.angular_extent_deg), "deg", "residual_structure_pixels", base_reliability),
-                ("axis_ratio", float(axis_ratio), None, "sep_consensus", consensus_fraction or 0.4),
-                ("tangential_misalignment", float(misalignment), "deg", "sep_consensus", consensus_fraction or 0.4),
-                (
-                    "threshold_survival_fraction",
-                    threshold_fraction,
-                    None,
-                    "snr_threshold_grid",
-                    threshold_fraction or 0.0,
-                ),
-                (
-                    "sep_survival_fraction",
-                    consensus_fraction,
-                    None,
-                    "sep_parameter_grid",
-                    consensus_fraction or 0.0,
-                ),
-                (
-                    "inner_connection_fraction",
-                    float(segment.inner_connection_fraction),
-                    None,
-                    "residual_component_connectivity",
-                    min(0.7, base_reliability),
-                ),
-            ]
-            measurement_ids = []
-            for kind, value, unit, method, reliability in entries:
-                measurement_id = f"M_{structure_id}_{kind}"
-                measurement_ids.append(measurement_id)
-                measurements.append(
-                    Measurement(
-                        id=measurement_id,
-                        kind=kind,
-                        value=value,
-                        unit=unit,
-                        reliability=float(np.clip(reliability, 0.0, 1.0)),
-                        method=method,
-                        description=f"{kind.replace('_', ' ')} measured for {structure_id}",
-                        structure_id=structure_id,
-                        correlation_group=(
-                            "shared_residual_detection"
-                            if "survival" in kind
-                            else "astrometry"
-                            if method == "wcs_transform"
-                            else "galaxy_connectivity"
-                            if kind == "inner_connection_fraction"
-                            else "residual_morphology"
-                        ),
-                    )
-                )
-            near_core = segment.median_radius_px <= runtime_config.near_core_radius_px
-            flags = ["near_core_subtraction_sensitive"] if near_core else []
-            structures.append(
-                StructureObservation(
-                    id=structure_id,
-                    centroid_xy=(segment.x, segment.y),
-                    radius_px=segment.median_radius_px,
-                    position_angle_deg=segment.position_angle_deg,
-                    centroid_ra_deg=segment.centroid_ra_deg,
-                    centroid_dec_deg=segment.centroid_dec_deg,
-                    radius_arcsec=segment.radius_arcsec,
-                    sky_position_angle_deg=segment.sky_position_angle_deg,
-                    pixel_count=segment.pixel_count,
-                    integrated_flux=segment.flux,
-                    integrated_snr=segment.snr,
-                    median_radius_px=segment.median_radius_px,
-                    angular_extent_deg=segment.angular_extent_deg,
-                    axis_ratio=axis_ratio,
-                    tangential_misalignment_deg=misalignment,
-                    threshold_survival_fraction=threshold_fraction,
-                    sep_survival_fraction=consensus_fraction,
-                    inner_connection_fraction=segment.inner_connection_fraction,
-                    connects_to_inner_region=segment.connects_to_inner_region,
-                    near_core=near_core,
-                    measurement_ids=measurement_ids,
-                    flags=flags,
-                )
-            )
-            yy = segment.pixels_y
-            xx = segment.pixels_x
-            angles = (
-                np.degrees(
-                    np.arctan2(
-                        -(xx - prep.nucleus_yx[1]),
-                        -(yy - prep.nucleus_yx[0]),
-                    )
-                )
-                + 360
-            ) % 360
-            all_angles.append(angles)
-
         for index, candidate in enumerate(geometric_paths_raw, start=1):
             candidate_id = f"G{index}"
             entries = [
@@ -325,18 +356,9 @@ class VisionPipeline:
                         flags=["not_a_lens_decision", "search_route_not_structure"],
                     )
                 )
-            recovered = [
-                RecoveredPathSegmentObservation(
-                    id=f"{candidate_id}N{recovered_index}",
-                    centroid_xy=(item.x, item.y),
-                    pixel_count=item.pixel_count,
-                    integrated_snr=item.integrated_snr,
-                    angular_extent_deg=item.angular_extent_deg,
-                )
-                for recovered_index, item in enumerate(candidate.recovered_segments, start=1)
-            ]
-            seed_ids = [f"S{item + 1}" for item in candidate.seed_indices]
-            linked_ids = [f"S{item + 1}" for item in candidate.linked_structure_indices]
+            seed_ids = [seed_candidate_ids[item] for item in candidate.seed_indices]
+            linked_ids = [seed_candidate_ids[item] for item in candidate.linked_structure_indices]
+            recovered_ids = recovered_ids_by_path.get(index - 1, [])
             flags = ["not_a_lens_decision", "search_route_not_structure", "single_iteration"]
             geometric_paths.append(
                 GeometricPathObservation(
@@ -354,12 +376,16 @@ class VisionPipeline:
                     longest_above_local_background_deg=candidate.longest_above_local_background_deg,
                     median_on_path_snr=candidate.median_on_path_snr,
                     on_minus_off_path_snr=candidate.on_minus_off_path_snr,
-                    recovered_segments=recovered,
+                    recovered_segments=[],
+                    seed_candidate_ids=seed_ids,
+                    linked_candidate_ids=linked_ids,
+                    recovered_candidate_ids=recovered_ids,
                     measurement_ids=measurement_ids,
                     flags=flags,
                 )
             )
 
+        all_angles: list[np.ndarray] = []
         radii = [item.median_radius_px for item in structures]
         common_radius_cv = (
             float(np.std(radii) / max(np.mean(radii), 1e-9)) if len(radii) >= 2 else None
@@ -608,12 +634,18 @@ class VisionPipeline:
                 "initial_segmentation": prep.segmentation,
                 "residual_segmentation": residual_segmentation,
                 "sep_footprint": footprint.astype(np.uint8),
-                "residual_structure_mask": residual_structure_mask.astype(np.uint8),
+                "sep_raw_consensus_segmentation": residual_segmentation,
+                "sep_raw_consensus_footprint": footprint.astype(np.uint8),
+                "sep_geometry_seed_mask": sep_seed_mask.astype(np.uint8),
+                "model_candidate_mask": model_candidate_mask.astype(np.uint8),
+                "residual_structure_mask": np.zeros_like(model_candidate_mask, dtype=np.uint8),
                 # Compatibility alias for v0.5 and earlier analysis notebooks.
-                "arc_mask": residual_structure_mask.astype(np.uint8),
+                "arc_mask": np.zeros_like(model_candidate_mask, dtype=np.uint8),
                 "threshold_level_map": level_map,
                 "nucleus_yx": np.asarray(prep.nucleus_yx),
             }
+            for candidate_id, candidate_mask in model_candidate_masks.items():
+                arrays[f"model_candidate_mask_{candidate_id}"] = candidate_mask.astype(np.uint8)
             for index, candidate in enumerate(geometric_paths_raw, start=1):
                 arrays[f"geometric_path_mask_G{index}"] = candidate.route_mask.astype(np.uint8)
                 arrays[f"geometric_path_recovered_mask_G{index}"] = candidate.recovered_mask.astype(np.uint8)
@@ -625,7 +657,7 @@ class VisionPipeline:
             np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
             diagnostic_path = self._write_diagnostic(
-                prep, residual_structure_mask, segments, runtime_config, output
+                prep, model_candidate_mask, [], runtime_config, output
             )
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
@@ -637,11 +669,16 @@ class VisionPipeline:
                     consensus_detections=consensus_detections,
                     level_map=level_map,
                     footprint=footprint,
-                    residual_structure_mask=residual_structure_mask,
-                    segments=segments,
+                    residual_structure_mask=model_candidate_mask,
+                    segments=[],
                     geometric_paths=geometric_paths_raw,
                     foreground_comparison=comparison,
                     output=output,
+                    candidate_points=[
+                        (candidate.id, candidate.centroid_xy[0], candidate.centroid_xy[1])
+                        for candidate in model_candidates
+                        if candidate.status != "unexplained_residual"
+                    ],
                 )
             )
 
@@ -649,11 +686,14 @@ class VisionPipeline:
         flags = list(prep.flags)
         if not structures:
             flags.append("no_significant_annular_structure")
+        if model_candidates:
+            flags.append("model_chain_candidates_pending_audit")
         limitations = [
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
-            "Geometric paths only guide a local pixel search; unfilled path regions are not treated as rings or missing evidence against lensing.",
+            "Raw SEP detections remain trace-only; only geometry-chain candidates are exposed, and none are promoted to scored structures before calibration.",
+            "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
             limitations.append(
@@ -773,6 +813,7 @@ class VisionPipeline:
             ),
             ring_candidates=ring_candidates,
             geometric_paths=geometric_paths,
+            model_candidates=model_candidates,
             structures=structures,
             measurements=measurements,
             artifacts=artifacts,
@@ -810,7 +851,7 @@ class VisionPipeline:
             f"{prep.image.band}_FLUX input (central crop)",
             "foreground light model",
             "foreground-subtracted residual S/N",
-            "measured residual-structure pixels",
+            "model-chain candidates (not scored)",
         ]
         cmaps = ["gray", "gray", "coolwarm", "gray"]
         origin = "lower" if prep.image.input_format == "fits" else "upper"

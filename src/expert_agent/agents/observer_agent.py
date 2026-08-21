@@ -38,16 +38,20 @@ class ObserverAgent(BaseAgent):
                     else None
                 ),
                 "structure_count": len(document.structures),
+                "model_candidate_count": len(document.model_candidates),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
-                    len(item.recovered_segments) for item in document.geometric_paths
+                    len(item.recovered_candidate_ids) for item in document.geometric_paths
                 ),
+                "model_candidates": [
+                    item.model_dump(mode="json") for item in document.model_candidates
+                ],
                 "geometric_paths": [
                     {
                         "id": item.id,
                         "mode": item.mode,
-                        "seed_structure_ids": item.seed_structure_ids,
-                        "linked_structure_ids": item.linked_structure_ids,
+                        "seed_candidate_ids": item.seed_candidate_ids,
+                        "linked_candidate_ids": item.linked_candidate_ids,
                         "center_xy": list(item.center_xy),
                         "semi_major_radius_px": item.semi_major_radius_px,
                         "axis_ratio": item.axis_ratio,
@@ -57,10 +61,7 @@ class ObserverAgent(BaseAgent):
                         "longest_above_local_background_deg": item.longest_above_local_background_deg,
                         "median_on_path_snr": item.median_on_path_snr,
                         "on_minus_off_path_snr": item.on_minus_off_path_snr,
-                        "recovered_segments": [
-                            recovered.model_dump(mode="json")
-                            for recovered in item.recovered_segments
-                        ],
+                        "recovered_candidate_ids": item.recovered_candidate_ids,
                         "measurement_ids": item.measurement_ids,
                     }
                     for item in document.geometric_paths
@@ -92,9 +93,10 @@ class ObserverAgent(BaseAgent):
             "observation_normalization",
             {
                 "structure_count": len(document.structures),
+                "model_candidate_count": len(document.model_candidates),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
-                    len(item.recovered_segments) for item in document.geometric_paths
+                    len(item.recovered_candidate_ids) for item in document.geometric_paths
                 ),
                 "measurement_count": len(document.measurements),
                 "classification_performed": False,

@@ -275,7 +275,6 @@ def write_sep_consensus(
     output: Path,
 ) -> Path:
     plt = _matplotlib(output)
-    from matplotlib.patches import Ellipse as PlotEllipse
 
     ys, xs, half = _view(prep)
     figure, axis = plt.subplots(figsize=(8, 8))
@@ -283,18 +282,22 @@ def write_sep_consensus(
     vmin, vmax = _display_limits(residual_view)
     axis.imshow(residual_view, origin=_origin(prep), cmap="gray", vmin=vmin, vmax=vmax)
     for detection in detections:
+        if detection.pixels_y is None or detection.pixels_x is None:
+            continue
         local_x = detection.x - (prep.nucleus_yx[1] - half)
         local_y = detection.y - (prep.nucleus_yx[0] - half)
         fraction = detection.survival / max(detection.total_runs, 1)
-        ratio = detection.axis_ratio or 1.0
-        width = 12.0
-        height = max(3.0, width / max(ratio, 1.0))
-        patch = PlotEllipse(
-            (local_x, local_y), width=width, height=height,
-            fill=False, edgecolor="lime" if detection.survival >= config.sep_min_survival else "orange",
-            linewidth=0.8 + 2.2 * fraction,
+        color = "lime" if detection.survival >= config.sep_min_survival else "orange"
+        pixel_x = detection.pixels_x - (prep.nucleus_yx[1] - half)
+        pixel_y = detection.pixels_y - (prep.nucleus_yx[0] - half)
+        visible = (
+            (pixel_x >= 0) & (pixel_x < 2 * half)
+            & (pixel_y >= 0) & (pixel_y < 2 * half)
         )
-        axis.add_patch(patch)
+        axis.scatter(
+            pixel_x[visible], pixel_y[visible], s=5 + 7 * fraction,
+            facecolors="none", edgecolors=color, linewidths=0.5,
+        )
         axis.annotate(
             f"{detection.survival}/{detection.total_runs}\n"
             f"切向偏差={detection.tangential_misalignment_deg:.1f}°",
@@ -304,7 +307,7 @@ def write_sep_consensus(
     axis.set_title(
         f"SEP 多参数共识：{len(config.sep_nthresh)}×{len(config.sep_deblend_cont)} "
         f"= {len(config.sep_nthresh) * len(config.sep_deblend_cont)} 次运行\n"
-        "绿色=达到存活门槛，橙色=低稳定候选"
+        "逐像素显示多次运行的并集；绿色=达到存活门槛，橙色=低稳定原始残差"
     )
     figure.tight_layout()
     path = output / "vision_sep_consensus.png"
@@ -313,7 +316,7 @@ def write_sep_consensus(
     return path
 
 
-def write_residual_structure_extraction(
+def write_model_chain(
     prep: PreprocessedImage,
     config: VisionConfig,
     footprint: np.ndarray,
@@ -322,26 +325,32 @@ def write_residual_structure_extraction(
 ) -> Path:
     plt = _matplotlib(output)
     ys, xs, half = _view(prep)
-    snr_mask = prep.residual_snr >= config.structure_snr_low
     residual_view = prep.residual[ys, xs]
     vmin, vmax = _display_limits(residual_view)
     figure, axes = plt.subplots(1, 4, figsize=(16, 4.3))
     origin = _origin(prep)
     axes[0].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
     axes[0].set_title("1. 前景减除残差")
-    axes[1].imshow(footprint[ys, xs], origin=origin, cmap="gray")
-    axes[1].set_title("2. SEP 候选结构范围")
-    axes[2].imshow(snr_mask[ys, xs], origin=origin, cmap="gray")
-    axes[2].set_title(f"3. S/N ≥ {config.structure_snr_low:.2f}σ")
+    axes[1].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
+    raw_y, raw_x = np.where(footprint[ys, xs])
+    axes[1].scatter(raw_x, raw_y, s=5, facecolors="none", edgecolors="orange", linewidths=0.5)
+    axes[1].set_title("2. SEP 原始多参数像素并集（仅留痕）")
+    axes[2].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
+    candidate_y, candidate_x = np.where(residual_structure_mask[ys, xs])
+    axes[2].scatter(candidate_x, candidate_y, s=6, c="magenta", marker="s")
+    axes[2].set_title("3. SEP→几何模型链候选（待审计）")
     axes[3].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
-    yy, xx = np.where(residual_structure_mask[ys, xs])
-    axes[3].scatter(xx, yy, s=3, c="red")
-    axes[3].set_title("4. 两者交集 = 测量残差结构像素")
+    axes[3].scatter(raw_x, raw_y, s=5, facecolors="none", edgecolors="orange", linewidths=0.5)
+    axes[3].scatter(candidate_x, candidate_y, s=6, c="magenta", marker="s")
+    axes[3].set_title("4. 对照：橙=原始SEP，紫=模型链候选")
     for axis in axes:
         _mark(axis, half)
-    figure.suptitle("候选残差结构像素提取过程（不等同于透镜弧；红十字为中心）")
+    figure.suptitle(
+        "链式视觉检测：SEP只提出线索，几何路线内再次运行SEP后形成待审计候选\n"
+        "所有彩色像素都不是透镜标签；红十字为中心"
+    )
     figure.tight_layout()
-    path = output / "vision_residual_structure_extraction.png"
+    path = output / "vision_model_chain.png"
     figure.savefig(path, dpi=120)
     plt.close(figure)
     return path
@@ -382,7 +391,7 @@ def write_geometric_path_search(
                 )
             )
             axis.annotate(
-                f"G{index}: {candidate.mode}, new={len(candidate.recovered_segments)}",
+                f"G{index}: {candidate.mode}, candidates={len(candidate.recovered_segments)}",
                 (local_x + 2, local_y + 2), color=color, fontsize=7,
             )
             if np.any(candidate.recovered_mask):
@@ -390,11 +399,11 @@ def write_geometric_path_search(
                 axis.scatter(recovered_x, recovered_y, s=7, c="magenta", marker="s")
     for axis in axes:
         _mark(axis, half)
-    axes[0].set_title("foreground-subtracted residual")
-    axes[1].set_title("residual S/N")
+    axes[0].set_title("前景减除残差")
+    axes[1].set_title("残差信噪比（S/N）")
     figure.suptitle(
-        "Geometry-guided residual search after SEP\n"
-        "blue = search route; magenta = newly recovered real pixels; route is not a ring claim"
+        "SEP之后的几何模型引导搜索\n"
+        "蓝线=允许再次寻找的路线；紫色=路线内SEP检出的待审计候选；路线本身不是环"
     )
     figure.tight_layout()
     path = output / "vision_geometric_path_search.png"
@@ -408,6 +417,7 @@ def write_field_context(
     config: VisionConfig,
     segments: list[ResidualStructure],
     output: Path,
+    candidate_points: list[tuple[str, float, float]] | None = None,
 ) -> Path:
     """Map the analyzed crop and every measured structure onto the full field."""
     plt = _matplotlib(output)
@@ -453,6 +463,12 @@ def write_field_context(
         axis.plot(segment.x, segment.y, "mx", ms=8, mew=1.4)
         axis.annotate(
             f"S{index}", (segment.x + 3, segment.y + 3),
+            color="magenta", fontsize=9, weight="bold",
+        )
+    for candidate_id, candidate_x, candidate_y in candidate_points or []:
+        axis.plot(candidate_x, candidate_y, "ms", ms=5, mew=1.0)
+        axis.annotate(
+            candidate_id, (candidate_x + 3, candidate_y + 3),
             color="magenta", fontsize=9, weight="bold",
         )
     north, east = orientation_vectors(
@@ -504,6 +520,7 @@ def write_rgb_context(
     config: VisionConfig,
     segments: list[ResidualStructure],
     output: Path,
+    candidate_points: list[tuple[str, float, float]] | None = None,
 ) -> Path | None:
     """Overlay the analysis region on a sibling RGB preview after orientation matching."""
     rgb_path = prep.image.path.parent / "rgb_0.png"
@@ -605,6 +622,13 @@ def write_rgb_context(
             f"S{index}", (x + 3, y - 3), color="magenta",
             fontsize=9, weight="bold",
         )
+    for candidate_id, candidate_x, candidate_y in candidate_points or []:
+        x, y = to_png(candidate_x, candidate_y)
+        axis.plot(x, y, "ms", ms=5, mew=1.0)
+        axis.annotate(
+            candidate_id, (x + 3, y - 3), color="magenta",
+            fontsize=9, weight="bold",
+        )
     north, east = orientation_vectors(
         prep.image, (float(center_x), float(center_y))
     )
@@ -679,7 +703,10 @@ def write_manifest(
             "compute residual and residual S/N",
             "run all configured S/N thresholds",
             "run SEP deblending parameter grid",
-            "intersect SEP footprint with S/N mask",
+            "retain exact SEP pixel unions as trace-only geometry seeds",
+            "propose circular/elliptical search routes from seeds and centre-based fallback",
+            "run SEP again with pixels outside each route masked",
+            "emit unified model-chain candidates pending calibration audit",
             "write structured Observation and trace artifacts",
         ],
         "files": files,
@@ -691,15 +718,19 @@ def write_manifest(
             "residual_snr": "residual divided by RMS",
             "source_mask": "contaminating-source exclusion mask",
             "threshold_level_map": "number of accepted S/N threshold levels survived",
-            "sep_footprint": "SEP footprint used by residual-structure extraction",
-            "residual_structure_mask": "unclassified residual pixels used for structure measurements",
-            "arc_mask": "deprecated compatibility alias of residual_structure_mask",
+            "sep_raw_consensus_segmentation": "exact labels of the raw multi-parameter SEP pixel unions",
+            "sep_raw_consensus_footprint": "all raw SEP consensus pixels; trace-only",
+            "model_candidate_mask": "unified SEP-to-geometry-chain candidates pending audit",
+            "residual_structure_mask": "empty compatibility array; no candidate is promoted to a scored structure in v0.10",
+            "arc_mask": "empty deprecated compatibility array",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
             "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
         },
         "notes": [
             "PNG files are human-readable diagnostics; NPZ arrays remain the numerical evidence.",
-            "Threshold and SEP results share the same residual and are correlated evidence.",
+            "Threshold and SEP results share the same residual and are correlated measurements.",
+            "Raw SEP detections are retained for traceability but are not exposed as scored structures.",
+            "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
             "No wavelet channel is used in this version.",
         ],
     }
@@ -720,11 +751,12 @@ def write_visual_audit_bundle(
     geometric_paths: list[GeometricPathCandidate],
     foreground_comparison: ForegroundModelComparison,
     output: Path,
+    candidate_points: list[tuple[str, float, float]] | None = None,
 ) -> dict[str, str]:
     try:
         threshold_path = write_threshold_process(prep, config, threshold_detections, level_map, output)
         sep_path = write_sep_consensus(prep, config, consensus_detections, output)
-        structure_path = write_residual_structure_extraction(
+        structure_path = write_model_chain(
             prep, config, footprint, residual_structure_mask, output
         )
         path_search_path = write_geometric_path_search(prep, geometric_paths, output)
@@ -732,8 +764,14 @@ def write_visual_audit_bundle(
         model_comparison_path = write_foreground_model_comparison(
             prep, foreground_comparison, output
         )
-        field_path = write_field_context(prep, config, segments, output)
-        rgb_path = write_rgb_context(prep, config, segments, output)
+        # Raw SEP seeds are already shown exactly in the SEP diagnostic. Do not
+        # mark them as formal measured structures in full-field/RGB context.
+        field_path = write_field_context(
+            prep, config, [], output, candidate_points=candidate_points
+        )
+        rgb_path = write_rgb_context(
+            prep, config, [], output, candidate_points=candidate_points
+        )
     except ImportError:
         return {}
     files = {
@@ -741,7 +779,7 @@ def write_visual_audit_bundle(
         "overview_diagnostic": str(output / "vision_diagnostic.png"),
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
-        "residual_structure_extraction_diagnostic": str(structure_path),
+        "model_chain_diagnostic": str(structure_path),
         "geometric_path_search_diagnostic": str(path_search_path),
         "expert_views_diagnostic": str(expert_views_path),
         "field_context_diagnostic": str(field_path),

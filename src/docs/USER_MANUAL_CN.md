@@ -736,7 +736,7 @@ outputs/
     ├── vision_rgb_context.png（存在可匹配RGB时）
     ├── vision_snr_threshold_process.png
     ├── vision_sep_consensus.png
-    ├── vision_residual_structure_extraction.png
+    ├── vision_model_chain.png
     ├── vision_expert_views.png
     ├── vision_foreground_model_comparison.png
     ├── vision_manifest.json
@@ -804,7 +804,7 @@ residual_snr = artifact["residual_snr"]
 1. 输入图；
 2. 前景星系模型；
 3. 残差信噪比图；
-4. 测得的未分类残差结构像素。
+4. 经过SEP→几何模型链后保留的待审计候选像素。
 
 青色十字标记系统识别的中心。
 
@@ -812,7 +812,7 @@ residual_snr = artifact["residual_snr"]
 
 - 模型是否大体重现中心星系；
 - 残差是否是明显弧，而不是中心附近的大块正负残差；
-- 弧掩膜是否落在真实结构上；
+- 紫色候选像素是否落在真实结构上；
 - 中心是否定位正确；
 - 搜索环带是否合适。
 
@@ -822,7 +822,7 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 - `vision_snr_threshold_process.png`：每个 S/N 阈值的真实掩膜、掩膜残差、相邻层壳和最终存活层级；
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
-- `vision_residual_structure_extraction.png`：残差、SEP范围、S/N掩膜以及最终用于测量的未分类交集像素；
+- `vision_model_chain.png`：对照前景减除残差、橙色原始SEP像素和紫色几何模型链候选；原始SEP只留痕，紫色候选也仍需审计；
 - `vision_expert_views.png`：Euclid风格VIS arcsinh/MTF全视场与中央100×100观察图；
 - `vision_foreground_model_comparison.png`：比较正式前景模型与PSF-MGE审计模型；它只用于发现“换一种减除方法就消失”的模型敏感结构，不参与正式检测；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。
@@ -831,7 +831,7 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 `observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
 
-`vision_field_context.png` 用完整FITS视场说明中央裁剪来自哪里，并显示搜索环、结构编号、中心天球坐标、像素尺度和N/E方向。`vision_rgb_context.png` 会先自动比较RGB与FITS的方向相关性，再把相同标记映射到彩色图；匹配相关性不足时不会生成，避免伪造坐标对应。
+`vision_field_context.png` 用完整FITS视场说明中央裁剪来自哪里，并显示搜索环、得到几何支持的候选编号、中心天球坐标、像素尺度和N/E方向。`vision_rgb_context.png` 会先自动比较RGB与FITS的方向相关性，再把相同标记映射到彩色图；匹配相关性不足时不会生成，避免伪造坐标对应。未解释的原始SEP块只在SEP与模型链过程图中留痕，不会伪装成已采纳的全视场候选标记。
 
 FITS诊断图按WCS原生像素网格使用左下原点显示。PNG保持普通栅格图方向。Manifest会明确记录显示原点、是否重投影和WCS状态。
 

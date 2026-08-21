@@ -12,14 +12,20 @@ arrays remain available as provenance artifacts for a separate scientific audit.
 ## Vision pipeline
 
 One preprocessing pass produces a foreground-galaxy model, residual, residual S/N,
-source mask, and segmentation. Three related measurements then share that residual:
+source mask, and segmentation. The v0.10 detection path is deliberately chained:
 
-1. connected structures surviving a grid of S/N thresholds;
-2. SEP detections surviving a deblending-parameter grid;
-3. arc pixels formed from a residual SEP footprint and an S/N mask.
+1. S/N threshold layers remain a trace and stability diagnostic;
+2. SEP runs across the deblending grid and preserves the exact union of segmented
+   pixels as trace-only detections;
+3. stable SEP pixels can seed constrained circular/elliptical search routes, while
+   centre-based fallback routes remain available even when a seed exists;
+4. pixels outside each route are masked through SEP's extraction interface and SEP
+   runs again inside the permitted band;
+5. route detections become unified model-chain candidates pending calibration.
 
-Because all three derive from one subtraction, they carry a shared correlation
-group. The decision stage aggregates a correlation group once.
+The search route is never filled with synthetic signal. Raw SEP detections, route
+statistics, and route-masked SEP candidates share one residual and are correlated.
+None is a lens label.
 
 FITS input uses supplied flux and RMS extensions when present. PNG input estimates
 noise from pixels and uses a reduced parameter grid and radial foreground model.
@@ -27,7 +33,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.7` records:
+`schema_version=1.8` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -64,12 +70,21 @@ template is not an Einstein-ring or lens label. This channel
 shares the primary foreground-subtracted residual and is therefore correlated
 with SEP measurements; it is assigned a separate correlation group for audit.
 
-Version 1.7 replaces the formal v1.5/v1.6 posterior-ring output with a unified
+Version 1.7 replaced the formal v1.5/v1.6 posterior-ring output with a unified
 geometry-guided path search. Detected residual structures seed constrained
-circular/elliptical routes; a centre-constrained fallback is used only inside
-the same module when no seed exists. The route, its seed/linked structures, and
+circular/elliptical routes. The route, its seed/linked structures, and
 newly recovered pixel segments are stored separately. Unfilled route pixels are
 not observations, and path generation does not contribute direct lens evidence.
+
+Version 1.8 chains these formerly parallel outputs. Raw SEP detections no longer
+become scored structures. Centre fallbacks remain alongside seeded routes so that
+an unrelated SEP island cannot suppress a weak-ring search. Route-masked SEP must
+also obey the configured global inner/outer search boundary. A seed-fitted route
+cannot validate its own seed: geometry support additionally requires positive
+on-route versus adjacent-route contrast and independently recovered pixels. The
+new `model_candidates` records origin, status, path links, geometry, S/N, foreground
+comparison survival, and explicit `not_scoring_input` flags. Until candidate
+promotion is calibrated, `structures` remains empty for new v0.10 vision runs.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
@@ -127,9 +142,10 @@ have a valid reasoning trace when the decision audit correctly abstains.
 
 Version 0.5 renders the actual intermediates used by the vision pipeline rather
 than reconstructing illustrative approximations. The threshold detector and its
-diagnostic share `threshold_masks`; the SEP figure consumes the returned consensus
-detections; and the extraction figure consumes the final SEP footprint and arc
-mask. A per-run manifest records the input SHA-256 digest, runtime parameters,
+diagnostic share `threshold_masks`; the SEP figure plots exact consensus
+segmentation pixels rather than fixed-size symbols; and the model-chain figure
+compares trace-only raw SEP pixels with route-masked SEP candidates. A per-run
+manifest records the input SHA-256 digest, runtime parameters,
 processing order, numerical-array meanings, and output paths.
 
 The active scientific channel is the raw foreground-subtracted residual divided by
