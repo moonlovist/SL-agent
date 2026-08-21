@@ -356,8 +356,8 @@ def write_model_chain(
     for axis in axes:
         _mark(axis, half)
     figure.suptitle(
-        "路线内结构整合：原始SEP与新恢复像素都是候选组成部分\n"
-        "橙=SEP待解释；绿=SEP+路线一致；紫=路线内补充发现；紫色不天然比绿色可靠"
+        "SEP局部分割与路线内结构整合\n"
+        "橙=路线外SEP降级追溯；绿=路线内原SEP；紫=路线内补充恢复；绿色与紫色都需重点复核"
     )
     figure.tight_layout()
     path = output / "vision_model_chain.png"
@@ -742,11 +742,12 @@ def write_manifest(
             "threshold_level_map": "number of accepted S/N threshold levels survived",
             "sep_raw_consensus_segmentation": "exact labels of the raw multi-parameter SEP pixel unions",
             "sep_raw_consensus_footprint": "all raw SEP consensus pixels; trace-only",
-            "model_candidate_mask": "union of all raw-SEP and route-recovered candidates pending audit",
-            "sep_only_candidate_mask": "raw SEP candidates without qualifying geometric support",
-            "sep_geometry_consistent_mask": "raw SEP candidates also consistent with a qualifying route",
+            "sep_geometry_seed_mask": "raw SEP pixels accepted into the configured annular geometry chain before local partitioning",
+            "model_candidate_mask": "union of recorded local SEP partitions and route-recovered candidates pending audit; sub-minimum trace crumbs excluded",
+            "sep_only_candidate_mask": "all raw SEP pixels outside admissible route-supported partitions; downgraded trace",
+            "sep_geometry_consistent_mask": "local raw SEP pixel partitions inside admissible geometric routes",
             "geometry_recovered_candidate_mask": "supplementary candidates found by route-masked SEP",
-            "residual_structure_mask": "empty compatibility array; no candidate is promoted to a scored structure in v0.10.1",
+            "residual_structure_mask": "empty compatibility array; no candidate is promoted to a scored structure in v0.11.0",
             "arc_mask": "empty deprecated compatibility array",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
             "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
@@ -756,7 +757,8 @@ def write_manifest(
             "Threshold and SEP results share the same residual and are correlated measurements.",
             "Raw SEP detections are retained for traceability but are not exposed as scored structures.",
             "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
-            "Route-consistent raw SEP and route-recovered components are grouped without assigning final confidence or a lens label.",
+            "A merged raw SEP component is locally split into route-supported pixels and downgraded off-route trace pixels.",
+            "Route-consistent raw SEP and route-recovered components share review priority but retain different provenance.",
             "No wavelet channel is used in this version.",
         ],
     }

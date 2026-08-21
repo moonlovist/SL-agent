@@ -33,7 +33,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.9` records:
+`schema_version=1.10` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -97,6 +97,15 @@ a separately constructed but still residual-correlated geometric relation.
 Components associated through one route are stored
 as a `candidate_system`, with foreground-model and near-core audit flags kept on a
 separate axis. Candidate systems remain excluded from the reasoning score.
+
+Version 1.10 changes the classification unit from a whole raw SEP connected
+component to local pixel partitions. Pixels inside an admissible route band are
+split into `sep_plus_geometry` components, while off-route remainders are retained
+as downgraded SEP trace. Route-supported original pixels and route-recovered pixels
+share a `priority_keep` review priority but retain distinct provenance. Sub-minimum
+fragments created by partitioning remain in pixel trace arrays rather than becoming
+new structural candidates. No partition is promoted to `structures` or scoring
+without a later calibrated promotion audit.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF

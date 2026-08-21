@@ -30,7 +30,8 @@ from .detectors import (
     circular_span,
     consensus_residual_structures,
     geometric_path_search,
-    path_support_relations,
+    path_pixel_consistency,
+    partition_sep_segments_by_routes,
     position_angle,
     sep_consensus,
     threshold_stability,
@@ -119,6 +120,7 @@ class VisionPipeline:
         model_candidates: list[ModelCandidateObservation] = []
         candidate_systems: list[CandidateSystemObservation] = []
         model_candidate_masks: dict[str, np.ndarray] = {}
+        downgraded_sep_trace_mask = np.zeros(prep.image.data.shape, dtype=bool)
 
         def comparison_fraction(mask: np.ndarray) -> float | None:
             if comparison_snr is None or not np.any(mask):
@@ -129,35 +131,23 @@ class VisionPipeline:
                 )
             )
 
-        seed_candidate_ids = {
-            index: f"C{index + 1}" for index in range(len(segments))
-        }
-        path_ids_by_seed: dict[int, list[str]] = {
-            index: [] for index in range(len(segments))
-        }
-        raw_path_metrics, supported_seed_indices_by_path = path_support_relations(
-            geometric_paths_raw, segments
+        local_partitions, _supported_seed_indices_by_path = (
+            partition_sep_segments_by_routes(
+                geometric_paths_raw,
+                segments,
+                min_supported_area=runtime_config.snr_min_area,
+            )
         )
-        path_metrics_by_seed: dict[int, dict[str, tuple[float, float, bool]]] = {
-            seed_index: {
-                f"G{path_index + 1}": values
-                for path_index, values in metrics.items()
-            }
-            for seed_index, metrics in raw_path_metrics.items()
-        }
-        supported_path_ids_by_seed: dict[int, list[str]] = {
+        candidate_ids_by_seed: dict[int, list[str]] = {
             index: [] for index in range(len(segments))
         }
-        for seed_index, path_metrics in path_metrics_by_seed.items():
-            for path_id, values in path_metrics.items():
-                if values[0] > 0.0:
-                    path_ids_by_seed[seed_index].append(path_id)
-        for path_index, supported_indices in supported_seed_indices_by_path.items():
-            for seed_index in supported_indices:
-                supported_path_ids_by_seed[seed_index].append(f"G{path_index + 1}")
+        supported_candidate_ids_by_path: dict[int, list[str]] = {
+            index: [] for index in range(len(geometric_paths_raw))
+        }
 
-        for seed_index, segment in enumerate(segments):
-            candidate_id = seed_candidate_ids[seed_index]
+        for partition in local_partitions:
+            seed_index = partition.segment_index
+            segment = segments[seed_index]
             raw_detection = (
                 consensus_detections[segment.label - 1]
                 if 0 < segment.label <= len(consensus_detections)
@@ -169,16 +159,54 @@ class VisionPipeline:
                 else None
             )
             mask = np.zeros(prep.image.data.shape, dtype=bool)
-            mask[segment.pixels_y, segment.pixels_x] = True
-            path_ids = path_ids_by_seed.get(seed_index, [])
-            consistent_path_ids = supported_path_ids_by_seed.get(seed_index, [])
-            status = "sep_geometry_consistent" if consistent_path_ids else "sep_only"
-            near_core = segment.median_radius_px <= runtime_config.near_core_radius_px
+            mask[partition.pixels_y, partition.pixels_x] = True
+            if partition.status == "sep_only":
+                downgraded_sep_trace_mask |= mask
+                # Removing route-supported pixels can leave isolated SEP
+                # crumbs. Preserve them in the trace mask, but do not promote
+                # a sub-minimum fragment into a new structural candidate.
+                if int(mask.sum()) < runtime_config.snr_min_area:
+                    continue
+            candidate_id = f"C{len(model_candidates) + 1}"
+            candidate_ids_by_seed[seed_index].append(candidate_id)
+            centroid_x = float(partition.pixels_x.mean())
+            centroid_y = float(partition.pixels_y.mean())
+            pixel_radii = np.hypot(
+                partition.pixels_x - prep.nucleus_yx[1],
+                partition.pixels_y - prep.nucleus_yx[0],
+            )
+            radius_px = float(np.median(pixel_radii))
+            pixel_angles = (
+                np.degrees(
+                    np.arctan2(
+                        -(partition.pixels_x - prep.nucleus_yx[1]),
+                        -(partition.pixels_y - prep.nucleus_yx[0]),
+                    )
+                )
+                + 360.0
+            ) % 360.0
+            integrated_snr = float(
+                prep.residual_snr[mask].sum() / np.sqrt(max(int(mask.sum()), 1))
+            )
+            path_indices = [
+                path_index
+                for path_index, path_candidate in enumerate(geometric_paths_raw)
+                if np.any(path_candidate.route_mask & mask)
+            ]
+            consistent_path_indices = partition.path_indices
+            path_ids = [f"G{index + 1}" for index in path_indices]
+            consistent_path_ids = [
+                f"G{index + 1}" for index in consistent_path_indices
+            ]
+            status = partition.status
+            for path_index in consistent_path_indices:
+                supported_candidate_ids_by_path[path_index].append(candidate_id)
+            near_core = radius_px <= runtime_config.near_core_radius_px
             model_survival = comparison_fraction(mask)
             measurement_ids: list[str] = []
             for kind, value, reliability in [
-                ("integrated_snr", segment.snr, min(0.6, abs(segment.snr) / 20.0)),
-                ("radius", segment.median_radius_px, 0.6),
+                ("integrated_snr", integrated_snr, min(0.6, abs(integrated_snr) / 20.0)),
+                ("radius", radius_px, 0.6),
                 ("sep_survival_fraction", sep_fraction, sep_fraction or 0.0),
                 ("foreground_comparison_survival_fraction", model_survival, 0.55 if model_survival is not None else 0.0),
             ]:
@@ -208,7 +236,14 @@ class VisionPipeline:
                 flags.append("foreground_comparison_changes_pixels")
             if model_survival == 0.0:
                 flags.append("not_surviving_comparison_model")
-            path_metrics = path_metrics_by_seed[seed_index]
+            path_metrics = {
+                f"G{path_index + 1}": path_pixel_consistency(
+                    geometric_paths_raw[path_index],
+                    partition.pixels_y,
+                    partition.pixels_x,
+                )
+                for path_index in path_indices
+            }
             model_candidates.append(
                 ModelCandidateObservation(
                     id=candidate_id,
@@ -221,6 +256,17 @@ class VisionPipeline:
                         ["sep_parameter_consensus", "geometric_route_consistency"]
                         if consistent_path_ids
                         else ["sep_parameter_consensus"]
+                    ),
+                    parent_sep_component_id=f"SEP{segment.label}",
+                    pixel_partition=(
+                        "route_supported"
+                        if consistent_path_ids
+                        else "off_route_remainder"
+                    ),
+                    review_priority=(
+                        "priority_keep"
+                        if consistent_path_ids
+                        else "downgraded_trace"
                     ),
                     raw_detection_ids=[f"R{segment.label}"],
                     path_ids=path_ids,
@@ -235,12 +281,14 @@ class VisionPipeline:
                         for path_id, values in path_metrics.items()
                         if values[0] > 0.0
                     },
-                    centroid_xy=(segment.x, segment.y),
-                    radius_px=segment.median_radius_px,
-                    position_angle_deg=segment.position_angle_deg,
-                    pixel_count=segment.pixel_count,
-                    integrated_snr=segment.snr,
-                    angular_extent_deg=segment.angular_extent_deg,
+                    centroid_xy=(centroid_x, centroid_y),
+                    radius_px=radius_px,
+                    position_angle_deg=position_angle(
+                        centroid_x, centroid_y, prep.nucleus_yx
+                    ),
+                    pixel_count=int(mask.sum()),
+                    integrated_snr=integrated_snr,
+                    angular_extent_deg=circular_span(pixel_angles),
                     sep_survival_fraction=sep_fraction,
                     foreground_comparison_survival_fraction=model_survival,
                     near_core=near_core,
@@ -303,6 +351,8 @@ class VisionPipeline:
                         status="geometry_recovered",
                         structural_support_level="route_recovered",
                         support_sources=["geometric_route", "route_masked_sep"],
+                        pixel_partition="route_recovery",
+                        review_priority="priority_keep",
                         path_ids=[path_id],
                         geometry_consistent_path_ids=[path_id],
                         centroid_xy=(recovered.x, recovered.y),
@@ -326,10 +376,7 @@ class VisionPipeline:
         seen_system_members: set[tuple[str, ...]] = set()
         for path_index, path_candidate in enumerate(geometric_paths_raw, start=1):
             path_id = f"G{path_index}"
-            sep_ids = [
-                seed_candidate_ids[index]
-                for index in supported_seed_indices_by_path.get(path_index - 1, [])
-            ]
+            sep_ids = supported_candidate_ids_by_path.get(path_index - 1, [])
             recovered_ids = recovered_ids_by_path.get(path_index - 1, [])
             member_ids = list(dict.fromkeys([*sep_ids, *recovered_ids]))
             if not member_ids:
@@ -396,7 +443,7 @@ class VisionPipeline:
             for candidate in model_candidates
         ]
 
-        sep_only_mask = np.zeros(prep.image.data.shape, dtype=bool)
+        sep_only_mask = downgraded_sep_trace_mask.copy()
         sep_geometry_mask = np.zeros(prep.image.data.shape, dtype=bool)
         geometry_recovered_mask = np.zeros(prep.image.data.shape, dtype=bool)
         model_candidate_mask = np.zeros(prep.image.data.shape, dtype=bool)
@@ -479,11 +526,12 @@ class VisionPipeline:
                         flags=["not_a_lens_decision", "search_route_not_structure"],
                     )
                 )
-            seed_ids = [seed_candidate_ids[item] for item in candidate.seed_indices]
-            linked_ids = [
-                seed_candidate_ids[item]
-                for item in supported_seed_indices_by_path.get(index - 1, [])
+            seed_ids = [
+                candidate_id
+                for seed_index in candidate.seed_indices
+                for candidate_id in candidate_ids_by_seed.get(seed_index, [])
             ]
+            linked_ids = supported_candidate_ids_by_path.get(index - 1, [])
             recovered_ids = recovered_ids_by_path.get(index - 1, [])
             flags = ["not_a_lens_decision", "search_route_not_structure", "single_iteration"]
             geometric_paths.append(
@@ -828,6 +876,7 @@ class VisionPipeline:
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
+            "Merged SEP components are locally partitioned into route-supported pieces and downgraded off-route trace; route-supported and recovered pieces retain different provenance.",
             "Raw SEP, SEP-plus-geometry, and route-recovered candidates are separated by structural support source; none are promoted to scored structures before calibration.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]

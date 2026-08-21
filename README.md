@@ -60,9 +60,10 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.10.1 integrates original SEP and route-recovered components by shared
-geometry. Structural-support sources and candidate systems are traceable but do
-not imply lens confidence and remain excluded from the reasoning score. Version
+Version 0.11.0 locally partitions merged SEP detections into route-supported
+pieces and downgraded off-route trace, while route-recovered pieces remain a
+separate provenance type with the same review priority. These candidates do not
+imply lens confidence and remain excluded from the reasoning score. Version
 0.5 added WCS-aware sky coordinates, angular scales, sky position angles,
 and full-field/RGB location audits. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
 

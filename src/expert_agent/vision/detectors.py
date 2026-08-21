@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import ndimage
 
 from ..core.config import VisionConfig
 from .astrometry import (
@@ -91,6 +92,136 @@ class GeometricPathCandidate:
     recovered_segments: list[RecoveredPathSegment]
     route_mask: np.ndarray
     recovered_mask: np.ndarray
+
+
+@dataclass
+class LocalSepPartition:
+    """A local part of one raw SEP component after route-based partitioning.
+
+    ``sep_geometry_consistent`` pixels lie inside at least one admissible
+    geometric search band. ``sep_only`` pixels are the remainder of the same
+    raw SEP component. The partition describes structural support provenance;
+    it is not a lens classification.
+    """
+
+    segment_index: int
+    status: str
+    path_indices: list[int]
+    pixels_y: np.ndarray
+    pixels_x: np.ndarray
+
+
+def _connected_pixel_components(mask: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+    labels, count = ndimage.label(mask, structure=np.ones((3, 3), dtype=np.uint8))
+    return [np.where(labels == label) for label in range(1, count + 1)]
+
+
+def partition_sep_segments_by_routes(
+    candidates: list[GeometricPathCandidate],
+    segments: list[ResidualStructure],
+    min_supported_area: int,
+) -> tuple[list[LocalSepPartition], dict[int, list[int]]]:
+    """Split raw SEP components into route-supported and off-route pieces.
+
+    The minimum area reuses the detector's existing connected-pixel noise
+    guard; it is not a ring-coverage or lens-classification threshold. An
+    arc-seeded route cannot support pixels from its own seed unless another
+    component is present on that route. This prevents the fitted route from
+    merely certifying the pixels that created it.
+
+    Returns the local partitions plus the raw segment indices that contribute
+    route-supported pixels to each path.
+    """
+    min_area = max(1, int(min_supported_area))
+    if not candidates:
+        return [
+            LocalSepPartition(
+                segment_index=index,
+                status="sep_only",
+                path_indices=[],
+                pixels_y=segment.pixels_y,
+                pixels_x=segment.pixels_x,
+            )
+            for index, segment in enumerate(segments)
+        ], {}
+
+    segment_masks: list[np.ndarray] = []
+    for segment in segments:
+        mask = np.zeros_like(candidates[0].route_mask, dtype=bool)
+        mask[segment.pixels_y, segment.pixels_x] = True
+        segment_masks.append(mask)
+
+    local_intersections: dict[tuple[int, int], np.ndarray] = {}
+    for path_index, candidate in enumerate(candidates):
+        for segment_index, segment_mask in enumerate(segment_masks):
+            intersection = segment_mask & candidate.route_mask
+            accepted = np.zeros_like(intersection, dtype=bool)
+            for ys, xs in _connected_pixel_components(intersection):
+                if ys.size >= min_area:
+                    accepted[ys, xs] = True
+            local_intersections[(path_index, segment_index)] = accepted
+
+    admissible_pairs: set[tuple[int, int]] = set()
+    supported_segments_by_path: dict[int, list[int]] = {}
+    for path_index, candidate in enumerate(candidates):
+        intersecting_segments = [
+            segment_index
+            for segment_index in range(len(segments))
+            if np.any(local_intersections[(path_index, segment_index)])
+        ]
+        independent_component = bool(candidate.recovered_segments) or any(
+            segment_index not in candidate.seed_indices
+            for segment_index in intersecting_segments
+        )
+        supported_indices: list[int] = []
+        if candidate.on_minus_off_path_snr > 0.0:
+            for segment_index in intersecting_segments:
+                self_seeded = (
+                    candidate.mode == "arc_seeded"
+                    and segment_index in candidate.seed_indices
+                )
+                if self_seeded and not independent_component:
+                    continue
+                admissible_pairs.add((path_index, segment_index))
+                supported_indices.append(segment_index)
+        supported_segments_by_path[path_index] = supported_indices
+
+    partitions: list[LocalSepPartition] = []
+    for segment_index, segment_mask in enumerate(segment_masks):
+        supported_union = np.zeros_like(segment_mask, dtype=bool)
+        for path_index in range(len(candidates)):
+            if (path_index, segment_index) in admissible_pairs:
+                supported_union |= local_intersections[(path_index, segment_index)]
+
+        for ys, xs in _connected_pixel_components(supported_union):
+            path_indices = [
+                path_index
+                for path_index in range(len(candidates))
+                if (path_index, segment_index) in admissible_pairs
+                and np.any(local_intersections[(path_index, segment_index)][ys, xs])
+            ]
+            partitions.append(
+                LocalSepPartition(
+                    segment_index=segment_index,
+                    status="sep_geometry_consistent",
+                    path_indices=path_indices,
+                    pixels_y=ys,
+                    pixels_x=xs,
+                )
+            )
+
+        off_route = segment_mask & ~supported_union
+        for ys, xs in _connected_pixel_components(off_route):
+            partitions.append(
+                LocalSepPartition(
+                    segment_index=segment_index,
+                    status="sep_only",
+                    path_indices=[],
+                    pixels_y=ys,
+                    pixels_x=xs,
+                )
+            )
+    return partitions, supported_segments_by_path
 
 
 def path_pixel_consistency(

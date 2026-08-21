@@ -8,6 +8,7 @@ from expert_agent.vision.detectors import (
     RecoveredPathSegment,
     ResidualStructure,
     geometric_path_search,
+    partition_sep_segments_by_routes,
     path_support_relations,
     sep_consensus,
 )
@@ -289,3 +290,90 @@ def test_center_fallback_can_supply_geometry_support_to_existing_sep_component()
     _, supported = path_support_relations([route], [seed])
 
     assert supported[0] == [0]
+
+
+def test_local_partition_separates_route_pixels_from_attached_sep_contamination() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    merged_mask = np.zeros((size, size), dtype=bool)
+    merged_mask[29:32, 39:51] = True
+    prep = _prep_from_residual_snr(np.zeros((size, size), dtype=float))
+    seed = _seed_from_mask(merged_mask, prep)
+    route_mask = np.abs(radius - 10.0) <= 1.5
+    route = GeometricPathCandidate(
+        mode="center_fallback",
+        seed_indices=[],
+        linked_structure_indices=[0],
+        center_x=30.0,
+        center_y=30.0,
+        semi_major_radius_px=10.0,
+        axis_ratio=1.0,
+        position_angle_deg=0.0,
+        half_width_px=1.5,
+        fit_scatter_px=None,
+        median_on_path_snr=1.0,
+        on_minus_off_path_snr=0.5,
+        above_local_background_fraction=0.5,
+        longest_above_local_background_deg=30.0,
+        recovered_segments=[],
+        route_mask=route_mask,
+        recovered_mask=np.zeros_like(route_mask),
+    )
+
+    partitions, supported = partition_sep_segments_by_routes(
+        [route], [seed], min_supported_area=3
+    )
+
+    supported_mask = np.zeros_like(merged_mask)
+    off_route_mask = np.zeros_like(merged_mask)
+    for partition in partitions:
+        target = (
+            supported_mask
+            if partition.status == "sep_geometry_consistent"
+            else off_route_mask
+        )
+        target[partition.pixels_y, partition.pixels_x] = True
+    assert supported[0] == [0]
+    assert np.any(supported_mask)
+    assert np.any(off_route_mask)
+    assert not np.any(supported_mask & off_route_mask)
+    assert np.array_equal(supported_mask | off_route_mask, merged_mask)
+    assert np.all(route_mask[supported_mask])
+    assert not np.any(route_mask[off_route_mask])
+
+
+def test_local_partition_does_not_let_arc_seed_route_certify_itself() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    seed_mask = (np.abs(radius - 12.0) <= 1.0) & (xx > 30)
+    prep = _prep_from_residual_snr(np.zeros((size, size), dtype=float))
+    seed = _seed_from_mask(seed_mask, prep)
+    route = GeometricPathCandidate(
+        mode="arc_seeded",
+        seed_indices=[0],
+        linked_structure_indices=[0],
+        center_x=30.0,
+        center_y=30.0,
+        semi_major_radius_px=12.0,
+        axis_ratio=1.0,
+        position_angle_deg=0.0,
+        half_width_px=1.5,
+        fit_scatter_px=0.5,
+        median_on_path_snr=1.0,
+        on_minus_off_path_snr=0.5,
+        above_local_background_fraction=0.5,
+        longest_above_local_background_deg=30.0,
+        recovered_segments=[],
+        route_mask=np.abs(radius - 12.0) <= 1.5,
+        recovered_mask=np.zeros_like(seed_mask),
+    )
+
+    partitions, supported = partition_sep_segments_by_routes(
+        [route], [seed], min_supported_area=3
+    )
+
+    assert supported[0] == []
+    assert {partition.status for partition in partitions} == {"sep_only"}
+    assert sum(partition.pixels_y.size for partition in partitions) == int(seed_mask.sum())

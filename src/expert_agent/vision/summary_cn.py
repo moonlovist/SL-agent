@@ -228,7 +228,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
             "## 3. 当前评分使用的正式结构",
             "",
             f"当前共有 **{len(document.structures)}** 个结构进入后端证据评分。",
-            "v0.10.1 中未经标定的模型链候选和候选系统不会自动进入这里。",
+            "v0.11.0 中未经标定的模型链候选和候选系统不会自动进入这里。",
             "",
         ]
     )
@@ -264,11 +264,23 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 "route_recovered": "路线内补充结构支持",
                 None: "旧版记录，未单列结构支持等级",
             }[item.structural_support_level]
+            partition = {
+                "route_supported": "原SEP连通块中位于合格路线内的局部像素",
+                "off_route_remainder": "原SEP连通块中位于路线外的降级追溯部分",
+                "route_recovery": "路线限制搜索补充恢复的像素",
+                None: "旧版记录，未单列局部分区",
+            }[item.pixel_partition]
+            review_priority = {
+                "priority_keep": "重点复核",
+                "downgraded_trace": "降级留痕",
+                None: "旧版记录，未单列复核优先级",
+            }[item.review_priority]
             lines.extend(
                 [
                     f"### {item.id}",
                     "",
                     f"- 来源：{origin}；状态：{status}；结构支持等级：{support_level}",
+                    f"- 局部分区：{partition}；人工复核优先级：{review_priority}；所属原SEP连通块：{item.parent_sep_component_id or '不适用'}",
                     f"- 中心：({_value(item.centroid_xy[0])}, {_value(item.centroid_xy[1])}) 像素；距中心：{_value(item.radius_px)} 像素",
                     f"- 像素数：{item.pixel_count}；累计S/N：{_value(item.integrated_snr)}；环向跨度：{_value(item.angular_extent_deg)}°",
                     f"- 有像素重叠的路线：{', '.join(item.path_ids) or '无'}；通过几何一致性检查的路线：{', '.join(item.geometry_consistent_path_ids) or '无'}",

@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.10.1"
+    pipeline_version: str = "0.11.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -239,6 +239,11 @@ class ModelCandidateObservation(StrictModel):
     structural_support_level: Literal[
         "raw_sep_only", "sep_plus_geometry", "route_recovered"
     ] | None = None
+    parent_sep_component_id: str | None = None
+    pixel_partition: Literal[
+        "route_supported", "off_route_remainder", "route_recovery"
+    ] | None = None
+    review_priority: Literal["priority_keep", "downgraded_trace"] | None = None
     support_sources: list[str] = Field(default_factory=list)
     raw_detection_ids: list[str] = Field(default_factory=list)
     path_ids: list[str] = Field(default_factory=list)
@@ -279,7 +284,7 @@ class CandidateSystemObservation(StrictModel):
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9"] = "1.9"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10"] = "1.10"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]

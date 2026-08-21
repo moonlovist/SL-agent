@@ -822,7 +822,7 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 - `vision_snr_threshold_process.png`：每个 S/N 阈值的真实掩膜、掩膜残差、相邻层壳和最终存活层级；
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
-- `vision_model_chain.png`：橙色表示只有SEP支持的待解释线索，绿色表示原始SEP同时与合理路线一致，紫色表示路线内第二次SEP补充找到；颜色是结构支持来源，不是置信度，紫色不天然比绿色可靠；
+- `vision_model_chain.png`：程序先把粘连的原始SEP块按路线局部分割；橙色表示路线外降级留痕，绿色表示路线内原SEP重点候选，紫色表示路线内第二次SEP补充恢复的重点候选；绿色和紫色复核优先级相同但来源不同，颜色不是最终置信度；
 - `vision_expert_views.png`：Euclid风格VIS arcsinh/MTF全视场与中央100×100观察图；
 - `vision_foreground_model_comparison.png`：比较正式前景模型与PSF-MGE审计模型；它只用于发现“换一种减除方法就消失”的模型敏感结构，不参与正式检测；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。

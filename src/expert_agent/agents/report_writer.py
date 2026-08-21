@@ -37,6 +37,8 @@ class ReportWriter(BaseAgent):
             (
                 f"- {item.id}: origin={item.origin}, status={item.status}, "
                 f"structural support={item.structural_support_level}, "
+                f"partition={item.pixel_partition}, review priority={item.review_priority}, "
+                f"parent SEP={item.parent_sep_component_id or 'none'}, "
                 f"radius={item.radius_px:.2f} px, pixels={item.pixel_count}, "
                 f"integrated S/N={item.integrated_snr:.1f}, paths={','.join(item.path_ids) or 'none'}; "
                 "pending audit and excluded from current scoring"
