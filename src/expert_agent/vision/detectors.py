@@ -93,6 +93,87 @@ class GeometricPathCandidate:
     recovered_mask: np.ndarray
 
 
+def path_pixel_consistency(
+    candidate: GeometricPathCandidate,
+    pixels_y: np.ndarray,
+    pixels_x: np.ndarray,
+) -> tuple[float, float, bool]:
+    """Measure whether an observed pixel component follows a search route.
+
+    Consistency uses the route's already recorded half-width: the component is
+    consistent when its median radial deviation is inside that band. The
+    overlap fraction remains a descriptive continuous measurement rather than
+    a separate calibrated pass percentage.
+    """
+    if not pixels_y.size:
+        return 0.0, float("inf"), False
+    elliptical_radius = _ellipse_radius(
+        pixels_y.astype(float),
+        pixels_x.astype(float),
+        candidate.center_x,
+        candidate.center_y,
+        candidate.axis_ratio,
+        candidate.position_angle_deg,
+    )
+    deviation = np.abs(elliptical_radius - candidate.semi_major_radius_px)
+    median_deviation = float(np.median(deviation))
+    overlap_fraction = float(np.mean(deviation <= candidate.half_width_px))
+    return (
+        overlap_fraction,
+        median_deviation,
+        median_deviation <= candidate.half_width_px,
+    )
+
+
+def path_support_relations(
+    candidates: list[GeometricPathCandidate],
+    segments: list[ResidualStructure],
+) -> tuple[
+    dict[int, dict[int, tuple[float, float, bool]]],
+    dict[int, list[int]],
+]:
+    """Relate raw SEP components to routes without letting a seed prove itself.
+
+    A route supplies additional structural support only when it is brighter
+    than its adjacent control route. An arc-seeded route additionally needs an
+    independent component: either a route-masked SEP recovery or another raw
+    SEP component consistent with the same route.
+    """
+    metrics_by_segment: dict[int, dict[int, tuple[float, float, bool]]] = {
+        index: {} for index in range(len(segments))
+    }
+    consistent_by_path: dict[int, list[int]] = {}
+    for path_index, candidate in enumerate(candidates):
+        consistent_indices: list[int] = []
+        for segment_index, segment in enumerate(segments):
+            metrics = path_pixel_consistency(
+                candidate, segment.pixels_y, segment.pixels_x
+            )
+            metrics_by_segment[segment_index][path_index] = metrics
+            if metrics[2]:
+                consistent_indices.append(segment_index)
+        consistent_by_path[path_index] = consistent_indices
+
+    supported_by_path: dict[int, list[int]] = {}
+    for path_index, candidate in enumerate(candidates):
+        consistent_indices = consistent_by_path[path_index]
+        independent_component = bool(candidate.recovered_segments) or any(
+            index not in candidate.seed_indices for index in consistent_indices
+        )
+        supported: list[int] = []
+        if candidate.on_minus_off_path_snr > 0.0:
+            for segment_index in consistent_indices:
+                self_seeded = (
+                    candidate.mode == "arc_seeded"
+                    and segment_index in candidate.seed_indices
+                )
+                if self_seeded and not independent_component:
+                    continue
+                supported.append(segment_index)
+        supported_by_path[path_index] = supported
+    return metrics_by_segment, supported_by_path
+
+
 def position_angle(x: float, y: float, nucleus_yx: tuple[int, int]) -> float:
     return float(
         (np.degrees(np.arctan2(-(x - nucleus_yx[1]), -(y - nucleus_yx[0]))) + 360)

@@ -33,7 +33,7 @@ The target directory contains:
 - `vision_rgb_context.png`: validated RGB-to-FITS orientation mapping and the same overlays;
 - `vision_snr_threshold_process.png`: every S/N threshold mask and survival layer;
 - `vision_sep_consensus.png`: exact SEP pixel unions across the deblending-parameter grid, retained as trace-only detections;
-- `vision_model_chain.png`: raw SEP pixels compared with candidates recovered by route-masked SEP;
+- `vision_model_chain.png`: SEP-only, SEP-plus-geometry, and route-recovered pixels shown without an implied confidence ordering;
 - `vision_geometric_path_search.png`: geometric search routes and the actual pixels detected inside them;
 - `vision_expert_views.png`: clean Euclid-style VIS arcsinh and MTF views at full-field and central 100×100 scales;
 - `vision_manifest.json`: runtime parameters, processing steps, output paths, and input hash;
@@ -60,9 +60,10 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.10 chains raw SEP detections through geometry-guided, route-masked SEP
-searches. Uncalibrated model-chain candidates are traceable but excluded from the
-current reasoning score. Version 0.5 added WCS-aware sky coordinates, angular scales, sky position angles,
+Version 0.10.1 integrates original SEP and route-recovered components by shared
+geometry. Structural-support sources and candidate systems are traceable but do
+not imply lens confidence and remain excluded from the reasoning score. Version
+0.5 added WCS-aware sky coordinates, angular scales, sky position angles,
 and full-field/RGB location audits. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
 
 PNG input runs in a conservative reduced-measurement mode because rendered images

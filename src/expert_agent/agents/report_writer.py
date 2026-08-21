@@ -36,12 +36,22 @@ class ReportWriter(BaseAgent):
         candidate_lines = [
             (
                 f"- {item.id}: origin={item.origin}, status={item.status}, "
+                f"structural support={item.structural_support_level}, "
                 f"radius={item.radius_px:.2f} px, pixels={item.pixel_count}, "
                 f"integrated S/N={item.integrated_snr:.1f}, paths={','.join(item.path_ids) or 'none'}; "
                 "pending audit and excluded from current scoring"
             )
             for item in document.model_candidates
         ] or ["- No model-chain candidate was retained."]
+        system_lines = [
+            (
+                f"- {item.id}: path={item.path_id}, members={','.join(item.member_candidate_ids)}, "
+                f"SEP members={','.join(item.sep_candidate_ids) or 'none'}, "
+                f"recovered members={','.join(item.recovered_candidate_ids) or 'none'}, "
+                f"components={item.component_count}; candidate grouping only, not a lens system claim"
+            )
+            for item in document.candidate_systems
+        ] or ["- No route-associated candidate system was assembled."]
         path_lines = [
             (
                 f"- {item.id}: mode={item.mode}, seeds={','.join(item.seed_candidate_ids) or 'none'}, "
@@ -148,6 +158,10 @@ class ReportWriter(BaseAgent):
                 "## Model-chain candidates pending audit",
                 "",
                 *candidate_lines,
+                "",
+                "## Route-associated candidate systems",
+                "",
+                *system_lines,
                 "",
                 "## Geometry-guided missed-structure search",
                 "",

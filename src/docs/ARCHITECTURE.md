@@ -33,7 +33,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.8` records:
+`schema_version=1.9` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -85,6 +85,18 @@ on-route versus adjacent-route contrast and independently recovered pixels. The
 new `model_candidates` records origin, status, path links, geometry, S/N, foreground
 comparison survival, and explicit `not_scoring_input` flags. Until candidate
 promotion is calibrated, `structures` remains empty for new v0.10 vision runs.
+
+Version 1.9 removes any implied ordering between original SEP components and
+route-masked SEP recoveries. Raw SEP components are labelled `raw_sep_only` when
+they lack qualifying geometric support and `sep_plus_geometry` when their median
+route deviation lies inside the route's recorded half-width. Route-masked SEP
+discoveries are labelled `route_recovered`. These are structural-support sources,
+not confidence levels. A seed-generated route cannot support its own seed without
+an additional component, while a positive-contrast centre-fallback route can supply
+a separately constructed but still residual-correlated geometric relation.
+Components associated through one route are stored
+as a `candidate_system`, with foreground-model and near-core audit flags kept on a
+separate axis. Candidate systems remain excluded from the reasoning score.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF

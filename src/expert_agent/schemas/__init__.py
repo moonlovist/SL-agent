@@ -1,5 +1,6 @@
 from .observation import (
     AlternativeIndicators,
+    CandidateSystemObservation,
     DataQuality,
     ForegroundGalaxyObservation,
     Measurement,
@@ -26,6 +27,7 @@ from .reasoning import (
 __all__ = [
     "AuditResult",
     "AlternativeIndicators",
+    "CandidateSystemObservation",
     "ConfidenceAssessment",
     "ContradictionItem",
     "CrossHypothesisEvidenceComparison",

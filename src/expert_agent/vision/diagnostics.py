@@ -321,6 +321,9 @@ def write_model_chain(
     config: VisionConfig,
     footprint: np.ndarray,
     residual_structure_mask: np.ndarray,
+    sep_only_candidate_mask: np.ndarray,
+    sep_geometry_mask: np.ndarray,
+    geometry_recovered_mask: np.ndarray,
     output: Path,
 ) -> Path:
     plt = _matplotlib(output)
@@ -336,18 +339,25 @@ def write_model_chain(
     axes[1].scatter(raw_x, raw_y, s=5, facecolors="none", edgecolors="orange", linewidths=0.5)
     axes[1].set_title("2. SEP 原始多参数像素并集（仅留痕）")
     axes[2].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
-    candidate_y, candidate_x = np.where(residual_structure_mask[ys, xs])
-    axes[2].scatter(candidate_x, candidate_y, s=6, c="magenta", marker="s")
-    axes[2].set_title("3. SEP→几何模型链候选（待审计）")
+    supported_y, supported_x = np.where(sep_geometry_mask[ys, xs])
+    recovered_y, recovered_x = np.where(geometry_recovered_mask[ys, xs])
+    axes[2].scatter(supported_x, supported_y, s=7, c="lime", marker="s")
+    axes[2].scatter(recovered_x, recovered_y, s=7, c="magenta", marker="s")
+    axes[2].set_title("3. 绿=SEP+路线一致；紫=路线内新恢复")
     axes[3].imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
-    axes[3].scatter(raw_x, raw_y, s=5, facecolors="none", edgecolors="orange", linewidths=0.5)
-    axes[3].scatter(candidate_x, candidate_y, s=6, c="magenta", marker="s")
-    axes[3].set_title("4. 对照：橙=原始SEP，紫=模型链候选")
+    sep_only_y, sep_only_x = np.where(sep_only_candidate_mask[ys, xs])
+    axes[3].scatter(
+        sep_only_x, sep_only_y, s=5, facecolors="none",
+        edgecolors="orange", linewidths=0.5,
+    )
+    axes[3].scatter(supported_x, supported_y, s=7, c="lime", marker="s")
+    axes[3].scatter(recovered_x, recovered_y, s=7, c="magenta", marker="s")
+    axes[3].set_title("4. 路线内结构整合（颜色不是最终置信度）")
     for axis in axes:
         _mark(axis, half)
     figure.suptitle(
-        "链式视觉检测：SEP只提出线索，几何路线内再次运行SEP后形成待审计候选\n"
-        "所有彩色像素都不是透镜标签；红十字为中心"
+        "路线内结构整合：原始SEP与新恢复像素都是候选组成部分\n"
+        "橙=SEP待解释；绿=SEP+路线一致；紫=路线内补充发现；紫色不天然比绿色可靠"
     )
     figure.tight_layout()
     path = output / "vision_model_chain.png"
@@ -417,7 +427,7 @@ def write_field_context(
     config: VisionConfig,
     segments: list[ResidualStructure],
     output: Path,
-    candidate_points: list[tuple[str, float, float]] | None = None,
+    candidate_points: list[tuple[str, float, float, str]] | None = None,
 ) -> Path:
     """Map the analyzed crop and every measured structure onto the full field."""
     plt = _matplotlib(output)
@@ -465,11 +475,17 @@ def write_field_context(
             f"S{index}", (segment.x + 3, segment.y + 3),
             color="magenta", fontsize=9, weight="bold",
         )
-    for candidate_id, candidate_x, candidate_y in candidate_points or []:
-        axis.plot(candidate_x, candidate_y, "ms", ms=5, mew=1.0)
+    candidate_colors = {
+        "sep_only": "orange",
+        "sep_geometry_consistent": "lime",
+        "geometry_recovered": "magenta",
+    }
+    for candidate_id, candidate_x, candidate_y, status in candidate_points or []:
+        color = candidate_colors.get(status, "orange")
+        axis.plot(candidate_x, candidate_y, "s", color=color, ms=5, mew=1.0)
         axis.annotate(
             candidate_id, (candidate_x + 3, candidate_y + 3),
-            color="magenta", fontsize=9, weight="bold",
+            color=color, fontsize=9, weight="bold",
         )
     north, east = orientation_vectors(
         prep.image, (float(center_x), float(center_y))
@@ -520,7 +536,7 @@ def write_rgb_context(
     config: VisionConfig,
     segments: list[ResidualStructure],
     output: Path,
-    candidate_points: list[tuple[str, float, float]] | None = None,
+    candidate_points: list[tuple[str, float, float, str]] | None = None,
 ) -> Path | None:
     """Overlay the analysis region on a sibling RGB preview after orientation matching."""
     rgb_path = prep.image.path.parent / "rgb_0.png"
@@ -622,11 +638,17 @@ def write_rgb_context(
             f"S{index}", (x + 3, y - 3), color="magenta",
             fontsize=9, weight="bold",
         )
-    for candidate_id, candidate_x, candidate_y in candidate_points or []:
+    candidate_colors = {
+        "sep_only": "orange",
+        "sep_geometry_consistent": "lime",
+        "geometry_recovered": "magenta",
+    }
+    for candidate_id, candidate_x, candidate_y, status in candidate_points or []:
         x, y = to_png(candidate_x, candidate_y)
-        axis.plot(x, y, "ms", ms=5, mew=1.0)
+        color = candidate_colors.get(status, "orange")
+        axis.plot(x, y, "s", color=color, ms=5, mew=1.0)
         axis.annotate(
-            candidate_id, (x + 3, y - 3), color="magenta",
+            candidate_id, (x + 3, y - 3), color=color,
             fontsize=9, weight="bold",
         )
     north, east = orientation_vectors(
@@ -720,8 +742,11 @@ def write_manifest(
             "threshold_level_map": "number of accepted S/N threshold levels survived",
             "sep_raw_consensus_segmentation": "exact labels of the raw multi-parameter SEP pixel unions",
             "sep_raw_consensus_footprint": "all raw SEP consensus pixels; trace-only",
-            "model_candidate_mask": "unified SEP-to-geometry-chain candidates pending audit",
-            "residual_structure_mask": "empty compatibility array; no candidate is promoted to a scored structure in v0.10",
+            "model_candidate_mask": "union of all raw-SEP and route-recovered candidates pending audit",
+            "sep_only_candidate_mask": "raw SEP candidates without qualifying geometric support",
+            "sep_geometry_consistent_mask": "raw SEP candidates also consistent with a qualifying route",
+            "geometry_recovered_candidate_mask": "supplementary candidates found by route-masked SEP",
+            "residual_structure_mask": "empty compatibility array; no candidate is promoted to a scored structure in v0.10.1",
             "arc_mask": "empty deprecated compatibility array",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
             "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
@@ -731,6 +756,7 @@ def write_manifest(
             "Threshold and SEP results share the same residual and are correlated measurements.",
             "Raw SEP detections are retained for traceability but are not exposed as scored structures.",
             "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
+            "Route-consistent raw SEP and route-recovered components are grouped without assigning final confidence or a lens label.",
             "No wavelet channel is used in this version.",
         ],
     }
@@ -747,17 +773,27 @@ def write_visual_audit_bundle(
     level_map: np.ndarray,
     footprint: np.ndarray,
     residual_structure_mask: np.ndarray,
+    sep_only_candidate_mask: np.ndarray,
+    sep_geometry_mask: np.ndarray,
+    geometry_recovered_mask: np.ndarray,
     segments: list[ResidualStructure],
     geometric_paths: list[GeometricPathCandidate],
     foreground_comparison: ForegroundModelComparison,
     output: Path,
-    candidate_points: list[tuple[str, float, float]] | None = None,
+    candidate_points: list[tuple[str, float, float, str]] | None = None,
 ) -> dict[str, str]:
     try:
         threshold_path = write_threshold_process(prep, config, threshold_detections, level_map, output)
         sep_path = write_sep_consensus(prep, config, consensus_detections, output)
         structure_path = write_model_chain(
-            prep, config, footprint, residual_structure_mask, output
+            prep,
+            config,
+            footprint,
+            residual_structure_mask,
+            sep_only_candidate_mask,
+            sep_geometry_mask,
+            geometry_recovered_mask,
+            output,
         )
         path_search_path = write_geometric_path_search(prep, geometric_paths, output)
         expert_views_path = write_expert_views(prep, output)

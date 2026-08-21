@@ -822,14 +822,14 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 - `vision_snr_threshold_process.png`：每个 S/N 阈值的真实掩膜、掩膜残差、相邻层壳和最终存活层级；
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
-- `vision_model_chain.png`：对照前景减除残差、橙色原始SEP像素和紫色几何模型链候选；原始SEP只留痕，紫色候选也仍需审计；
+- `vision_model_chain.png`：橙色表示只有SEP支持的待解释线索，绿色表示原始SEP同时与合理路线一致，紫色表示路线内第二次SEP补充找到；颜色是结构支持来源，不是置信度，紫色不天然比绿色可靠；
 - `vision_expert_views.png`：Euclid风格VIS arcsinh/MTF全视场与中央100×100观察图；
 - `vision_foreground_model_comparison.png`：比较正式前景模型与PSF-MGE审计模型；它只用于发现“换一种减除方法就消失”的模型敏感结构，不参与正式检测；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。
 
 固定的视觉架构流程不随样本变化，只在 `src/docs/VISION_PROCESS_FLOW_CN.md` 中维护一份，不再复制到每个样本输出目录。
 
-`observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
+`observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值、结构支持等级、路线内候选系统和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
 
 `vision_field_context.png` 用完整FITS视场说明中央裁剪来自哪里，并显示搜索环、得到几何支持的候选编号、中心天球坐标、像素尺度和N/E方向。`vision_rgb_context.png` 会先自动比较RGB与FITS的方向相关性，再把相同标记映射到彩色图；匹配相关性不足时不会生成，避免伪造坐标对应。未解释的原始SEP块只在SEP与模型链过程图中留痕，不会伪装成已采纳的全视场候选标记。
 

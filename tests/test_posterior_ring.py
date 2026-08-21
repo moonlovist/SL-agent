@@ -4,8 +4,11 @@ import numpy as np
 
 from expert_agent.core.config import VisionConfig
 from expert_agent.vision.detectors import (
+    GeometricPathCandidate,
+    RecoveredPathSegment,
     ResidualStructure,
     geometric_path_search,
+    path_support_relations,
     sep_consensus,
 )
 from expert_agent.vision.preprocess import ImageData, PreprocessedImage
@@ -202,3 +205,87 @@ def test_path_recovery_respects_configured_inner_search_boundary() -> None:
     ]
     assert recovered_pixels
     assert all(np.hypot(x - 30.0, y - 30.0) >= 4.0 for y, x in recovered_pixels)
+
+
+def test_seeded_route_needs_independent_component_before_supporting_its_seed() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    angle = np.arctan2(yy - 30.0, xx - 30.0)
+    seed_mask = (np.abs(radius - 12.0) <= 1.0) & (np.abs(angle) < 0.3)
+    recovered_mask = (np.abs(radius - 12.0) <= 1.0) & (
+        np.abs(np.abs(angle) - np.pi) < 0.3
+    )
+    prep = _prep_from_residual_snr(np.zeros((size, size), dtype=float))
+    seed = _seed_from_mask(seed_mask, prep)
+    recovered_y, recovered_x = np.where(recovered_mask)
+
+    def route(recovered: list[RecoveredPathSegment]) -> GeometricPathCandidate:
+        return GeometricPathCandidate(
+            mode="arc_seeded",
+            seed_indices=[0],
+            linked_structure_indices=[0],
+            center_x=30.0,
+            center_y=30.0,
+            semi_major_radius_px=12.0,
+            axis_ratio=1.0,
+            position_angle_deg=0.0,
+            half_width_px=1.5,
+            fit_scatter_px=0.5,
+            median_on_path_snr=1.0,
+            on_minus_off_path_snr=0.5,
+            above_local_background_fraction=0.5,
+            longest_above_local_background_deg=30.0,
+            recovered_segments=recovered,
+            route_mask=np.abs(radius - 12.0) <= 1.5,
+            recovered_mask=recovered_mask if recovered else np.zeros_like(recovered_mask),
+        )
+
+    _, unsupported = path_support_relations([route([])], [seed])
+    assert unsupported[0] == []
+
+    recovered_component = RecoveredPathSegment(
+        x=float(recovered_x.mean()),
+        y=float(recovered_y.mean()),
+        pixel_count=int(recovered_mask.sum()),
+        integrated_snr=5.0,
+        angular_extent_deg=30.0,
+        pixels_y=recovered_y,
+        pixels_x=recovered_x,
+    )
+    _, supported = path_support_relations(
+        [route([recovered_component])], [seed]
+    )
+    assert supported[0] == [0]
+
+
+def test_center_fallback_can_supply_geometry_support_to_existing_sep_component() -> None:
+    size = 61
+    yy, xx = np.indices((size, size))
+    radius = np.hypot(xx - 30.0, yy - 30.0)
+    seed_mask = (np.abs(radius - 12.0) <= 1.0) & (xx > 30)
+    prep = _prep_from_residual_snr(np.zeros((size, size), dtype=float))
+    seed = _seed_from_mask(seed_mask, prep)
+    route = GeometricPathCandidate(
+        mode="center_fallback",
+        seed_indices=[],
+        linked_structure_indices=[0],
+        center_x=30.0,
+        center_y=30.0,
+        semi_major_radius_px=12.0,
+        axis_ratio=1.0,
+        position_angle_deg=0.0,
+        half_width_px=1.5,
+        fit_scatter_px=None,
+        median_on_path_snr=1.0,
+        on_minus_off_path_snr=0.5,
+        above_local_background_fraction=0.5,
+        longest_above_local_background_deg=30.0,
+        recovered_segments=[],
+        route_mask=np.abs(radius - 12.0) <= 1.5,
+        recovered_mask=np.zeros_like(seed_mask),
+    )
+
+    _, supported = path_support_relations([route], [seed])
+
+    assert supported[0] == [0]

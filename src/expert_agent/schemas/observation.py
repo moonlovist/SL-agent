@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.10.0"
+    pipeline_version: str = "0.10.1"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -228,9 +228,24 @@ class ModelCandidateObservation(StrictModel):
 
     id: str
     origin: Literal["sep_seed", "path_recovery"]
-    status: Literal["geometry_linked", "geometry_recovered", "unexplained_residual"]
+    status: Literal[
+        "sep_only",
+        "sep_geometry_consistent",
+        "geometry_recovered",
+        # v0.10 compatibility values retained for loading older observations.
+        "geometry_linked",
+        "unexplained_residual",
+    ]
+    structural_support_level: Literal[
+        "raw_sep_only", "sep_plus_geometry", "route_recovered"
+    ] | None = None
+    support_sources: list[str] = Field(default_factory=list)
     raw_detection_ids: list[str] = Field(default_factory=list)
     path_ids: list[str] = Field(default_factory=list)
+    geometry_consistent_path_ids: list[str] = Field(default_factory=list)
+    candidate_system_ids: list[str] = Field(default_factory=list)
+    path_overlap_fractions: dict[str, float] = Field(default_factory=dict)
+    path_median_deviation_px: dict[str, float] = Field(default_factory=dict)
     centroid_xy: tuple[float, float]
     radius_px: float = Field(ge=0.0)
     position_angle_deg: float = Field(ge=0.0, lt=360.0)
@@ -246,8 +261,25 @@ class ModelCandidateObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class CandidateSystemObservation(StrictModel):
+    """Candidate components associated through one geometric search route."""
+
+    id: str
+    path_id: str
+    member_candidate_ids: list[str]
+    sep_candidate_ids: list[str] = Field(default_factory=list)
+    recovered_candidate_ids: list[str] = Field(default_factory=list)
+    component_count: int = Field(gt=0)
+    union_pixel_count: int = Field(gt=0)
+    radius_range_px: tuple[float, float]
+    angular_extent_deg: float = Field(ge=0.0, le=360.0)
+    support_sources: list[str] = Field(default_factory=list)
+    audit_flags: list[str] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8"] = "1.8"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9"] = "1.9"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -264,6 +296,7 @@ class ObservationDocument(StrictModel):
     ring_candidates: list[RingCandidateObservation] = Field(default_factory=list)
     geometric_paths: list[GeometricPathObservation] = Field(default_factory=list)
     model_candidates: list[ModelCandidateObservation] = Field(default_factory=list)
+    candidate_systems: list[CandidateSystemObservation] = Field(default_factory=list)
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

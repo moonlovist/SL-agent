@@ -39,12 +39,16 @@ class ObserverAgent(BaseAgent):
                 ),
                 "structure_count": len(document.structures),
                 "model_candidate_count": len(document.model_candidates),
+                "candidate_system_count": len(document.candidate_systems),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
                     len(item.recovered_candidate_ids) for item in document.geometric_paths
                 ),
                 "model_candidates": [
                     item.model_dump(mode="json") for item in document.model_candidates
+                ],
+                "candidate_systems": [
+                    item.model_dump(mode="json") for item in document.candidate_systems
                 ],
                 "geometric_paths": [
                     {
@@ -94,6 +98,7 @@ class ObserverAgent(BaseAgent):
             {
                 "structure_count": len(document.structures),
                 "model_candidate_count": len(document.model_candidates),
+                "candidate_system_count": len(document.candidate_systems),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
                     len(item.recovered_candidate_ids) for item in document.geometric_paths

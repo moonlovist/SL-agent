@@ -37,6 +37,7 @@ def _translate_limitation(text: str) -> str:
         "No PSF image is present in the selected band; PSF-specific artifact rejection is unavailable.": "所选波段没有 PSF 图像，因此不能进行 PSF 专项伪影排除。",
         "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented.": "FITS中存在PSF图像并已保存，但当前尚未实现结合PSF卷积的前景光建模。",
         "Raw SEP detections remain trace-only; only geometry-chain candidates are exposed, and none are promoted to scored structures before calibration.": "原始 SEP 检测只用于过程追溯；程序只对外记录经过几何链整理的候选，并且在完成标定审计前不会把任何候选送入当前评分。",
+        "Raw SEP, SEP-plus-geometry, and route-recovered candidates are separated by structural support source; none are promoted to scored structures before calibration.": "程序分别记录只有SEP支持、SEP加几何路线支持、以及路线内补充恢复的候选；完成标定审计前，任何一类都不会进入当前评分。",
         "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.": "几何路径只负责限制 SEP 再次搜索的位置；路径上没有亮像素的部分既不算环，也不能据此反对透镜解释。",
         "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution.": "输入中有 PSF 图像，且审计用的比较模型使用了它；但当前主检测通道的前景减除尚未使用 PSF 卷积。",
     }
@@ -227,7 +228,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
             "## 3. 当前评分使用的正式结构",
             "",
             f"当前共有 **{len(document.structures)}** 个结构进入后端证据评分。",
-            "v0.10 中未经标定的模型链候选不会自动进入这里。",
+            "v0.10.1 中未经标定的模型链候选和候选系统不会自动进入这里。",
             "",
         ]
     )
@@ -254,16 +255,26 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 "geometry_linked": "已与几何路线关联",
                 "geometry_recovered": "沿几何路线恢复",
                 "unexplained_residual": "尚未得到几何支持的残差线索",
+                "sep_only": "SEP稳定检出，但尚无几何支持",
+                "sep_geometry_consistent": "SEP稳定检出，并与合理几何路线一致",
             }[item.status]
+            support_level = {
+                "raw_sep_only": "原始SEP结构支持",
+                "sep_plus_geometry": "SEP与几何路线共同支持",
+                "route_recovered": "路线内补充结构支持",
+                None: "旧版记录，未单列结构支持等级",
+            }[item.structural_support_level]
             lines.extend(
                 [
                     f"### {item.id}",
                     "",
-                    f"- 来源：{origin}；状态：{status}",
+                    f"- 来源：{origin}；状态：{status}；结构支持等级：{support_level}",
                     f"- 中心：({_value(item.centroid_xy[0])}, {_value(item.centroid_xy[1])}) 像素；距中心：{_value(item.radius_px)} 像素",
                     f"- 像素数：{item.pixel_count}；累计S/N：{_value(item.integrated_snr)}；环向跨度：{_value(item.angular_extent_deg)}°",
-                    f"- 关联路线：{', '.join(item.path_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}",
+                    f"- 有像素重叠的路线：{', '.join(item.path_ids) or '无'}；通过几何一致性检查的路线：{', '.join(item.geometry_consistent_path_ids) or '无'}",
+                    f"- 所属候选系统：{', '.join(item.candidate_system_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}",
                     f"- 换用PSF-MGE比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
+                    f"- 结构支持来源：{', '.join(item.support_sources) or '未记录'}",
                     "- 解释限制：这是待审计的结构候选，不是弧、环、多重像或透镜标签。",
                     "",
                 ]
@@ -271,7 +282,32 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     else:
         lines.extend(["模型链没有保留待审计候选。", ""])
 
-    lines.extend(["## 3.2 几何路径引导搜索", ""])
+    lines.extend(["## 3.2 路线内候选系统整合", ""])
+    lines.extend(
+        [
+            "同一路线上的绿色原始SEP结构和紫色新恢复结构会组合为一个候选系统。它只表示这些结构共享一条几何搜索路线，不表示它们已经被证明是同一背景源的多重像。",
+            "",
+        ]
+    )
+    if document.candidate_systems:
+        for system in document.candidate_systems:
+            lines.extend(
+                [
+                    f"### {system.id}",
+                    "",
+                    f"- 对应路线：{system.path_id}；全部成员：{', '.join(system.member_candidate_ids)}",
+                    f"- 原始SEP成员：{', '.join(system.sep_candidate_ids) or '无'}；路线内新恢复成员：{', '.join(system.recovered_candidate_ids) or '无'}",
+                    f"- 组成部分数量：{system.component_count}；联合像素数：{system.union_pixel_count}；联合环向跨度：{_value(system.angular_extent_deg)}°",
+                    f"- 成员半径范围：{_value(system.radius_range_px[0])}–{_value(system.radius_range_px[1])} 像素",
+                    f"- 需要重点审计的标记：{', '.join(system.audit_flags) or '无'}",
+                    "- 解释限制：这是候选结构组合，不是已确认的透镜系统，也不进入当前A/B/C评分。",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["没有形成路线关联的候选系统。", ""])
+
+    lines.extend(["## 3.3 几何路径引导搜索", ""])
     if document.geometric_paths:
         lines.extend(
             [
