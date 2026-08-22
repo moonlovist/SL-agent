@@ -23,7 +23,12 @@ from ..schemas.observation import (
     SceneGeometryObservation,
     StructureObservation,
 )
-from .astrometry import orientation_vectors, pixel_to_sky
+from .astrometry import (
+    axial_misalignment_deg,
+    orientation_vectors,
+    pixel_to_sky,
+    sky_separation_and_pa,
+)
 from .detectors import (
     ResidualStructure,
     StabilityDetection,
@@ -40,6 +45,7 @@ from .diagnostics import write_visual_audit_bundle
 from .foreground_models import fit_psf_mge_comparison
 from .preprocess import load_image, preprocess
 from .summary_cn import write_observation_summary_cn
+from .structure_audit import audit_structure_candidates
 
 
 class VisionPipeline:
@@ -111,9 +117,8 @@ class VisionPipeline:
                 residual_correlation = value if np.isfinite(value) else None
 
         measurements: list[Measurement] = []
-        # Formal structures remain empty until the chained candidates have a
-        # calibrated promotion audit. Raw SEP output is trace data, not a
-        # second Observation evidence stream.
+        # Raw SEP output remains trace data. Only candidates that pass the
+        # explicit candidate-structure audit become measured structures.
         structures: list[StructureObservation] = []
         ring_candidates: list[RingCandidateObservation] = []  # legacy field; no longer emitted
         geometric_paths: list[GeometricPathObservation] = []
@@ -443,6 +448,158 @@ class VisionPipeline:
             for candidate in model_candidates
         ]
 
+        candidate_structure_audits = audit_structure_candidates(
+            model_candidates,
+            data_usable=(image.finite_fraction > 0.99 and prep.background_rms > 0),
+            foreground_model_success=prep.model_success,
+        )
+        candidate_by_id = {candidate.id: candidate for candidate in model_candidates}
+        promoted_structure_id_by_candidate: dict[str, str] = {}
+        structure_masks: dict[str, np.ndarray] = {}
+        for audit in candidate_structure_audits:
+            if audit.verdict != "promoted":
+                continue
+            candidate = candidate_by_id[audit.candidate_id]
+            mask = model_candidate_masks[candidate.id]
+            ys, xs = np.where(mask)
+            if not ys.size:
+                continue
+            structure_id = f"S{len(structures) + 1}"
+            promoted_structure_id_by_candidate[candidate.id] = structure_id
+            structure_masks[structure_id] = mask
+            centroid_x = float(xs.mean())
+            centroid_y = float(ys.mean())
+            centered = np.column_stack((xs - centroid_x, ys - centroid_y))
+            if len(centered) >= 2:
+                covariance = np.cov(centered, rowvar=False, bias=True)
+                eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+                minor_value = max(float(eigenvalues[0]), 1e-9)
+                major_value = max(float(eigenvalues[-1]), minor_value)
+                axis_ratio = float(np.sqrt(major_value / minor_value))
+                major_vector = eigenvectors[:, -1]
+                major_axis_deg = float(
+                    np.degrees(np.arctan2(major_vector[1], major_vector[0])) % 180.0
+                )
+            else:
+                axis_ratio = 1.0
+                major_axis_deg = 0.0
+            radial_axis_deg = float(
+                np.degrees(
+                    np.arctan2(
+                        centroid_y - prep.nucleus_yx[0],
+                        centroid_x - prep.nucleus_yx[1],
+                    )
+                )
+                % 180.0
+            )
+            tangential_misalignment = axial_misalignment_deg(
+                major_axis_deg, (radial_axis_deg + 90.0) % 180.0
+            )
+            shape_reliability = float(
+                np.clip((axis_ratio - 1.0) / 1.5, 0.0, 0.7)
+            )
+            pixel_radii = np.hypot(
+                xs - prep.nucleus_yx[1], ys - prep.nucleus_yx[0]
+            )
+            pixel_angles = (
+                np.degrees(
+                    np.arctan2(
+                        -(xs - prep.nucleus_yx[1]),
+                        -(ys - prep.nucleus_yx[0]),
+                    )
+                )
+                + 360.0
+            ) % 360.0
+            inner_region = pixel_radii <= (runtime_config.ring_inner_px + 1.0)
+            inner_fraction = float(np.mean(inner_region))
+            threshold_fraction = float(
+                np.mean(level_map[mask] / max(len(runtime_config.snr_thresholds), 1))
+            )
+            centroid_ra, centroid_dec = pixel_to_sky(
+                prep.image, centroid_x, centroid_y
+            )
+            radius_arcsec, sky_pa = sky_separation_and_pa(
+                prep.image,
+                (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
+                (centroid_x, centroid_y),
+            )
+            integrated_flux = float(prep.residual[mask].sum())
+            measurement_ids: list[str] = []
+            structure_measurements = [
+                ("integrated_snr", candidate.integrated_snr, None, min(0.7, abs(candidate.integrated_snr) / 20.0), "audited_candidate_signal"),
+                ("radius", candidate.radius_px, "px", 0.65, "audited_candidate_geometry"),
+                ("angular_extent", candidate.angular_extent_deg, "deg", 0.6, "audited_candidate_geometry"),
+                ("axis_ratio", axis_ratio, None, shape_reliability, "audited_candidate_morphology"),
+                ("tangential_misalignment", tangential_misalignment, "deg", shape_reliability, "audited_candidate_morphology"),
+                ("threshold_survival_fraction", threshold_fraction, None, threshold_fraction, "shared_residual_detection"),
+                ("sep_survival_fraction", candidate.sep_survival_fraction, None, candidate.sep_survival_fraction or 0.0, "shared_residual_detection"),
+                ("inner_connection_fraction", inner_fraction, None, 0.55, "subtraction_quality"),
+                ("foreground_comparison_survival_fraction", candidate.foreground_comparison_survival_fraction, None, 0.55 if candidate.foreground_comparison_survival_fraction is not None else 0.0, "foreground_model_comparison"),
+            ]
+            for kind, value, unit, reliability, correlation_group in structure_measurements:
+                measurement_id = f"M_{structure_id}_{kind}"
+                measurement_ids.append(measurement_id)
+                measurements.append(
+                    Measurement(
+                        id=measurement_id,
+                        kind=kind,
+                        value=value,
+                        unit=unit,
+                        reliability=float(np.clip(reliability, 0.0, 1.0)),
+                        method="candidate_structure_audit_promotion",
+                        description=(
+                            f"{kind.replace('_', ' ')} for {structure_id}, promoted "
+                            f"from visual candidate {candidate.id}; this is a measured "
+                            "residual structure, not a lens label"
+                        ),
+                        structure_id=structure_id,
+                        correlation_group=correlation_group,
+                        flags=["audited_structure_measurement", f"source_candidate:{candidate.id}"],
+                    )
+                )
+            structures.append(
+                StructureObservation(
+                    id=structure_id,
+                    centroid_xy=(centroid_x, centroid_y),
+                    radius_px=candidate.radius_px,
+                    position_angle_deg=candidate.position_angle_deg,
+                    centroid_ra_deg=centroid_ra,
+                    centroid_dec_deg=centroid_dec,
+                    radius_arcsec=radius_arcsec,
+                    sky_position_angle_deg=sky_pa,
+                    pixel_count=candidate.pixel_count,
+                    integrated_flux=integrated_flux,
+                    integrated_snr=candidate.integrated_snr,
+                    median_radius_px=float(np.median(pixel_radii)),
+                    angular_extent_deg=candidate.angular_extent_deg,
+                    axis_ratio=axis_ratio,
+                    tangential_misalignment_deg=tangential_misalignment,
+                    threshold_survival_fraction=threshold_fraction,
+                    sep_survival_fraction=candidate.sep_survival_fraction,
+                    inner_connection_fraction=inner_fraction,
+                    connects_to_inner_region=inner_fraction > 0.0,
+                    near_core=candidate.near_core,
+                    source_candidate_ids=[candidate.id],
+                    candidate_audit_ids=[audit.id],
+                    measurement_ids=measurement_ids,
+                    flags=[
+                        "candidate_structure_audit_promoted",
+                        "not_a_lens_label",
+                        *audit.caution_flags,
+                    ],
+                )
+            )
+        candidate_structure_audits = [
+            audit.model_copy(
+                update={
+                    "structure_id": promoted_structure_id_by_candidate.get(
+                        audit.candidate_id
+                    )
+                }
+            )
+            for audit in candidate_structure_audits
+        ]
+
         sep_only_mask = downgraded_sep_trace_mask.copy()
         sep_geometry_mask = np.zeros(prep.image.data.shape, dtype=bool)
         geometry_recovered_mask = np.zeros(prep.image.data.shape, dtype=bool)
@@ -456,7 +613,10 @@ class VisionPipeline:
                 sep_geometry_mask |= mask
             elif candidate.status == "geometry_recovered":
                 geometry_recovered_mask |= mask
-        comparison_survival = comparison_fraction(model_candidate_mask)
+        audited_structure_mask = np.zeros_like(model_candidate_mask, dtype=bool)
+        for structure_mask in structure_masks.values():
+            audited_structure_mask |= structure_mask
+        comparison_survival = comparison_fraction(audited_structure_mask)
         measurements.extend(
             [
                 Measurement(
@@ -475,7 +635,7 @@ class VisionPipeline:
                     value=comparison_survival,
                     reliability=0.65 if comparison_survival is not None else 0.0,
                     method=comparison.method,
-                    description="Fraction of model-chain candidate pixels still above the same S/N threshold under the comparison subtraction",
+                    description="Fraction of audited structure pixels still above the same S/N threshold under the comparison subtraction",
                     correlation_group="foreground_model_comparison",
                     flags=["audit_only", "not_used_for_detection"],
                 ),
@@ -560,6 +720,21 @@ class VisionPipeline:
             )
 
         all_angles: list[np.ndarray] = []
+        for structure in structures:
+            structure_mask = structure_masks[structure.id]
+            structure_y, structure_x = np.where(structure_mask)
+            all_angles.append(
+                (
+                    np.degrees(
+                        np.arctan2(
+                            -(structure_x - prep.nucleus_yx[1]),
+                            -(structure_y - prep.nucleus_yx[0]),
+                        )
+                    )
+                    + 360.0
+                )
+                % 360.0
+            )
         radii = [item.median_radius_px for item in structures]
         common_radius_cv = (
             float(np.std(radii) / max(np.mean(radii), 1e-9)) if len(radii) >= 2 else None
@@ -588,7 +763,7 @@ class VisionPipeline:
                 None,
                 1.0,
                 "segmentation_summary",
-                "Number of significant residual structures in the configured annulus",
+                "Number of visual candidates promoted by the candidate-structure audit",
             ),
             (
                 "M_scene_common_radius_cv",
@@ -606,7 +781,7 @@ class VisionPipeline:
                 "deg",
                 min(1.0, sum(item.pixel_count for item in structures) / 40.0),
                 "residual_structure_union",
-                "Minimum circular span containing all detected arc pixels",
+                "Minimum circular span containing all audited structure pixels",
             ),
             (
                 "M_scene_model_success",
@@ -815,9 +990,9 @@ class VisionPipeline:
                 "sep_only_candidate_mask": sep_only_mask.astype(np.uint8),
                 "sep_geometry_consistent_mask": sep_geometry_mask.astype(np.uint8),
                 "geometry_recovered_candidate_mask": geometry_recovered_mask.astype(np.uint8),
-                "residual_structure_mask": np.zeros_like(model_candidate_mask, dtype=np.uint8),
+                "residual_structure_mask": audited_structure_mask.astype(np.uint8),
                 # Compatibility alias for v0.5 and earlier analysis notebooks.
-                "arc_mask": np.zeros_like(model_candidate_mask, dtype=np.uint8),
+                "arc_mask": audited_structure_mask.astype(np.uint8),
                 "threshold_level_map": level_map,
                 "nucleus_yx": np.asarray(prep.nucleus_yx),
             }
@@ -834,7 +1009,7 @@ class VisionPipeline:
             np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
             diagnostic_path = self._write_diagnostic(
-                prep, model_candidate_mask, [], runtime_config, output
+                prep, audited_structure_mask, [], runtime_config, output
             )
             if diagnostic_path:
                 artifacts["diagnostic_image"] = str(diagnostic_path)
@@ -846,7 +1021,7 @@ class VisionPipeline:
                     consensus_detections=consensus_detections,
                     level_map=level_map,
                     footprint=footprint,
-                    residual_structure_mask=model_candidate_mask,
+                    residual_structure_mask=audited_structure_mask,
                     sep_only_candidate_mask=sep_only_mask,
                     sep_geometry_mask=sep_geometry_mask,
                     geometry_recovered_mask=geometry_recovered_mask,
@@ -869,15 +1044,15 @@ class VisionPipeline:
         finite_fraction = image.finite_fraction
         flags = list(prep.flags)
         if not structures:
-            flags.append("no_significant_annular_structure")
+            flags.append("no_audited_residual_structure")
         if model_candidates:
-            flags.append("model_chain_candidates_pending_audit")
+            flags.append("model_chain_candidates_audited")
         limitations = [
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
             "Merged SEP components are locally partitioned into route-supported pieces and downgraded off-route trace; route-supported and recovered pieces retain different provenance.",
-            "Raw SEP, SEP-plus-geometry, and route-recovered candidates are separated by structural support source; none are promoted to scored structures before calibration.",
+            "Candidate-structure audit promotion identifies measurable residual structures, not arcs, rings, multiple images, or lenses; scientific calibration is still required.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
@@ -1000,6 +1175,7 @@ class VisionPipeline:
             geometric_paths=geometric_paths,
             model_candidates=model_candidates,
             candidate_systems=candidate_systems,
+            candidate_structure_audits=candidate_structure_audits,
             structures=structures,
             measurements=measurements,
             artifacts=artifacts,

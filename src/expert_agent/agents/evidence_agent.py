@@ -309,13 +309,13 @@ class EvidenceAgent(BaseAgent):
         if structure_count and int(structure_count[0].value or 0) >= 2:
             add(
                 "H1",
-                f"{int(structure_count[0].value)} distinct annular structures were measured.",
+                f"{int(structure_count[0].value)} distinct audited residual structures were measured.",
                 structure_count,
                 "support",
                 0.45,
                 0.45,
                 "scene_geometry",
-                "Multiple components can be related lensed images, but independent sources are also possible.",
+                "Multiple real components can be related lensed images, but their count alone is weak and independent sources remain possible.",
             )
 
         foreground_detected = by_kind.get("foreground_detected", [])

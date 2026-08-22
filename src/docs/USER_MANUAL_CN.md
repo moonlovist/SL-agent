@@ -1,6 +1,6 @@
 # Lens Expert Agent 全面介绍与使用说明书
 
-> 适用版本：`lens-expert-agent 0.7.1`（灵活FITS输入与前景减除双模型审计版 MWA）
+> 适用版本：`lens-expert-agent 0.12.0`（候选结构审计与后端交付版 MWA）
 >
 > v0.3 阅读提示：系统现在有三位科学“复核员”。ObservationAuditor 检查测量能不能信，EvidenceAuditor 检查证据有没有重复或夸大，DecisionAuditor 检查最终结论应当确认、降级还是弃权。原 ReasoningAuditor 仍只检查程序结构和引用完整性。`summary.json` 中的最终分类以 DecisionAuditor 审核后的结果为准，原始初判仍会保留，方便追溯。
 > 适用系统：Windows + PowerShell；Python 3.11 或更高版本  
@@ -804,7 +804,7 @@ residual_snr = artifact["residual_snr"]
 1. 输入图；
 2. 前景星系模型；
 3. 残差信噪比图；
-4. 经过SEP→几何模型链后保留的待审计候选像素。
+4. 经过候选结构审计、已晋级为可测量结构的像素。
 
 青色十字标记系统识别的中心。
 
@@ -812,7 +812,7 @@ residual_snr = artifact["residual_snr"]
 
 - 模型是否大体重现中心星系；
 - 残差是否是明显弧，而不是中心附近的大块正负残差；
-- 紫色候选像素是否落在真实结构上；
+- 晋级结构像素是否落在值得后端继续解释的真实残差上；
 - 中心是否定位正确；
 - 搜索环带是否合适。
 
@@ -829,7 +829,9 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 固定的视觉架构流程不随样本变化，只在 `src/docs/VISION_PROCESS_FLOW_CN.md` 中维护一份，不再复制到每个样本输出目录。
 
-`observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值、结构支持等级、路线内候选系统和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
+`observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值、结构支持等级、候选结构审计、路线内候选系统和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
+
+`observation.json`中的`candidate_structure_audits`是视觉候选与后端推理之间的交接记录。每个候选会得到`promoted`（晋级为可测量结构）、`hold_for_review`（暂缓人工复核）或`trace_only`（只保留追溯）之一，并保存逐项检查、支持事实、风险和理由。只有`promoted`候选会出现在`structures`中；这仍不表示它已经被判为弧、环、多重像或强透镜。
 
 `vision_field_context.png` 用完整FITS视场说明中央裁剪来自哪里，并显示搜索环、得到几何支持的候选编号、中心天球坐标、像素尺度和N/E方向。`vision_rgb_context.png` 会先自动比较RGB与FITS的方向相关性，再把相同标记映射到彩色图；匹配相关性不足时不会生成，避免伪造坐标对应。未解释的原始SEP块只在SEP与模型链过程图中留痕，不会伪装成已采纳的全视场候选标记。
 

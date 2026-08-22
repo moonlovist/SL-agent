@@ -40,6 +40,7 @@ class ObserverAgent(BaseAgent):
                 "structure_count": len(document.structures),
                 "model_candidate_count": len(document.model_candidates),
                 "candidate_system_count": len(document.candidate_systems),
+                "candidate_structure_audit_count": len(document.candidate_structure_audits),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
                     len(item.recovered_candidate_ids) for item in document.geometric_paths
@@ -49,6 +50,10 @@ class ObserverAgent(BaseAgent):
                 ],
                 "candidate_systems": [
                     item.model_dump(mode="json") for item in document.candidate_systems
+                ],
+                "candidate_structure_audits": [
+                    item.model_dump(mode="json")
+                    for item in document.candidate_structure_audits
                 ],
                 "geometric_paths": [
                     {
@@ -84,6 +89,8 @@ class ObserverAgent(BaseAgent):
                         "inner_connection_fraction": item.inner_connection_fraction,
                         "connects_to_inner_region": item.connects_to_inner_region,
                         "near_core": item.near_core,
+                        "source_candidate_ids": item.source_candidate_ids,
+                        "candidate_audit_ids": item.candidate_audit_ids,
                         "measurement_ids": item.measurement_ids,
                     }
                     for item in document.structures
@@ -99,6 +106,7 @@ class ObserverAgent(BaseAgent):
                 "structure_count": len(document.structures),
                 "model_candidate_count": len(document.model_candidates),
                 "candidate_system_count": len(document.candidate_systems),
+                "candidate_structure_audit_count": len(document.candidate_structure_audits),
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
                     len(item.recovered_candidate_ids) for item in document.geometric_paths

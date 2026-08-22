@@ -32,7 +32,7 @@ class ReportWriter(BaseAgent):
                 f"tangential misalignment={item.tangential_misalignment_deg:.1f}°"
             )
             for item in document.structures
-        ] or ["- No significant annular structure was measured."]
+        ] or ["- No candidate passed the structure-promotion audit."]
         candidate_lines = [
             (
                 f"- {item.id}: origin={item.origin}, status={item.status}, "
@@ -41,10 +41,17 @@ class ReportWriter(BaseAgent):
                 f"parent SEP={item.parent_sep_component_id or 'none'}, "
                 f"radius={item.radius_px:.2f} px, pixels={item.pixel_count}, "
                 f"integrated S/N={item.integrated_snr:.1f}, paths={','.join(item.path_ids) or 'none'}; "
-                "pending audit and excluded from current scoring"
+                "retained with candidate-level provenance"
             )
             for item in document.model_candidates
         ] or ["- No model-chain candidate was retained."]
+        candidate_audit_lines = [
+            (
+                f"- {item.id}: candidate={item.candidate_id}, verdict={item.verdict}, "
+                f"structure={item.structure_id or 'none'}; {item.rationale}"
+            )
+            for item in document.candidate_structure_audits
+        ] or ["- No candidate-structure audit was recorded."]
         system_lines = [
             (
                 f"- {item.id}: path={item.path_id}, members={','.join(item.member_candidate_ids)}, "
@@ -153,11 +160,15 @@ class ReportWriter(BaseAgent):
                 "",
                 *trace_lines,
                 "",
-                "## Structured observations",
+                "## Candidate-structure promotion audit",
+                "",
+                *candidate_audit_lines,
+                "",
+                "## Audited structured observations",
                 "",
                 *structure_lines,
                 "",
-                "## Model-chain candidates pending audit",
+                "## Model-chain candidates and trace",
                 "",
                 *candidate_lines,
                 "",

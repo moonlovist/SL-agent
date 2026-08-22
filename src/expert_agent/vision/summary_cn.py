@@ -36,8 +36,7 @@ def _translate_limitation(text: str) -> str:
         "No validated celestial WCS/pixel scale is available; angular measurements remain in pixel geometry.": "没有可用的天球 WCS 或像素尺度，因此角距离仍只能使用像素表示。",
         "No PSF image is present in the selected band; PSF-specific artifact rejection is unavailable.": "所选波段没有 PSF 图像，因此不能进行 PSF 专项伪影排除。",
         "A PSF image is present and preserved, but PSF-convolved foreground modeling is not yet implemented.": "FITS中存在PSF图像并已保存，但当前尚未实现结合PSF卷积的前景光建模。",
-        "Raw SEP detections remain trace-only; only geometry-chain candidates are exposed, and none are promoted to scored structures before calibration.": "原始 SEP 检测只用于过程追溯；程序只对外记录经过几何链整理的候选，并且在完成标定审计前不会把任何候选送入当前评分。",
-        "Raw SEP, SEP-plus-geometry, and route-recovered candidates are separated by structural support source; none are promoted to scored structures before calibration.": "程序分别记录只有SEP支持、SEP加几何路线支持、以及路线内补充恢复的候选；完成标定审计前，任何一类都不会进入当前评分。",
+        "Candidate-structure audit promotion identifies measurable residual structures, not arcs, rings, multiple images, or lenses; scientific calibration is still required.": "候选结构审计只确认某个候选是否足以作为可测量残差结构交给后端；它不把该结构直接认定为弧、环、多重像或强透镜，相关判据仍需用专家标注样本进行科学标定。",
         "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.": "几何路径只负责限制 SEP 再次搜索的位置；路径上没有亮像素的部分既不算环，也不能据此反对透镜解释。",
         "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution.": "输入中有 PSF 图像，且审计用的比较模型使用了它；但当前主检测通道的前景减除尚未使用 PSF 卷积。",
     }
@@ -89,8 +88,9 @@ def _quick_summary(document: ObservationDocument) -> str:
         opening
         + structure_text
         + (
-            f"视觉链另外保留了 {len(document.model_candidates)} 个待审计候选。"
-            if document.model_candidates else "视觉链没有保留待审计候选。"
+            f"视觉链记录了 {len(document.model_candidates)} 个候选，其中 "
+            f"{sum(item.verdict == 'promoted' for item in document.candidate_structure_audits)} 个经审计进入正式结构列表。"
+            if document.model_candidates else "视觉链没有记录候选。"
         )
         + "这些是视觉测量结果，不等同于透镜弧或多重像；当前摘要不判断该对象是否为强引力透镜。"
     )
@@ -138,6 +138,8 @@ def _structure_section(
         ),
         f"- 是否与中心区域明显连接：{_yes_no(structure.connects_to_inner_region)}",
         f"- 是否位于减除敏感的近中心区域：{_yes_no(structure.near_core)}",
+        f"- 来源候选：{', '.join(structure.source_candidate_ids) or '未记录'}",
+        f"- 候选结构审计记录：{', '.join(structure.candidate_audit_ids) or '未记录'}",
         "",
     ]
 
@@ -225,10 +227,10 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
             f"- 残差稳健 RMS：{document.data_quality.residual_robust_rms:.6g}",
             f"- 质量标记：{', '.join(document.data_quality.flags) or '无'}",
             "",
-            "## 3. 当前评分使用的正式结构",
+            "## 3. 经候选结构审计后交给后端的结构",
             "",
-            f"当前共有 **{len(document.structures)}** 个结构进入后端证据评分。",
-            "v0.11.0 中未经标定的模型链候选和候选系统不会自动进入这里。",
+            f"当前共有 **{len(document.structures)}** 个结构进入后端证据比较。",
+            "进入这里表示该候选已具备可测量结构所需的处理支持，不表示它已经被认定为弧、环、多重像或强透镜。",
             "",
         ]
     )
@@ -244,7 +246,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     lines.extend(
         [
             "SEP 先在全图提出原始线索；圆或椭圆只规定下一次应该到哪里继续找；程序随后把路线外像素遮住，在路线内再次运行 SEP。",
-            "下列候选仍需要前景减除、PSF、稳定性和人工标注等审计，本版不会用它们改变 A/B/C 结果。",
+            "下列候选会保留完整来源；随后由候选结构审计决定它进入正式结构、暂缓复核，还是只保留追溯。",
             "",
         ]
     )
@@ -287,14 +289,48 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                     f"- 所属候选系统：{', '.join(item.candidate_system_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}",
                     f"- 换用PSF-MGE比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
                     f"- 结构支持来源：{', '.join(item.support_sources) or '未记录'}",
-                    "- 解释限制：这是待审计的结构候选，不是弧、环、多重像或透镜标签。",
+                    "- 解释限制：这是视觉链提出的结构候选，不是弧、环、多重像或透镜标签。",
                     "",
                 ]
             )
     else:
-        lines.extend(["模型链没有保留待审计候选。", ""])
+        lines.extend(["模型链没有保留结构候选。", ""])
 
-    lines.extend(["## 3.2 路线内候选系统整合", ""])
+    lines.extend(["## 3.2 候选结构审计", ""])
+    lines.extend(
+        [
+            "这一步只回答“这个候选是否足够可靠，可以作为一个可测量残差结构交给后端解释”。它检查数据可用性、结构是否还有第二种支持、以及更换前景模型后是否被完全抹掉。它不判断这个结构究竟是透镜像、星系自身结构还是处理伪影。",
+            "审计结果分为：晋级为结构、暂缓并交人工复核、只保留过程追溯。这里没有再计算一个新的总分。",
+            "",
+        ]
+    )
+    verdict_names = {
+        "promoted": "晋级为可测量结构",
+        "hold_for_review": "暂缓，交人工复核",
+        "trace_only": "只保留过程追溯",
+    }
+    if document.candidate_structure_audits:
+        for item in document.candidate_structure_audits:
+            check_text = "；".join(
+                f"{name}={'通过' if value is True else '未通过' if value is False else '无法检查'}"
+                for name, value in item.checks.items()
+            )
+            lines.extend(
+                [
+                    f"### {item.id}：{item.candidate_id}",
+                    "",
+                    f"- 结果：{verdict_names[item.verdict]}；对应正式结构：{item.structure_id or '无'}",
+                    f"- 检查记录：{check_text or '无'}",
+                    f"- 支持事实：{', '.join(item.supporting_facts) or '无额外支持'}",
+                    f"- 风险标记：{', '.join(item.caution_flags) or '无'}",
+                    f"- 审计解释：{item.rationale}",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["没有候选结构审计记录。", ""])
+
+    lines.extend(["## 3.3 路线内候选系统整合", ""])
     lines.extend(
         [
             "同一路线上的绿色原始SEP结构和紫色新恢复结构会组合为一个候选系统。它只表示这些结构共享一条几何搜索路线，不表示它们已经被证明是同一背景源的多重像。",
@@ -319,7 +355,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     else:
         lines.extend(["没有形成路线关联的候选系统。", ""])
 
-    lines.extend(["## 3.3 几何路径引导搜索", ""])
+    lines.extend(["## 3.4 几何路径引导搜索", ""])
     if document.geometric_paths:
         lines.extend(
             [

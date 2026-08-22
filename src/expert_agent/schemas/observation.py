@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.11.0"
+    pipeline_version: str = "0.12.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -69,6 +69,8 @@ class StructureObservation(StrictModel):
     inner_connection_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     connects_to_inner_region: bool | None = None
     near_core: bool
+    source_candidate_ids: list[str] = Field(default_factory=list)
+    candidate_audit_ids: list[str] = Field(default_factory=list)
     measurement_ids: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
 
@@ -283,8 +285,21 @@ class CandidateSystemObservation(StrictModel):
     flags: list[str] = Field(default_factory=list)
 
 
+class CandidateStructureAuditObservation(StrictModel):
+    """Transparent bridge from visual candidates to measured structures."""
+
+    id: str
+    candidate_id: str
+    verdict: Literal["promoted", "hold_for_review", "trace_only"]
+    structure_id: str | None = None
+    checks: dict[str, bool | None] = Field(default_factory=dict)
+    supporting_facts: list[str] = Field(default_factory=list)
+    caution_flags: list[str] = Field(default_factory=list)
+    rationale: str
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10"] = "1.10"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11"] = "1.11"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -302,6 +317,7 @@ class ObservationDocument(StrictModel):
     geometric_paths: list[GeometricPathObservation] = Field(default_factory=list)
     model_candidates: list[ModelCandidateObservation] = Field(default_factory=list)
     candidate_systems: list[CandidateSystemObservation] = Field(default_factory=list)
+    candidate_structure_audits: list[CandidateStructureAuditObservation] = Field(default_factory=list)
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)

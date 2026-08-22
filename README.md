@@ -60,12 +60,13 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.11.0 locally partitions merged SEP detections into route-supported
-pieces and downgraded off-route trace, while route-recovered pieces remain a
-separate provenance type with the same review priority. These candidates do not
-imply lens confidence and remain excluded from the reasoning score. Version
-0.5 added WCS-aware sky coordinates, angular scales, sky position angles,
-and full-field/RGB location audits. See the [current-version note](src/docs/CURRENT_VERSION_CN.md).
+Version 0.12.0 adds a transparent candidate-structure audit between the visual
+candidate chain and expert reasoning. Supported candidates can become measured
+`structures`; held and trace-only candidates remain fully preserved. Promotion
+means that a residual structure is measurable, not that it is an arc, ring,
+multiple image, or lens. Version 0.5 added WCS-aware sky coordinates, angular
+scales, sky position angles, and full-field/RGB location audits. See the
+[current-version note](src/docs/CURRENT_VERSION_CN.md).
 
 PNG input runs in a conservative reduced-measurement mode because rendered images
 do not carry calibrated flux or RMS maps. A high-S/N elongated PNG residual cannot

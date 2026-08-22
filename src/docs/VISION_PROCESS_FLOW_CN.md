@@ -19,8 +19,10 @@ flowchart LR
     S1 --> H["按同一路线整合候选结构"]
     S2 --> H
     S0 --> I
-    H --> I["Observation：model_candidates + candidate_systems"]
-    I --> J["多假设推理、审计与报告"]
+    H --> I["Observation候选：model_candidates + candidate_systems"]
+    I --> A1["候选结构审计：晋级 / 暂缓 / 仅追溯"]
+    A1 --> A2["晋级候选生成可测量 structures"]
+    A2 --> J["多假设证据比较、反证、决策审计与报告"]
     D --> K["NPZ 数值证据"]
     E --> L["PNG 样本过程图"]
     F --> L
@@ -38,7 +40,8 @@ flowchart LR
 - 路线内仍由SEP在真实残差/RMS上检测，路线本身不会被填成结构；
 - 路线内原SEP与路线内新恢复结构都列为重点复核，但保留不同来源，可按共同路线组成候选系统；
 - 近中心和前景模型敏感性作为独立反证审计标记，不覆盖结构支持来源；
-- 未经标定审计的`model_candidates`和`candidate_systems`不会晋级为后端评分使用的`structures`；
+- 候选结构审计只决定候选能否成为可测量`structures`；暂缓和仅追溯候选仍完整保留；
+- `structures`不是弧、环、多重像或透镜标签，真正的天文解释由后端多假设层比较；
 - 路线空白不等于环缺失，找到新像素段也不直接等于透镜证据；
 - 每次样本运行只保存该样本实际产生的诊断图和过程图；
 - 固定架构流程只在本文档维护一份。

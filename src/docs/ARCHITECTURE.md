@@ -21,7 +21,10 @@ source mask, and segmentation. The v0.10 detection path is deliberately chained:
    centre-based fallback routes remain available even when a seed exists;
 4. pixels outside each route are masked through SEP's extraction interface and SEP
    runs again inside the permitted band;
-5. route detections become unified model-chain candidates pending calibration.
+5. route detections become unified model-chain candidates;
+6. a candidate-structure audit promotes measurable residual structures, holds
+   processing-sensitive candidates for review, and retains unsupported SEP
+   remainders as trace-only records.
 
 The search route is never filled with synthetic signal. Raw SEP detections, route
 statistics, and route-masked SEP candidates share one residual and are correlated.
@@ -33,7 +36,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.10` records:
+`schema_version=1.11` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -106,6 +109,16 @@ share a `priority_keep` review priority but retain distinct provenance. Sub-mini
 fragments created by partitioning remain in pixel trace arrays rather than becoming
 new structural candidates. No partition is promoted to `structures` or scoring
 without a later calibrated promotion audit.
+
+Version 1.11 adds the explicit candidate-to-structure audit bridge. It records
+one of `promoted`, `hold_for_review`, or `trace_only` for every model candidate,
+along with individual checks, supporting facts, cautions, rationale, and the
+resulting structure ID. Only promoted candidates create measured `structures`
+for downstream hypothesis comparison. Promotion is deliberately limited to
+measurement usability; it is not an arc, ring, multiple-image, or lens label.
+Fallback foreground modeling remains a visible caution rather than silently
+discarding every candidate, while unusable input and complete erasure under the
+comparison foreground model prevent automatic promotion.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
