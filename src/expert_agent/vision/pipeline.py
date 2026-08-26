@@ -585,6 +585,10 @@ class VisionPipeline:
                     flags=[
                         "candidate_structure_audit_promoted",
                         "not_a_lens_label",
+                        f"audit_discovery_context:{audit.discovery_context}",
+                        "geometry_route_relation_recorded"
+                        if candidate.geometry_consistent_path_ids
+                        else "geometry_route_relation_absent",
                         *audit.caution_flags,
                     ],
                 )
@@ -616,6 +620,14 @@ class VisionPipeline:
         audited_structure_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         for structure_mask in structure_masks.values():
             audited_structure_mask |= structure_mask
+        audit_review_mask = np.zeros_like(model_candidate_mask, dtype=bool)
+        audit_trace_mask = np.zeros_like(model_candidate_mask, dtype=bool)
+        for audit in candidate_structure_audits:
+            candidate_mask = model_candidate_masks[audit.candidate_id]
+            if audit.verdict == "hold_for_review":
+                audit_review_mask |= candidate_mask
+            elif audit.verdict == "trace_only":
+                audit_trace_mask |= candidate_mask
         comparison_survival = comparison_fraction(audited_structure_mask)
         measurements.extend(
             [
@@ -991,6 +1003,9 @@ class VisionPipeline:
                 "sep_geometry_consistent_mask": sep_geometry_mask.astype(np.uint8),
                 "geometry_recovered_candidate_mask": geometry_recovered_mask.astype(np.uint8),
                 "residual_structure_mask": audited_structure_mask.astype(np.uint8),
+                "signal_audit_verified_mask": audited_structure_mask.astype(np.uint8),
+                "signal_audit_review_mask": audit_review_mask.astype(np.uint8),
+                "signal_audit_trace_mask": audit_trace_mask.astype(np.uint8),
                 # Compatibility alias for v0.5 and earlier analysis notebooks.
                 "arc_mask": audited_structure_mask.astype(np.uint8),
                 "threshold_level_map": level_map,
@@ -1025,6 +1040,9 @@ class VisionPipeline:
                     sep_only_candidate_mask=sep_only_mask,
                     sep_geometry_mask=sep_geometry_mask,
                     geometry_recovered_mask=geometry_recovered_mask,
+                    model_candidate_mask=model_candidate_mask,
+                    audit_review_mask=audit_review_mask,
+                    audit_trace_mask=audit_trace_mask,
                     segments=[],
                     geometric_paths=geometric_paths_raw,
                     foreground_comparison=comparison,
@@ -1051,8 +1069,8 @@ class VisionPipeline:
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
-            "Merged SEP components are locally partitioned into route-supported pieces and downgraded off-route trace; route-supported and recovered pieces retain different provenance.",
-            "Candidate-structure audit promotion identifies measurable residual structures, not arcs, rings, multiple images, or lenses; scientific calibration is still required.",
+            "Merged SEP components are locally partitioned by route relation, but off-route status is provenance rather than a signal-audit veto.",
+            "Candidate-structure audit validates detector-level signal usability without using geometric route membership as a verdict condition; promotion is not an arc, ring, multiple-image, or lens label.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
@@ -1213,7 +1231,7 @@ class VisionPipeline:
             f"{prep.image.band}_FLUX input (central crop)",
             "foreground light model",
             "foreground-subtracted residual S/N",
-            "model-chain candidates (not scored)",
+            "signal-audited residual structures (not lens labels)",
         ]
         cmaps = ["gray", "gray", "coolwarm", "gray"]
         origin = "lower" if prep.image.input_format == "fits" else "upper"

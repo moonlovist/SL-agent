@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.12.0"
+    pipeline_version: str = "0.13.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -292,6 +292,12 @@ class CandidateStructureAuditObservation(StrictModel):
     candidate_id: str
     verdict: Literal["promoted", "hold_for_review", "trace_only"]
     structure_id: str | None = None
+    audit_scope: Literal["signal_reality"] = "signal_reality"
+    discovery_context: Literal[
+        "global_sep", "global_sep_plus_geometry", "route_recovery"
+    ] | None = None
+    geometry_used_for_verdict: bool = False
+    sections: dict[str, dict[str, bool | None]] = Field(default_factory=dict)
     checks: dict[str, bool | None] = Field(default_factory=dict)
     supporting_facts: list[str] = Field(default_factory=list)
     caution_flags: list[str] = Field(default_factory=list)
@@ -299,7 +305,7 @@ class CandidateStructureAuditObservation(StrictModel):
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11"] = "1.11"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12"] = "1.12"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]

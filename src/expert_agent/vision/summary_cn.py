@@ -299,7 +299,8 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     lines.extend(["## 3.2 候选结构审计", ""])
     lines.extend(
         [
-            "这一步只回答“这个候选是否足够可靠，可以作为一个可测量残差结构交给后端解释”。它检查数据可用性、结构是否还有第二种支持、以及更换前景模型后是否被完全抹掉。它不判断这个结构究竟是透镜像、星系自身结构还是处理伪影。",
+            "这一步审计图4候选池中的全部候选，只回答“这个候选是否具有可用的探测信号，可以作为可测量残差结构交给后端解释”。它检查数据可用性、既有SEP探测事实、连通信号以及更换前景模型后是否被完全抹掉。",
+            "候选位于椭圆路线内、路线外或由路线二次恢复，只作为发现来源和几何关系记录，不作为审计晋级或淘汰条件。审计不判断这个结构究竟是透镜像、星系自身结构还是处理伪影。",
             "审计结果分为：晋级为结构、暂缓并交人工复核、只保留过程追溯。这里没有再计算一个新的总分。",
             "",
         ]
@@ -309,17 +310,38 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
         "hold_for_review": "暂缓，交人工复核",
         "trace_only": "只保留过程追溯",
     }
+    discovery_names = {
+        "global_sep": "全图SEP检出、当前路线外",
+        "global_sep_plus_geometry": "全图SEP检出且与路线一致",
+        "route_recovery": "椭圆路线内二次SEP恢复",
+        None: "旧版记录，未标注发现来源",
+    }
+    section_names = {
+        "signal_quality": "信号质量",
+        "processing_robustness": "处理稳健性",
+        "discovery_provenance": "发现来源",
+    }
     if document.candidate_structure_audits:
         for item in document.candidate_structure_audits:
             check_text = "；".join(
                 f"{name}={'通过' if value is True else '未通过' if value is False else '无法检查'}"
                 for name, value in item.checks.items()
             )
+            section_text = "；".join(
+                f"{section_names.get(section, section)}："
+                + "、".join(
+                    f"{name}={'是' if value is True else '否' if value is False else '无法检查'}"
+                    for name, value in values.items()
+                )
+                for section, values in item.sections.items()
+            )
             lines.extend(
                 [
                     f"### {item.id}：{item.candidate_id}",
                     "",
                     f"- 结果：{verdict_names[item.verdict]}；对应正式结构：{item.structure_id or '无'}",
+                    f"- 审计范围：信号真实性；发现来源：{discovery_names[item.discovery_context]}；几何路线是否参与审计结论：{'是' if item.geometry_used_for_verdict else '否'}",
+                    f"- 分区检查：{section_text or '旧版记录，未分区'}",
                     f"- 检查记录：{check_text or '无'}",
                     f"- 支持事实：{', '.join(item.supporting_facts) or '无额外支持'}",
                     f"- 风险标记：{', '.join(item.caution_flags) or '无'}",

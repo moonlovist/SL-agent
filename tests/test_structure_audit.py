@@ -26,7 +26,14 @@ def _candidate(
             else "off_route_remainder"
         ),
         review_priority=review_priority,
-        support_sources=["sep_consensus", "geometry_route"],
+        support_sources=(
+            ["sep_parameter_consensus", "geometric_route_consistency"]
+            if review_priority == "priority_keep"
+            else ["sep_parameter_consensus"]
+        ),
+        geometry_consistent_path_ids=(
+            ["G1"] if review_priority == "priority_keep" else []
+        ),
         centroid_xy=(10.0, 12.0),
         radius_px=5.0,
         position_angle_deg=45.0,
@@ -46,17 +53,24 @@ def test_supported_candidate_is_promoted_to_measured_structure() -> None:
     )[0]
 
     assert result.verdict == "promoted"
-    assert result.checks["additional_structural_support"] is True
+    assert result.checks["existing_detector_acceptance"] is True
+    assert result.checks["geometry_route_relation_recorded"] is True
+    assert result.geometry_used_for_verdict is False
+    assert result.audit_scope == "signal_reality"
 
 
-def test_off_route_sep_remainder_stays_trace_only() -> None:
+def test_off_route_sep_remainder_is_signal_audited_without_geometry_veto() -> None:
     result = audit_structure_candidates(
         [_candidate(review_priority="downgraded_trace")],
         data_usable=True,
         foreground_model_success=True,
     )[0]
 
-    assert result.verdict == "trace_only"
+    assert result.verdict == "promoted"
+    assert result.discovery_context == "global_sep"
+    assert result.checks["geometry_route_relation_recorded"] is False
+    assert "geometry_route_support_absent_not_a_signal_veto" in result.caution_flags
+    assert result.geometry_used_for_verdict is False
 
 
 def test_comparison_model_erasure_holds_supported_candidate() -> None:

@@ -366,6 +366,62 @@ def write_model_chain(
     return path
 
 
+def write_signal_audit(
+    prep: PreprocessedImage,
+    model_candidate_mask: np.ndarray,
+    verified_mask: np.ndarray,
+    review_mask: np.ndarray,
+    trace_mask: np.ndarray,
+    output: Path,
+) -> Path:
+    """Show the candidate pool and the later signal-only audit outcome."""
+    plt = _matplotlib(output)
+    ys, xs, half = _view(prep)
+    residual_view = prep.residual[ys, xs]
+    vmin, vmax = _display_limits(residual_view)
+    figure, axes = plt.subplots(1, 2, figsize=(10.5, 5.0))
+    origin = _origin(prep)
+    for axis in axes:
+        axis.imshow(residual_view, origin=origin, cmap="gray", vmin=vmin, vmax=vmax)
+        _mark(axis, half)
+
+    candidate_y, candidate_x = np.where(model_candidate_mask[ys, xs])
+    axes[0].scatter(
+        candidate_x,
+        candidate_y,
+        s=6,
+        facecolors="none",
+        edgecolors="deepskyblue",
+        linewidths=0.6,
+    )
+    axes[0].set_title("图4候选池：路线关系不决定去留")
+
+    verified_y, verified_x = np.where(verified_mask[ys, xs])
+    review_y, review_x = np.where(review_mask[ys, xs])
+    trace_y, trace_x = np.where(trace_mask[ys, xs])
+    axes[1].scatter(verified_x, verified_y, s=7, c="lime", marker="s", label="信号审计通过")
+    axes[1].scatter(review_x, review_y, s=9, c="gold", marker="s", label="暂缓复核")
+    axes[1].scatter(
+        trace_x,
+        trace_y,
+        s=7,
+        facecolors="none",
+        edgecolors="red",
+        linewidths=0.7,
+        label="只留追溯",
+    )
+    axes[1].set_title("信号真实性审计结果（不是透镜分类）")
+    axes[1].legend(loc="upper right", fontsize=7)
+    figure.suptitle(
+        "候选来源与信号审计分离：椭圆路线用于发现和描述，审计只验证测量可靠性"
+    )
+    figure.tight_layout()
+    path = output / "vision_signal_audit.png"
+    figure.savefig(path, dpi=140)
+    plt.close(figure)
+    return path
+
+
 def write_geometric_path_search(
     prep: PreprocessedImage,
     geometric_paths: list[GeometricPathCandidate],
@@ -749,6 +805,9 @@ def write_manifest(
             "sep_geometry_consistent_mask": "local raw SEP pixel partitions inside admissible geometric routes",
             "geometry_recovered_candidate_mask": "supplementary candidates found by route-masked SEP",
             "residual_structure_mask": "union of candidates promoted by the candidate-structure audit; a measured residual mask, not a lens or arc label",
+            "signal_audit_verified_mask": "candidates admitted as measurable residual signals by the signal-reality audit; geometry is not an admission condition",
+            "signal_audit_review_mask": "candidates held for review because of data or processing sensitivity",
+            "signal_audit_trace_mask": "candidates retained only for traceability because detector-level signal facts were insufficient",
             "arc_mask": "deprecated compatibility alias of residual_structure_mask; it must not be interpreted as a confirmed arc mask",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
             "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
@@ -758,9 +817,9 @@ def write_manifest(
             "Threshold and SEP results share the same residual and are correlated measurements.",
             "Raw SEP detections are retained for traceability; only explicitly audited candidates become measured structures.",
             "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
-            "A merged raw SEP component is locally split into route-supported pixels and downgraded off-route trace pixels.",
-            "Route-consistent raw SEP and route-recovered components share review priority but retain different provenance.",
-            "Candidate-structure promotion is a measurement-availability decision, not an arc/ring/image/lens classification.",
+            "A merged raw SEP component is locally split by route relation; off-route status is provenance, not an audit veto.",
+            "Route-consistent, route-recovered, and off-route SEP components all receive the same signal-reality audit.",
+            "Candidate-structure promotion is based on detector-level signal usability, not geometry membership or arc/ring/image/lens classification.",
             "No wavelet channel is used in this version.",
         ],
     }
@@ -780,6 +839,9 @@ def write_visual_audit_bundle(
     sep_only_candidate_mask: np.ndarray,
     sep_geometry_mask: np.ndarray,
     geometry_recovered_mask: np.ndarray,
+    model_candidate_mask: np.ndarray,
+    audit_review_mask: np.ndarray,
+    audit_trace_mask: np.ndarray,
     segments: list[ResidualStructure],
     geometric_paths: list[GeometricPathCandidate],
     foreground_comparison: ForegroundModelComparison,
@@ -797,6 +859,14 @@ def write_visual_audit_bundle(
             sep_only_candidate_mask,
             sep_geometry_mask,
             geometry_recovered_mask,
+            output,
+        )
+        signal_audit_path = write_signal_audit(
+            prep,
+            model_candidate_mask,
+            residual_structure_mask,
+            audit_review_mask,
+            audit_trace_mask,
             output,
         )
         path_search_path = write_geometric_path_search(prep, geometric_paths, output)
@@ -820,6 +890,7 @@ def write_visual_audit_bundle(
         "snr_threshold_process": str(threshold_path),
         "sep_consensus_diagnostic": str(sep_path),
         "model_chain_diagnostic": str(structure_path),
+        "signal_audit_diagnostic": str(signal_audit_path),
         "geometric_path_search_diagnostic": str(path_search_path),
         "expert_views_diagnostic": str(expert_views_path),
         "field_context_diagnostic": str(field_path),

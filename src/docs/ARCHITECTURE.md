@@ -36,7 +36,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.11` records:
+`schema_version=1.12` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -119,6 +119,17 @@ measurement usability; it is not an arc, ring, multiple-image, or lens label.
 Fallback foreground modeling remains a visible caution rather than silently
 discarding every candidate, while unusable input and complete erasure under the
 comparison foreground model prevent automatic promotion.
+
+Version 1.12 separates geometric discovery from signal-reality audit. Every
+recorded model candidate, including an off-route global-SEP remainder, receives
+the same detector-level audit. Route membership remains recorded as discovery
+context and a later reasoning feature, but it is never an audit admission
+condition. The audit is split into signal-quality, processing-robustness, and
+discovery-provenance sections. A candidate may be promoted only as a measurable
+residual signal; this does not identify an arc, ring, multiple image, or lens.
+The initial implementation does not automatically refit a route or rerun the
+visual pipeline, preventing an audit-recovery loop from tuning geometry toward
+the signal it is trying to validate.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF

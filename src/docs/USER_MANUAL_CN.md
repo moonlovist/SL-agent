@@ -1,6 +1,6 @@
 # Lens Expert Agent 全面介绍与使用说明书
 
-> 适用版本：`lens-expert-agent 0.12.0`（候选结构审计与后端交付版 MWA）
+> 适用版本：`lens-expert-agent 0.13.0`（全候选信号审计版 MWA）
 >
 > v0.3 阅读提示：系统现在有三位科学“复核员”。ObservationAuditor 检查测量能不能信，EvidenceAuditor 检查证据有没有重复或夸大，DecisionAuditor 检查最终结论应当确认、降级还是弃权。原 ReasoningAuditor 仍只检查程序结构和引用完整性。`summary.json` 中的最终分类以 DecisionAuditor 审核后的结果为准，原始初判仍会保留，方便追溯。
 > 适用系统：Windows + PowerShell；Python 3.11 或更高版本  
@@ -822,7 +822,8 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 - `vision_snr_threshold_process.png`：每个 S/N 阈值的真实掩膜、掩膜残差、相邻层壳和最终存活层级；
 - `vision_sep_consensus.png`：SEP 参数网格中稳定出现的结构及存活次数；
-- `vision_model_chain.png`：程序先把粘连的原始SEP块按路线局部分割；橙色表示路线外降级留痕，绿色表示路线内原SEP重点候选，紫色表示路线内第二次SEP补充恢复的重点候选；绿色和紫色复核优先级相同但来源不同，颜色不是最终置信度；
+- `vision_model_chain.png`：程序先把粘连的原始SEP块按路线局部分割；橙色表示路线外原SEP来源，绿色表示路线内原SEP，紫色表示路线内第二次SEP补充恢复；三种颜色都会进入后续信号审计，颜色只表示来源，不是最终置信度或准入等级；
+- `vision_signal_audit.png`：左图展示图4全部候选池，右图展示独立信号审计的晋级、暂缓与追溯结果；椭圆路线关系不参与审计结论；
 - `vision_expert_views.png`：Euclid风格VIS arcsinh/MTF全视场与中央100×100观察图；
 - `vision_foreground_model_comparison.png`：比较正式前景模型与PSF-MGE审计模型；它只用于发现“换一种减除方法就消失”的模型敏感结构，不参与正式检测；
 - `vision_manifest.json`：输入文件指纹、运行参数、处理步骤、数组含义和过程文件路径。
@@ -831,7 +832,9 @@ v0.4.1 保存与每个样本实际计算有关的处理过程：
 
 `observation_summary_cn.md` 是由固定模板从 `observation.json` 自动生成的中文解释。它列出实际测量值、结构支持等级、候选结构审计、路线内候选系统和已知限制，不调用 LLM，也不输出透镜分类或概率。科研计算仍应读取 `observation.json`；中文摘要用于快速人工复核。
 
-`observation.json`中的`candidate_structure_audits`是视觉候选与后端推理之间的交接记录。每个候选会得到`promoted`（晋级为可测量结构）、`hold_for_review`（暂缓人工复核）或`trace_only`（只保留追溯）之一，并保存逐项检查、支持事实、风险和理由。只有`promoted`候选会出现在`structures`中；这仍不表示它已经被判为弧、环、多重像或强透镜。
+`observation.json`中的`candidate_structure_audits`是视觉候选与后端推理之间的信号审计交接记录。图4候选池中的路线内原SEP、路线内恢复和路线外原SEP候选会接受相同审计；路线关系只保存在`discovery_context`和几何字段中，不作为晋级条件。每个候选会得到`promoted`（具有可用探测信号，晋级为可测量结构）、`hold_for_review`（对数据或处理过于敏感，暂缓复核）或`trace_only`（探测事实不足，只保留追溯）之一，并保存信号质量、处理稳健性、发现来源、风险和理由。只有`promoted`候选会出现在`structures`中；这仍不表示它已经被判为弧、环、多重像或强透镜。
+
+`vision_signal_audit.png`位于四联Model过程图之后。左图重新展示图4全部候选池，右图用绿色表示信号审计后进入`structures`的可测量残差，黄色表示暂缓复核，红色空心标记表示只留追溯。该图不改变椭圆路线，也不是透镜评级图。
 
 `vision_field_context.png` 用完整FITS视场说明中央裁剪来自哪里，并显示搜索环、得到几何支持的候选编号、中心天球坐标、像素尺度和N/E方向。`vision_rgb_context.png` 会先自动比较RGB与FITS的方向相关性，再把相同标记映射到彩色图；匹配相关性不足时不会生成，避免伪造坐标对应。未解释的原始SEP块只在SEP与模型链过程图中留痕，不会伪装成已采纳的全视场候选标记。
 
