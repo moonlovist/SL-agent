@@ -11,16 +11,17 @@ def audit_structure_candidates(
     *,
     data_usable: bool,
     foreground_model_success: bool,
+    snr_min_survival: int = 3,
 ) -> list[CandidateStructureAuditObservation]:
-    """Audit candidate signal reality without using lens geometry as a gate.
+    """Audit signal reality, then route candidates for downstream reasoning.
 
-    Every recorded model-chain candidate is audited.  A geometric route may
-    discover a candidate or describe its relation to other candidates, but it
-    cannot by itself promote or reject the signal.  The audit only checks
-    whether an existing detector measurement is usable and whether a wholly
-    different foreground subtraction erases it.  It does not classify arcs,
-    rings, multiple images, or lenses, and it introduces no new S/N threshold.
+    Signal validation and lens-system relevance are deliberately separate.
+    Geometry is never used to claim that a signal is real, but it may route a
+    validated signal to the primary lens-candidate handoff. Stable off-route
+    signals remain recovery candidates. Subtraction-sensitive signals remain
+    traceable without becoming equal-weight lens evidence.
     """
+
     results: list[CandidateStructureAuditObservation] = []
     for index, candidate in enumerate(candidates, start=1):
         audit_id = f"CSA{index}"
@@ -37,9 +38,35 @@ def audit_structure_candidates(
         detector_support = global_sep_support or route_masked_sep_support
         connected_signal = candidate.pixel_count > 0
         positive_integrated_signal = candidate.integrated_snr > 0.0
+
+        threshold_count = candidate.snr_threshold_survival_count
+        threshold_total = candidate.snr_threshold_total_count
+        threshold_available = (
+            threshold_count is not None
+            and threshold_total is not None
+            and threshold_total > 0
+        )
+        threshold_stable = (
+            threshold_count >= snr_min_survival
+            if threshold_available
+            else None
+        )
+
         comparison_survival = candidate.foreground_comparison_survival_fraction
         comparison_not_erased = (
             None if comparison_survival is None else comparison_survival > 0.0
+        )
+        core_overlap = candidate.subtraction_core_overlap_fraction
+        touches_subtraction_core = bool(
+            candidate.near_core
+            or (core_overlap is not None and core_overlap > 0.0)
+        )
+        foreground_contamination_risk = bool(
+            comparison_not_erased is False
+            or (
+                touches_subtraction_core
+                and (not foreground_model_success or not geometry_support)
+            )
         )
         discovery_context = (
             "route_recovery"
@@ -48,16 +75,20 @@ def audit_structure_candidates(
             if geometry_support
             else "global_sep"
         )
+
         sections: dict[str, dict[str, bool | None]] = {
             "signal_quality": {
                 "existing_detector_acceptance": detector_support,
                 "connected_signal_present": connected_signal,
                 "positive_integrated_signal": positive_integrated_signal,
+                "snr_multi_threshold_stable": threshold_stable,
             },
             "processing_robustness": {
                 "data_usable": data_usable,
                 "primary_foreground_fit_success": foreground_model_success,
                 "comparison_model_does_not_fully_erase": comparison_not_erased,
+                "touches_subtraction_sensitive_core": touches_subtraction_core,
+                "foreground_contamination_risk": foreground_contamination_risk,
             },
             "discovery_provenance": {
                 "global_sep_consensus_support": global_sep_support,
@@ -71,15 +102,26 @@ def audit_structure_candidates(
             "existing_detector_acceptance": detector_support,
             "connected_signal_present": connected_signal,
             "positive_integrated_signal": positive_integrated_signal,
+            "snr_multi_threshold_stable": threshold_stable,
             "geometry_route_relation_recorded": geometry_support,
             "comparison_model_does_not_fully_erase": comparison_not_erased,
+            "touches_subtraction_sensitive_core": touches_subtraction_core,
+            "foreground_contamination_risk": foreground_contamination_risk,
         }
+
         supporting_facts = list(candidate.support_sources)
         if global_sep_support:
             supporting_facts.append("global_sep_consensus_signal")
         if route_masked_sep_support:
             supporting_facts.append("route_masked_sep_signal")
-        supporting_facts.append("geometry_relation_not_used_for_signal_verdict")
+        if threshold_stable is True:
+            supporting_facts.append("snr_multi_threshold_stable")
+        elif threshold_stable is False:
+            supporting_facts.append("snr_multi_threshold_weak")
+        else:
+            supporting_facts.append("snr_multi_threshold_unavailable")
+        supporting_facts.append("geometry_not_used_for_signal_reality")
+
         caution_flags = [
             flag
             for flag in candidate.flags
@@ -92,42 +134,69 @@ def audit_structure_candidates(
         if candidate.origin == "path_recovery":
             caution_flags.append("search_conditioned_route_recovery")
         if not geometry_support:
-            caution_flags.append("geometry_route_support_absent_not_a_signal_veto")
+            caution_flags.append("geometry_route_support_absent")
+        if touches_subtraction_core:
+            caution_flags.append("touches_subtraction_sensitive_core")
 
+        base_signal_ok = bool(
+            detector_support and connected_signal and positive_integrated_signal
+        )
+        geometry_used_for_handoff = False
         if not data_usable:
             verdict = "hold_for_review"
+            handoff_class = "trace_candidate"
             rationale = (
-                "The candidate is retained, but the image is not sufficiently "
-                "usable for automatic structure promotion."
+                "The image is not sufficiently usable for automatic candidate "
+                "handoff; the detection remains traceable."
             )
-        elif not (detector_support and connected_signal and positive_integrated_signal):
+        elif not base_signal_ok:
             verdict = "trace_only"
+            handoff_class = "trace_candidate"
             rationale = (
-                "The candidate remains traceable, but the recorded candidate does "
-                "not contain the minimum signal-level detector facts required for "
-                "a measured residual structure. Geometry is not used in this decision."
+                "The candidate lacks the detector-level signal facts required "
+                "for downstream handoff."
             )
-        elif comparison_not_erased is False:
+        elif foreground_contamination_risk:
             verdict = "hold_for_review"
+            handoff_class = "foreground_contaminated"
             rationale = (
-                "The candidate has detector support, but no candidate pixel "
-                "survives the audit-only comparison foreground model."
+                "The signal is measurable but lies in a subtraction-sensitive "
+                "configuration or is erased by the comparison foreground model; "
+                "it is isolated from positive lens evidence."
+            )
+        elif geometry_support and threshold_stable is True:
+            verdict = "promoted"
+            handoff_class = "primary_candidate"
+            geometry_used_for_handoff = True
+            rationale = (
+                "The candidate has detector support, survives the configured S/N "
+                "threshold grid, and is associated with a recorded geometric "
+                "search route. It enters the primary reasoning structure list; "
+                "this is not a lens classification."
+            )
+        elif threshold_stable is True:
+            verdict = "hold_for_review"
+            handoff_class = "recovery_candidate"
+            rationale = (
+                "The off-route signal is stable across the configured S/N grid. "
+                "It is preserved as a recovery candidate, but is not equal-weight "
+                "primary lens evidence."
+            )
+        elif geometry_support:
+            verdict = "hold_for_review"
+            handoff_class = "recovery_candidate"
+            geometry_used_for_handoff = True
+            rationale = (
+                "The candidate has geometric support but weak or unavailable S/N "
+                "threshold persistence. It is preserved for recovery review rather "
+                "than promoted or deleted."
             )
         else:
-            verdict = "promoted"
-            fallback_note = (
-                " The primary fit used a fallback foreground model, which remains "
-                "an explicit caution rather than a veto."
-                if not foreground_model_success
-                else ""
-            )
+            verdict = "trace_only"
+            handoff_class = "trace_candidate"
             rationale = (
-                "The candidate passed an existing SEP detector channel, contains "
-                "connected positive residual signal, and is not fully erased by the "
-                "comparison foreground model. Route membership is recorded only as "
-                "discovery context and was not used for promotion. Promotion means "
-                "measurable residual structure only, not a lens interpretation."
-                + fallback_note
+                "The off-route candidate does not survive enough configured S/N "
+                "levels to enter the recovery handoff; it remains fully traceable."
             )
 
         results.append(
@@ -135,8 +204,10 @@ def audit_structure_candidates(
                 id=audit_id,
                 candidate_id=candidate.id,
                 verdict=verdict,
+                handoff_class=handoff_class,
                 discovery_context=discovery_context,
                 geometry_used_for_verdict=False,
+                geometry_used_for_handoff=geometry_used_for_handoff,
                 sections=sections,
                 checks=checks,
                 supporting_facts=list(dict.fromkeys(supporting_facts)),

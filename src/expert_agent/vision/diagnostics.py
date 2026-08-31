@@ -352,12 +352,12 @@ def write_model_chain(
     )
     axes[3].scatter(supported_x, supported_y, s=7, c="lime", marker="s")
     axes[3].scatter(recovered_x, recovered_y, s=7, c="magenta", marker="s")
-    axes[3].set_title("4. 路线内结构整合（颜色不是最终置信度）")
+    axes[3].set_title("4. 完整模型链候选池（尚未审计分流）")
     for axis in axes:
         _mark(axis, half)
     figure.suptitle(
         "SEP局部分割与路线内结构整合\n"
-        "橙=路线外SEP降级追溯；绿=路线内原SEP；紫=路线内补充恢复；绿色与紫色都需重点复核"
+        "橙=路线外SEP候选；绿=路线内原SEP；紫=路线内补充恢复；下一张图再做审计分流"
     )
     figure.tight_layout()
     path = output / "vision_model_chain.png"
@@ -369,12 +369,13 @@ def write_model_chain(
 def write_signal_audit(
     prep: PreprocessedImage,
     model_candidate_mask: np.ndarray,
-    verified_mask: np.ndarray,
-    review_mask: np.ndarray,
+    primary_mask: np.ndarray,
+    recovery_mask: np.ndarray,
+    foreground_contaminated_mask: np.ndarray,
     trace_mask: np.ndarray,
     output: Path,
 ) -> Path:
-    """Show the candidate pool and the later signal-only audit outcome."""
+    """Show the complete candidate pool and four-way reasoning handoff."""
     plt = _matplotlib(output)
     ys, xs, half = _view(prep)
     residual_view = prep.residual[ys, xs]
@@ -394,26 +395,39 @@ def write_signal_audit(
         edgecolors="deepskyblue",
         linewidths=0.6,
     )
-    axes[0].set_title("图4候选池：路线关系不决定去留")
+    axes[0].set_title("完整候选池：所有候选均保留追溯")
 
-    verified_y, verified_x = np.where(verified_mask[ys, xs])
-    review_y, review_x = np.where(review_mask[ys, xs])
+    primary_y, primary_x = np.where(primary_mask[ys, xs])
+    recovery_y, recovery_x = np.where(recovery_mask[ys, xs])
+    contaminated_y, contaminated_x = np.where(
+        foreground_contaminated_mask[ys, xs]
+    )
     trace_y, trace_x = np.where(trace_mask[ys, xs])
-    axes[1].scatter(verified_x, verified_y, s=7, c="lime", marker="s", label="信号审计通过")
-    axes[1].scatter(review_x, review_y, s=9, c="gold", marker="s", label="暂缓复核")
+    axes[1].scatter(
+        primary_x, primary_y, s=7, c="lime", marker="s",
+        label="主要候选：进入当前规则层",
+    )
+    axes[1].scatter(
+        recovery_x, recovery_y, s=8, c="deepskyblue", marker="s",
+        label="恢复候选：保留作补充",
+    )
+    axes[1].scatter(
+        contaminated_x, contaminated_y, s=8, c="red", marker="s",
+        label="前景污染候选：隔离",
+    )
     axes[1].scatter(
         trace_x,
         trace_y,
         s=7,
         facecolors="none",
-        edgecolors="red",
+        edgecolors="orange",
         linewidths=0.7,
-        label="只留追溯",
+        label="弱线索：只留追溯",
     )
-    axes[1].set_title("信号真实性审计结果（不是透镜分类）")
+    axes[1].set_title("审计后的四路交接（不是透镜等级）")
     axes[1].legend(loc="upper right", fontsize=7)
     figure.suptitle(
-        "候选来源与信号审计分离：椭圆路线用于发现和描述，审计只验证测量可靠性"
+        "先检查信号与前景污染，再用路线关系分流；只有绿色进入当前规则层"
     )
     figure.tight_layout()
     path = output / "vision_signal_audit.png"
@@ -784,8 +798,10 @@ def write_manifest(
             "retain exact SEP pixel unions as trace-only geometry seeds",
             "propose circular/elliptical search routes from seeds and centre-based fallback",
             "run SEP again with pixels outside each route masked",
-            "audit each model-chain candidate for structure-level measurement usability",
-            "promote supported candidates to measured structures while retaining all audit outcomes",
+            "measure candidate-level connected persistence across the configured S/N grid",
+            "audit signal reality and foreground-subtraction sensitivity",
+            "route candidates into primary, recovery, foreground-contaminated, and trace handoffs",
+            "expose only primary candidates as current reasoning structures while retaining every audit outcome",
             "write structured Observation and trace artifacts",
         ],
         "files": files,
@@ -804,9 +820,13 @@ def write_manifest(
             "sep_only_candidate_mask": "all raw SEP pixels outside admissible route-supported partitions; downgraded trace",
             "sep_geometry_consistent_mask": "local raw SEP pixel partitions inside admissible geometric routes",
             "geometry_recovered_candidate_mask": "supplementary candidates found by route-masked SEP",
-            "residual_structure_mask": "union of candidates promoted by the candidate-structure audit; a measured residual mask, not a lens or arc label",
-            "signal_audit_verified_mask": "candidates admitted as measurable residual signals by the signal-reality audit; geometry is not an admission condition",
-            "signal_audit_review_mask": "candidates held for review because of data or processing sensitivity",
+            "residual_structure_mask": "union of primary candidates handed to the current reasoning rules; not a lens or arc label",
+            "handoff_primary_candidate_mask": "S/N-stable, geometry-supported candidates handed to current reasoning",
+            "handoff_recovery_candidate_mask": "stable off-route or geometry-supported weak candidates retained as supplementary evidence",
+            "handoff_foreground_contaminated_mask": "measurable signals isolated because foreground subtraction can explain them",
+            "handoff_trace_candidate_mask": "weak or unusable candidates retained only for traceability",
+            "signal_audit_verified_mask": "compatibility alias of the primary handoff mask",
+            "signal_audit_review_mask": "compatibility union of recovery and foreground-contaminated masks",
             "signal_audit_trace_mask": "candidates retained only for traceability because detector-level signal facts were insufficient",
             "arc_mask": "deprecated compatibility alias of residual_structure_mask; it must not be interpreted as a confirmed arc mask",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
@@ -815,11 +835,13 @@ def write_manifest(
         "notes": [
             "PNG files are human-readable diagnostics; NPZ arrays remain the numerical evidence.",
             "Threshold and SEP results share the same residual and are correlated measurements.",
-            "Raw SEP detections are retained for traceability; only explicitly audited candidates become measured structures.",
+            "Raw SEP detections are retained for traceability; only primary handoff candidates become measured structures.",
             "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
-            "A merged raw SEP component is locally split by route relation; off-route status is provenance, not an audit veto.",
-            "Route-consistent, route-recovered, and off-route SEP components all receive the same signal-reality audit.",
-            "Candidate-structure promotion is based on detector-level signal usability, not geometry membership or arc/ring/image/lens classification.",
+            "Geometry does not determine signal reality; it only affects the later handoff class.",
+            "S/N persistence is measured per candidate as connected survival across the configured threshold grid.",
+            "Off-route stable signals remain recovery candidates instead of being deleted or treated as equal-weight primary evidence.",
+            "Foreground-contaminated candidates remain measurable and traceable, but are isolated from positive lens evidence.",
+            "No handoff class is an arc, ring, multiple-image, or lens classification.",
             "No wavelet channel is used in this version.",
         ],
     }
@@ -840,7 +862,8 @@ def write_visual_audit_bundle(
     sep_geometry_mask: np.ndarray,
     geometry_recovered_mask: np.ndarray,
     model_candidate_mask: np.ndarray,
-    audit_review_mask: np.ndarray,
+    audit_recovery_mask: np.ndarray,
+    audit_foreground_contaminated_mask: np.ndarray,
     audit_trace_mask: np.ndarray,
     segments: list[ResidualStructure],
     geometric_paths: list[GeometricPathCandidate],
@@ -865,7 +888,8 @@ def write_visual_audit_bundle(
             prep,
             model_candidate_mask,
             residual_structure_mask,
-            audit_review_mask,
+            audit_recovery_mask,
+            audit_foreground_contaminated_mask,
             audit_trace_mask,
             output,
         )

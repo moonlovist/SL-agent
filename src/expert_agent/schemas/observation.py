@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.13.0"
+    pipeline_version: str = "0.14.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -259,11 +259,19 @@ class ModelCandidateObservation(StrictModel):
     pixel_count: int = Field(gt=0)
     integrated_snr: float
     angular_extent_deg: float = Field(ge=0.0, le=360.0)
+    snr_threshold_survival_count: int | None = Field(default=None, ge=0)
+    snr_threshold_total_count: int | None = Field(default=None, ge=0)
+    snr_threshold_survival_fraction: float | None = Field(
+        default=None, ge=0.0, le=1.0
+    )
     sep_survival_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     foreground_comparison_survival_fraction: float | None = Field(
         default=None, ge=0.0, le=1.0
     )
     near_core: bool
+    subtraction_core_overlap_fraction: float | None = Field(
+        default=None, ge=0.0, le=1.0
+    )
     measurement_ids: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
 
@@ -293,10 +301,17 @@ class CandidateStructureAuditObservation(StrictModel):
     verdict: Literal["promoted", "hold_for_review", "trace_only"]
     structure_id: str | None = None
     audit_scope: Literal["signal_reality"] = "signal_reality"
+    handoff_class: Literal[
+        "primary_candidate",
+        "recovery_candidate",
+        "foreground_contaminated",
+        "trace_candidate",
+    ] = "trace_candidate"
     discovery_context: Literal[
         "global_sep", "global_sep_plus_geometry", "route_recovery"
     ] | None = None
     geometry_used_for_verdict: bool = False
+    geometry_used_for_handoff: bool = False
     sections: dict[str, dict[str, bool | None]] = Field(default_factory=dict)
     checks: dict[str, bool | None] = Field(default_factory=dict)
     supporting_facts: list[str] = Field(default_factory=list)
@@ -305,7 +320,7 @@ class CandidateStructureAuditObservation(StrictModel):
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12"] = "1.12"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13"] = "1.13"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]

@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+from scipy import ndimage
 
 from ..core.config import VisionConfig
 from ..schemas.observation import (
@@ -39,6 +40,7 @@ from .detectors import (
     partition_sep_segments_by_routes,
     position_angle,
     sep_consensus,
+    threshold_masks,
     threshold_stability,
 )
 from .diagnostics import write_visual_audit_bundle
@@ -87,6 +89,7 @@ class VisionPipeline:
             )
         prep = preprocess(image, runtime_config)
         threshold_detections, level_map = threshold_stability(prep, runtime_config)
+        configured_threshold_masks, _ = threshold_masks(prep, runtime_config)
         consensus_detections = sep_consensus(prep, runtime_config)
         segments, residual_segmentation, footprint, sep_seed_mask = consensus_residual_structures(
             prep, runtime_config, consensus_detections
@@ -135,6 +138,31 @@ class VisionPipeline:
                     comparison_snr[mask] >= runtime_config.structure_snr_low
                 )
             )
+
+        def threshold_persistence(mask: np.ndarray) -> tuple[int, int, float]:
+            """Count S/N layers where the candidate remains a connected object."""
+            survived = 0
+            for threshold_mask in configured_threshold_masks:
+                labels, count = ndimage.label(mask & threshold_mask)
+                largest_area = 0
+                if count:
+                    areas = np.bincount(labels.ravel())[1:]
+                    if areas.size:
+                        largest_area = int(areas.max())
+                if largest_area >= runtime_config.snr_min_area:
+                    survived += 1
+            total = len(configured_threshold_masks)
+            fraction = survived / total if total else 0.0
+            return survived, total, float(fraction)
+
+        def core_overlap_fraction(mask: np.ndarray) -> float:
+            if not np.any(mask):
+                return 0.0
+            yy, xx = np.indices(mask.shape)
+            radius = np.hypot(
+                xx - prep.nucleus_yx[1], yy - prep.nucleus_yx[0]
+            )
+            return float(np.mean(radius[mask] <= runtime_config.near_core_radius_px))
 
         local_partitions, _supported_seed_indices_by_path = (
             partition_sep_segments_by_routes(
@@ -208,12 +236,19 @@ class VisionPipeline:
                 supported_candidate_ids_by_path[path_index].append(candidate_id)
             near_core = radius_px <= runtime_config.near_core_radius_px
             model_survival = comparison_fraction(mask)
+            threshold_count, threshold_total, threshold_fraction = (
+                threshold_persistence(mask)
+            )
+            core_overlap = core_overlap_fraction(mask)
             measurement_ids: list[str] = []
             for kind, value, reliability in [
                 ("integrated_snr", integrated_snr, min(0.6, abs(integrated_snr) / 20.0)),
                 ("radius", radius_px, 0.6),
+                ("snr_threshold_survival_count", threshold_count, threshold_fraction),
+                ("snr_threshold_survival_fraction", threshold_fraction, threshold_fraction),
                 ("sep_survival_fraction", sep_fraction, sep_fraction or 0.0),
                 ("foreground_comparison_survival_fraction", model_survival, 0.55 if model_survival is not None else 0.0),
+                ("subtraction_core_overlap_fraction", core_overlap, 0.65),
             ]:
                 measurement_id = f"M_{candidate_id}_{kind}"
                 measurement_ids.append(measurement_id)
@@ -294,9 +329,13 @@ class VisionPipeline:
                     pixel_count=int(mask.sum()),
                     integrated_snr=integrated_snr,
                     angular_extent_deg=circular_span(pixel_angles),
+                    snr_threshold_survival_count=threshold_count,
+                    snr_threshold_total_count=threshold_total,
+                    snr_threshold_survival_fraction=threshold_fraction,
                     sep_survival_fraction=sep_fraction,
                     foreground_comparison_survival_fraction=model_survival,
                     near_core=near_core,
+                    subtraction_core_overlap_fraction=core_overlap,
                     measurement_ids=measurement_ids,
                     flags=flags,
                 )
@@ -317,11 +356,18 @@ class VisionPipeline:
                 angle_deg = position_angle(recovered.x, recovered.y, prep.nucleus_yx)
                 near_core = radius_px <= runtime_config.near_core_radius_px
                 model_survival = comparison_fraction(mask)
+                threshold_count, threshold_total, threshold_fraction = (
+                    threshold_persistence(mask)
+                )
+                core_overlap = core_overlap_fraction(mask)
                 measurement_ids: list[str] = []
                 for kind, value, reliability in [
                     ("integrated_snr", recovered.integrated_snr, min(0.55, abs(recovered.integrated_snr) / 20.0)),
                     ("radius", radius_px, 0.55),
+                    ("snr_threshold_survival_count", threshold_count, threshold_fraction),
+                    ("snr_threshold_survival_fraction", threshold_fraction, threshold_fraction),
                     ("foreground_comparison_survival_fraction", model_survival, 0.55 if model_survival is not None else 0.0),
+                    ("subtraction_core_overlap_fraction", core_overlap, 0.65),
                 ]:
                     measurement_id = f"M_{candidate_id}_{kind}"
                     measurement_ids.append(measurement_id)
@@ -366,8 +412,12 @@ class VisionPipeline:
                         pixel_count=recovered.pixel_count,
                         integrated_snr=recovered.integrated_snr,
                         angular_extent_deg=recovered.angular_extent_deg,
+                        snr_threshold_survival_count=threshold_count,
+                        snr_threshold_total_count=threshold_total,
+                        snr_threshold_survival_fraction=threshold_fraction,
                         foreground_comparison_survival_fraction=model_survival,
                         near_core=near_core,
+                        subtraction_core_overlap_fraction=core_overlap,
                         measurement_ids=measurement_ids,
                         flags=flags,
                     )
@@ -452,12 +502,13 @@ class VisionPipeline:
             model_candidates,
             data_usable=(image.finite_fraction > 0.99 and prep.background_rms > 0),
             foreground_model_success=prep.model_success,
+            snr_min_survival=runtime_config.snr_min_survival,
         )
         candidate_by_id = {candidate.id: candidate for candidate in model_candidates}
         promoted_structure_id_by_candidate: dict[str, str] = {}
         structure_masks: dict[str, np.ndarray] = {}
         for audit in candidate_structure_audits:
-            if audit.verdict != "promoted":
+            if audit.handoff_class != "primary_candidate":
                 continue
             candidate = candidate_by_id[audit.candidate_id]
             mask = model_candidate_masks[candidate.id]
@@ -512,9 +563,7 @@ class VisionPipeline:
             ) % 360.0
             inner_region = pixel_radii <= (runtime_config.ring_inner_px + 1.0)
             inner_fraction = float(np.mean(inner_region))
-            threshold_fraction = float(
-                np.mean(level_map[mask] / max(len(runtime_config.snr_thresholds), 1))
-            )
+            threshold_fraction = candidate.snr_threshold_survival_fraction
             centroid_ra, centroid_dec = pixel_to_sky(
                 prep.image, centroid_x, centroid_y
             )
@@ -584,6 +633,7 @@ class VisionPipeline:
                     measurement_ids=measurement_ids,
                     flags=[
                         "candidate_structure_audit_promoted",
+                        "primary_reasoning_handoff",
                         "not_a_lens_label",
                         f"audit_discovery_context:{audit.discovery_context}",
                         "geometry_route_relation_recorded"
@@ -620,14 +670,22 @@ class VisionPipeline:
         audited_structure_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         for structure_mask in structure_masks.values():
             audited_structure_mask |= structure_mask
-        audit_review_mask = np.zeros_like(model_candidate_mask, dtype=bool)
+        audit_recovery_mask = np.zeros_like(model_candidate_mask, dtype=bool)
+        audit_foreground_contaminated_mask = np.zeros_like(
+            model_candidate_mask, dtype=bool
+        )
         audit_trace_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         for audit in candidate_structure_audits:
             candidate_mask = model_candidate_masks[audit.candidate_id]
-            if audit.verdict == "hold_for_review":
-                audit_review_mask |= candidate_mask
-            elif audit.verdict == "trace_only":
+            if audit.handoff_class == "recovery_candidate":
+                audit_recovery_mask |= candidate_mask
+            elif audit.handoff_class == "foreground_contaminated":
+                audit_foreground_contaminated_mask |= candidate_mask
+            elif audit.handoff_class == "trace_candidate":
                 audit_trace_mask |= candidate_mask
+        audit_review_mask = (
+            audit_recovery_mask | audit_foreground_contaminated_mask
+        )
         comparison_survival = comparison_fraction(audited_structure_mask)
         measurements.extend(
             [
@@ -1003,6 +1061,10 @@ class VisionPipeline:
                 "sep_geometry_consistent_mask": sep_geometry_mask.astype(np.uint8),
                 "geometry_recovered_candidate_mask": geometry_recovered_mask.astype(np.uint8),
                 "residual_structure_mask": audited_structure_mask.astype(np.uint8),
+                "handoff_primary_candidate_mask": audited_structure_mask.astype(np.uint8),
+                "handoff_recovery_candidate_mask": audit_recovery_mask.astype(np.uint8),
+                "handoff_foreground_contaminated_mask": audit_foreground_contaminated_mask.astype(np.uint8),
+                "handoff_trace_candidate_mask": audit_trace_mask.astype(np.uint8),
                 "signal_audit_verified_mask": audited_structure_mask.astype(np.uint8),
                 "signal_audit_review_mask": audit_review_mask.astype(np.uint8),
                 "signal_audit_trace_mask": audit_trace_mask.astype(np.uint8),
@@ -1041,7 +1103,8 @@ class VisionPipeline:
                     sep_geometry_mask=sep_geometry_mask,
                     geometry_recovered_mask=geometry_recovered_mask,
                     model_candidate_mask=model_candidate_mask,
-                    audit_review_mask=audit_review_mask,
+                    audit_recovery_mask=audit_recovery_mask,
+                    audit_foreground_contaminated_mask=audit_foreground_contaminated_mask,
                     audit_trace_mask=audit_trace_mask,
                     segments=[],
                     geometric_paths=geometric_paths_raw,
@@ -1069,8 +1132,9 @@ class VisionPipeline:
             "All residual detectors share the same galaxy-subtracted image and are correlated.",
             "A single-band run cannot test source-color consistency.",
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
-            "Merged SEP components are locally partitioned by route relation, but off-route status is provenance rather than a signal-audit veto.",
-            "Candidate-structure audit validates detector-level signal usability without using geometric route membership as a verdict condition; promotion is not an arc, ring, multiple-image, or lens label.",
+            "S/N multi-threshold persistence measures reproducibility on one foreground-subtracted residual and cannot by itself distinguish lens light from subtraction residuals.",
+            "Geometry is not used to declare a signal real, but it is used with S/N persistence to route candidates into primary, recovery, foreground-contaminated, or trace handoff classes.",
+            "Only primary candidates enter the formal structure list used by current reasoning rules; all other candidates remain fully traceable for later hypothesis-specific review.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:

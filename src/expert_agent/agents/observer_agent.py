@@ -41,6 +41,18 @@ class ObserverAgent(BaseAgent):
                 "model_candidate_count": len(document.model_candidates),
                 "candidate_system_count": len(document.candidate_systems),
                 "candidate_structure_audit_count": len(document.candidate_structure_audits),
+                "candidate_handoff_counts": {
+                    handoff_class: sum(
+                        item.handoff_class == handoff_class
+                        for item in document.candidate_structure_audits
+                    )
+                    for handoff_class in (
+                        "primary_candidate",
+                        "recovery_candidate",
+                        "foreground_contaminated",
+                        "trace_candidate",
+                    )
+                },
                 "geometric_path_count": len(document.geometric_paths),
                 "guided_recovered_segment_count": sum(
                     len(item.recovered_candidate_ids) for item in document.geometric_paths

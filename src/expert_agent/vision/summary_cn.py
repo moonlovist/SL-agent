@@ -88,8 +88,11 @@ def _quick_summary(document: ObservationDocument) -> str:
         opening
         + structure_text
         + (
-            f"视觉链记录了 {len(document.model_candidates)} 个候选，其中 "
-            f"{sum(item.verdict == 'promoted' for item in document.candidate_structure_audits)} 个经审计进入正式结构列表。"
+            f"视觉链记录了 {len(document.model_candidates)} 个候选；审计后分为 "
+            f"{sum(item.handoff_class == 'primary_candidate' for item in document.candidate_structure_audits)} 个主要候选、"
+            f"{sum(item.handoff_class == 'recovery_candidate' for item in document.candidate_structure_audits)} 个恢复候选、"
+            f"{sum(item.handoff_class == 'foreground_contaminated' for item in document.candidate_structure_audits)} 个前景污染候选和 "
+            f"{sum(item.handoff_class == 'trace_candidate' for item in document.candidate_structure_audits)} 个追溯候选。"
             if document.model_candidates else "视觉链没有记录候选。"
         )
         + "这些是视觉测量结果，不等同于透镜弧或多重像；当前摘要不判断该对象是否为强引力透镜。"
@@ -285,8 +288,9 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                     f"- 局部分区：{partition}；人工复核优先级：{review_priority}；所属原SEP连通块：{item.parent_sep_component_id or '不适用'}",
                     f"- 中心：({_value(item.centroid_xy[0])}, {_value(item.centroid_xy[1])}) 像素；距中心：{_value(item.radius_px)} 像素",
                     f"- 像素数：{item.pixel_count}；累计S/N：{_value(item.integrated_snr)}；环向跨度：{_value(item.angular_extent_deg)}°",
+                    f"- 候选级S/N多阈值存活：{item.snr_threshold_survival_count if item.snr_threshold_survival_count is not None else '未测得'}/{item.snr_threshold_total_count if item.snr_threshold_total_count is not None else '未测得'}；存活比例：{_value(item.snr_threshold_survival_fraction, 3)}",
                     f"- 有像素重叠的路线：{', '.join(item.path_ids) or '无'}；通过几何一致性检查的路线：{', '.join(item.geometry_consistent_path_ids) or '无'}",
-                    f"- 所属候选系统：{', '.join(item.candidate_system_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}",
+                    f"- 所属候选系统：{', '.join(item.candidate_system_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}；候选像素与敏感中心区的重叠比例：{_value(item.subtraction_core_overlap_fraction, 3)}",
                     f"- 换用PSF-MGE比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
                     f"- 结构支持来源：{', '.join(item.support_sources) or '未记录'}",
                     "- 解释限制：这是视觉链提出的结构候选，不是弧、环、多重像或透镜标签。",
@@ -299,9 +303,9 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     lines.extend(["## 3.2 候选结构审计", ""])
     lines.extend(
         [
-            "这一步审计图4候选池中的全部候选，只回答“这个候选是否具有可用的探测信号，可以作为可测量残差结构交给后端解释”。它检查数据可用性、既有SEP探测事实、连通信号以及更换前景模型后是否被完全抹掉。",
-            "候选位于椭圆路线内、路线外或由路线二次恢复，只作为发现来源和几何关系记录，不作为审计晋级或淘汰条件。审计不判断这个结构究竟是透镜像、星系自身结构还是处理伪影。",
-            "审计结果分为：晋级为结构、暂缓并交人工复核、只保留过程追溯。这里没有再计算一个新的总分。",
+            "这一步先检查候选是否具有SEP探测事实、连通信号、S/N多阈值稳定性，以及是否受到前景减除失败影响；随后才使用椭圆路线关系决定候选如何交给后端。",
+            "椭圆路线不负责证明信号真实，也不把候选直接认定为透镜像。它只帮助把稳定且路线一致的候选放入主要结构列表；路线外稳定信号进入恢复组，前景敏感信号进入污染组，弱线索只保留追溯。",
+            "只有主要候选进入当前规则层的正式结构列表。其余三组不会被删除，后续编写分级细则时仍可按假设调用。",
             "",
         ]
     )
@@ -315,6 +319,12 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
         "global_sep_plus_geometry": "全图SEP检出且与路线一致",
         "route_recovery": "椭圆路线内二次SEP恢复",
         None: "旧版记录，未标注发现来源",
+    }
+    handoff_names = {
+        "primary_candidate": "主要候选（进入当前规则层）",
+        "recovery_candidate": "恢复候选（保留作补充）",
+        "foreground_contaminated": "前景污染候选（隔离）",
+        "trace_candidate": "弱线索（只留追溯）",
     }
     section_names = {
         "signal_quality": "信号质量",
@@ -339,8 +349,8 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 [
                     f"### {item.id}：{item.candidate_id}",
                     "",
-                    f"- 结果：{verdict_names[item.verdict]}；对应正式结构：{item.structure_id or '无'}",
-                    f"- 审计范围：信号真实性；发现来源：{discovery_names[item.discovery_context]}；几何路线是否参与审计结论：{'是' if item.geometry_used_for_verdict else '否'}",
+                    f"- 结果：{verdict_names[item.verdict]}；四路交接：{handoff_names[item.handoff_class]}；对应正式结构：{item.structure_id or '无'}",
+                    f"- 审计范围：信号真实性；发现来源：{discovery_names[item.discovery_context]}；几何路线是否参与信号真实性结论：{'是' if item.geometry_used_for_verdict else '否'}；是否参与交接分流：{'是' if item.geometry_used_for_handoff else '否'}",
                     f"- 分区检查：{section_text or '旧版记录，未分区'}",
                     f"- 检查记录：{check_text or '无'}",
                     f"- 支持事实：{', '.join(item.supporting_facts) or '无额外支持'}",

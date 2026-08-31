@@ -22,9 +22,10 @@ source mask, and segmentation. The v0.10 detection path is deliberately chained:
 4. pixels outside each route are masked through SEP's extraction interface and SEP
    runs again inside the permitted band;
 5. route detections become unified model-chain candidates;
-6. a candidate-structure audit promotes measurable residual structures, holds
-   processing-sensitive candidates for review, and retains unsupported SEP
-   remainders as trace-only records.
+6. a candidate-structure audit combines candidate-level connected S/N
+   persistence, route support, and foreground-contamination checks to route each
+   candidate to primary, recovery, foreground-contaminated, or trace handoff;
+7. only primary candidates create `structures` for the current expert rules.
 
 The search route is never filled with synthetic signal. Raw SEP detections, route
 statistics, and route-masked SEP candidates share one residual and are correlated.
@@ -36,7 +37,7 @@ This limitation is recorded in the Observation document and lowers confidence.
 
 ## Observation contract
 
-`schema_version=1.12` records:
+`schema_version=1.13` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -130,6 +131,16 @@ residual signal; this does not identify an arc, ring, multiple image, or lens.
 The initial implementation does not automatically refit a route or rerun the
 visual pipeline, preventing an audit-recovery loop from tuning geometry toward
 the signal it is trying to validate.
+
+Version 1.13 introduces an explicit four-way candidate handoff. Candidate-level
+S/N persistence is measured by connected survival across the configured eight
+threshold masks. Geometry still does not decide whether a signal is real, but it
+may route a stable candidate to the primary or recovery channel. Candidates that
+overlap the subtraction-sensitive core under a failed foreground fit, or disappear
+under the comparison foreground model, are isolated as foreground-contaminated.
+Only primary candidates create current-rule `structures`; recovery,
+foreground-contaminated, and trace candidates remain machine-readable and
+pixel-traceable for later hypothesis-specific analysis.
 
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF

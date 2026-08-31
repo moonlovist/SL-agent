@@ -60,11 +60,12 @@ The current MWA uses transparent domain rules for reproducible scoring. Scores a
 comparative reasoning aids, not calibrated lens probabilities. Multi-band color,
 PSF-aware modeling, and dataset-level calibration are explicit future extensions.
 
-Version 0.13.0 audits every visual candidate at the signal level before expert
-reasoning. Off-route global-SEP candidates are no longer rejected merely for
-lacking ellipse-route support; route membership remains discovery provenance
-and a later reasoning feature. Promotion means that a residual structure is
-measurable, not that it is an arc, ring, multiple image, or lens. Version 0.5
+Version 0.14.0 routes every visual candidate through candidate-level connected
+S/N persistence, ellipse-route support, and foreground-contamination checks.
+Only primary candidates enter the current expert rules; recovery candidates,
+foreground-contaminated residuals, and weak trace candidates remain fully
+recorded for later review. This handoff is not an arc, ring, multiple-image, or
+lens classification. Version 0.5
 added WCS-aware sky coordinates, angular
 scales, sky position angles, and full-field/RGB location audits. See the
 [current-version note](src/docs/CURRENT_VERSION_CN.md).
