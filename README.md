@@ -84,3 +84,7 @@ constraints, and extension points.
 For a comprehensive Chinese introduction, beginner-friendly operating guide,
 output interpretation, and troubleshooting reference, see
 [the Chinese user manual](src/docs/USER_MANUAL_CN.md).
+
+For a copy-ready prompt that hands batch data running to a separate Codex task
+without changing the frozen vision or grading rules, see
+[the Chinese data-run handoff prompt](src/docs/NEW_TASK_DATA_RUN_PROMPT_CN.md).
