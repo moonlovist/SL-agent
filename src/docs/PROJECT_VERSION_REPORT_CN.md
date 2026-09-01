@@ -1,5 +1,28 @@
 # 强引力透镜专家推理 Agent 项目版本报告
 
+## v0.16.0：单一专家判断层与轻量DecisionAudit
+
+本版本继续冻结v0.14.0视觉层，Observation schema保持1.13。活动推理流程收敛为
+`Observation -> ExpertAssessmentAgent -> DecisionAudit -> Report`。旧的
+Hypothesis/Evidence/CounterEvidence/HypothesisAnalysis/EvidenceAudit/
+ReasoningAudit/GradingPreparation文件保留用于历史追溯，但不再进入活动工作流。
+
+`ExpertAssessmentAgent`一次性建立Evidence Dossier，严格区分signal reality与
+lens specificity，比较强透镜、本征星系形态、并合/相互作用、前景减除或PSF伪影、
+噪声/坏像素/随机投影五种解释，并记录缺失信息、处理风险、相关证据组、未使用字段
+和未来null tests。整体判断采用X=0、C=1、B=2、A/A+=3的专家投票锚点，不对
+S/N、SEP、几何或颜色子分做机械加和。C/B之间无法诚实选择时输出区间；数据不可用
+时输出`insufficient_for_grading`。
+
+`DecisionAudit`只检查幻觉事实、缺失当反证、相关证据重复、测量当证明、恢复自动
+降级、替代解释遗漏、外部答案泄漏、文字分数矛盾和弃权需要，不重跑多假设推理。
+输出统一标记`provisional_uncalibrated`，`official_expert_score`在Q1连续聚合分数
+标定与独立验证前保持null。Q1论文边界仍为A>2.0、B为1.5<score<=2.0、C<=1.5；
+A+改由独立科学价值标记表达。本轮45项自动化测试通过，并直接读取两个既有
+Observation完成独立验证，没有重跑FITS视觉流程。
+
+---
+
 ## v0.15.0：退出临时评分并建立Q1评级契约
 
 本版本冻结v0.14.0视觉流程，不修改SEP、多阈值S/N、椭圆路线、前景减除或候选四路交接。主要调整发生在后端：删除未经Euclid Q1数据标定的`weighted_score`、假设综合分、分数差、`confidence.score`以及依赖人工阈值的Decision/Confidence/DecisionAudit活动链。原始测量、证据方向、可靠性、区分力、相关证据组、四种竞争假设、支持证据、反证和缺失证据继续保留。

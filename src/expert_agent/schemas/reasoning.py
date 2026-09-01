@@ -167,3 +167,165 @@ class AuditResult(StrictModel):
     issues: list[str]
     checks: dict[str, bool]
     recommendation: str
+
+
+ObservationSourceType = Literal[
+    "raw_image_observation",
+    "primary_residual_measurement",
+    "independent_model_check",
+    "multiband_corroboration",
+    "external_catalog_posthoc",
+]
+
+
+class TraceableFact(StrictModel):
+    """An interpretation-ready fact that still points back to Observation."""
+
+    id: str
+    statement: str
+    observation_refs: list[str]
+    source_types: list[ObservationSourceType]
+    reliability: Literal["low", "medium", "high", "unknown"] = "unknown"
+
+
+class EvidenceDimension(StrictModel):
+    status: Literal["credible", "mixed", "weak", "unavailable", "unknown"]
+    fact_refs: list[str] = Field(default_factory=list)
+    rationale: str
+
+
+ExplanationId = Literal[
+    "strong_gravitational_lens",
+    "intrinsic_galaxy_morphology",
+    "merger_or_interaction",
+    "foreground_subtraction_or_psf_artifact",
+    "noise_bad_pixel_or_projected_source",
+]
+
+
+class CompetingExplanation(StrictModel):
+    id: ExplanationId
+    status: Literal["favored", "viable", "weakened", "unsupported", "unknown"]
+    supporting_fact_refs: list[str] = Field(default_factory=list)
+    contradicting_fact_refs: list[str] = Field(default_factory=list)
+    rationale: str
+
+
+class MissingInformationItem(StrictModel):
+    topic: str
+    status: Literal["unknown", "not_measured", "unavailable"]
+    reason: str
+    observation_refs: list[str] = Field(default_factory=list)
+
+
+class ProcessingCaution(StrictModel):
+    id: str
+    description: str
+    observation_refs: list[str]
+    effect: Literal["uncertainty_only", "supports_artifact_alternative"]
+
+
+class CorrelatedEvidenceGroup(StrictModel):
+    id: str
+    fact_refs: list[str]
+    observation_refs: list[str]
+    rationale: str
+
+
+class UnusedFact(StrictModel):
+    field_path: str
+    reason: str
+
+
+class RequestedTest(StrictModel):
+    id: str
+    purpose: str
+    status: Literal["not_measured", "unavailable", "future"]
+
+
+class EvidenceDossier(StrictModel):
+    observed_facts: list[TraceableFact]
+    signal_reality: EvidenceDimension
+    lens_specificity: EvidenceDimension
+    supporting_evidence: list[TraceableFact]
+    contradicting_evidence: list[TraceableFact]
+    competing_explanations: list[CompetingExplanation]
+    missing_information: list[MissingInformationItem]
+    processing_cautions: list[ProcessingCaution]
+    correlated_evidence_groups: list[CorrelatedEvidenceGroup]
+    unused_facts: list[UnusedFact]
+    null_tests: list[RequestedTest]
+    future_tool_requests: list[RequestedTest]
+
+
+class HypothesisComparison(StrictModel):
+    hypothesis_id: ExplanationId
+    status: Literal["favored", "viable", "weakened", "unsupported", "unknown"]
+    supporting_fact_refs: list[str]
+    contradicting_fact_refs: list[str]
+    missing_information_topics: list[str]
+    rationale: str
+
+
+class ProvisionalExpertAssessment(StrictModel):
+    expert_vote_anchor: Literal[0, 1, 2, 3] | None
+    provisional_expert_score: float | None = Field(default=None, ge=0.0, le=3.0)
+    provisional_score_range: tuple[float, float] | None = None
+    provisional_grade: Literal["X", "C", "B", "A", "insufficient_for_grading"] | None
+    score_status: Literal["provisional_uncalibrated"] = "provisional_uncalibrated"
+    calibration_required: Literal[True] = True
+    official_expert_score: None = None
+    scientific_value_flags: list[str] = Field(default_factory=list)
+    decisive_evidence: list[str] = Field(default_factory=list)
+    decisive_counterevidence: list[str] = Field(default_factory=list)
+    assessment_rationale: str
+    assessment_questions: dict[str, str]
+
+    @model_validator(mode="after")
+    def validate_provisional_state(self) -> "ProvisionalExpertAssessment":
+        if self.provisional_score_range is not None:
+            low, high = self.provisional_score_range
+            if not 0.0 <= low <= high <= 3.0:
+                raise ValueError("provisional_score_range must be ordered within [0, 3]")
+        if self.provisional_grade == "insufficient_for_grading":
+            if any(
+                value is not None
+                for value in (
+                    self.expert_vote_anchor,
+                    self.provisional_expert_score,
+                    self.provisional_score_range,
+                )
+            ):
+                raise ValueError("insufficient cases must abstain from all score fields")
+            return self
+        if self.provisional_score_range is not None:
+            if self.expert_vote_anchor is not None or self.provisional_expert_score is not None:
+                raise ValueError("an interval assessment must not manufacture a point score")
+            if self.provisional_grade is not None:
+                raise ValueError("an interval assessment must not manufacture a grade")
+            return self
+        if self.expert_vote_anchor is None or self.provisional_expert_score is None:
+            raise ValueError("a point assessment requires an anchor and provisional score")
+        expected = {0: "X", 1: "C", 2: "B", 3: "A"}[self.expert_vote_anchor]
+        if self.provisional_grade != expected:
+            raise ValueError("provisional grade is inconsistent with the expert vote anchor")
+        return self
+
+
+class DecisionAuditResult(StrictModel):
+    audit_passed: bool
+    hallucinated_facts: list[str]
+    missing_as_negative: list[str]
+    correlated_evidence_double_counted: list[str]
+    measurement_used_as_proof: list[str]
+    recovery_auto_penalized: list[str]
+    alternative_ignored: list[str]
+    external_answer_leakage: list[str]
+    rationale_score_mismatch: list[str]
+    abstention_recommended: bool
+    required_corrections: list[str]
+
+
+class GradingSchemeStatus(StrictModel):
+    name: Literal["euclid_q1_paper"] = "euclid_q1_paper"
+    status: Literal["provisional_mapping_only"] = "provisional_mapping_only"

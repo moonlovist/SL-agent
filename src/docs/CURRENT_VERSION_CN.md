@@ -1,100 +1,89 @@
 # LensAgent 当前版本说明
 
-> 当前版本：`0.15.0`
+> 当前版本：`0.16.0`
 >
-> Observation schema（视觉观察文档格式）：`1.13`，未改变
+> Observation schema：`1.13`（视觉层未改变）
 >
-> 本次主题：退出未经标定的旧评分，建立 Euclid Q1 评级接口
+> 主题：统一专家判断层与轻量独立决策审查
 
-## 本次改变的原因
-
-旧版为了先跑通完整 Agent，使用人工设定的证据加权、假设分数、分数差和
-`confidence.score`。这些数字能够演示流程，但没有使用 Euclid Q1 的
-`expert_score` 做标定，因此既不是透镜概率，也不能严谨地对应 A/B/C。
-
-本版删除了活动流程中的旧数值判决链。视觉层保持 v0.14.0 的冻结状态，原始
-测量、多假设、支持证据、反证、缺失证据和证据来源继续保留。
-
-## 当前推理流程
+## 活动架构
 
 ```text
-Observation（观察事实）
-↓
-Observation Audit（观察质量审计）
-↓
-H1–H4 多假设与证据计划
-↓
-Evidence / Counter-evidence（支持证据与反证）
-↓
-Cross-hypothesis Comparison（跨假设比较）
-↓
-Per-hypothesis Case Files（每个假设的独立案卷）
-↓
-Evidence Audit（证据来源、相关性和区分力审计）
-↓
-Reasoning Audit（推理结构完整性审计）
-↓
-Grading Readiness（评级准备状态）
+冻结的视觉层
+-> Observation JSON
+-> ExpertAssessmentAgent
+-> DecisionAudit
+-> provisional expert assessment
+-> Euclid Q1 论文等级暂定映射
+-> JSON / Markdown report
 ```
 
-在标定工作完成前，程序不会用临时权重生成 A/B/C。
+`ExpertAssessmentAgent` 是唯一的主要科学判断层。它一次性完成事实选择、信号
+真实性与透镜特异性分离、多假设比较、支持与反对证据、缺失信息、处理风险、
+相关证据组、整体专家投票锚点和暂定等级判断。
 
-## 评级状态
+`DecisionAudit` 只检查事实是否来自 Observation、缺失信息是否被误当成反证、
+相关证据是否被重复计票、测量是否被写成透镜证明、恢复候选是否被自动惩罚、
+替代解释是否遗漏、是否发生外部答案泄漏、文字与分数是否冲突，以及是否应当
+弃权。它不重跑多假设分析，也不生成第二套分数。
 
-`summary.json`、`reasoning.json` 和 `report.md` 现在使用统一的 `grading`：
+旧的 `HypothesisAgent`、`EvidenceAgent`、`CounterEvidenceAgent`、
+`HypothesisAnalysisAgent`、`EvidenceAuditor`、`ReasoningAuditor` 和
+`GradingPreparationAgent` 文件仍保留以便 Git 回退和历史追溯，但已从活动
+`ExpertWorkflow` 停用。
 
-| 状态 | 含义 |
-|---|---|
-| `calibration_pending` | 数据和证据链可以进入未来评分，但评分器尚未完成标定 |
-| `insufficient_data` | 数据本身不可用于科学评级；这不等于 X |
-| `blocked_by_audit` | 证据来源或推理结构存在阻断问题，修复前不能评级 |
-| `graded` | 只为未来经过标定并通过独立验证的结果保留 |
+## Evidence Dossier
 
-未评级时：
+输出包含：
 
-```json
-{
-  "grading_scheme": "euclid_q1_paper",
-  "status": "calibration_pending",
-  "expert_score": null,
-  "grade": null,
-  "a_plus": null
-}
-```
+- `observed_facts`：实际参与判断的事实及 measurement、structure 或字段引用；
+- `signal_reality`：信号是否像真实天体/残差结构，而不是噪声；
+- `lens_specificity`：真实信号是否形成具有透镜区分力的联合空间关系；
+- 支持证据、真正冲突的证据和五类竞争解释；
+- 缺失信息、处理风险、相关证据组和未使用字段；
+- 当前未执行的 null tests 与未来工具请求。
 
-这里用 `null` 明确表示“没有评估”，而不是分数为零或等级为 X。
+高 S/N、SEP 稳定、多阈值存活和椭圆路线一致只能帮助评价信号或搜索来源，
+不能单独证明强透镜。恢复通道只记录发现来源，不自动降级。缺失颜色、反像、
+PSF、光谱或质量模型保持 `unknown` / `not_measured` / `unavailable`，不写成
+颜色不一致或不存在反像。
 
-## 唯一保留的等级映射
+## 暂定评分契约
 
-本版只实现项目选定的 Euclid Q1 论文口径。论文原文明确给出 A 和 B 的分界，
-并将低于 B 分界的结果描述为 C 或更低；详见
-[Euclid Q1 Strong Lensing Discovery Engine论文](https://arxiv.org/abs/2503.15324)：
+第一版输出：
 
-```text
-A：expert_score > 2.0
-B：1.5 < expert_score <= 2.0
-C：expert_score <= 1.5
-```
+- `expert_vote_anchor`: `0 / 1 / 2 / 3 / null`；
+- `provisional_expert_score`: `float / null`；
+- `provisional_score_range`: `[low, high] / null`；
+- `provisional_grade`: `X / C / B / A / insufficient_for_grading / null`；
+- `score_status`: `provisional_uncalibrated`；
+- `calibration_required`: `true`；
+- `official_expert_score`: `null`。
 
-映射函数已经通过边界测试，但只有未来经过标定的评分器才能向它提供
-`expert_score`。Q1论文没有规定`expert_score <= 1.0`自动映射为X的目录分箱，
-因此本项目不发明该边界。程序不再输出第二套 Zenodo 分箱。
+锚点对应单个专家的整体视觉判断：X=0、C=1、B=2、A/A+=3。程序不对几何、
+颜色、S/N 等子分做加和或平均。C 与 B 之间无法诚实选择时输出 `[1.0, 2.0]`
+区间，并让点分和暂定等级保持 `null`。数据或关键测量不可用时输出
+`insufficient_for_grading`，不会自动写成 X。
 
-## A+ 如何表示
+Q1 论文暂定映射为 A：`score > 2.0`，B：`1.5 < score <= 2.0`，C：
+`score <= 1.5`。正式映射只允许作用于未来经过标定的聚合 `expert_score`。
+A+ 不增加分值；它在当前 schema 中表示独立的 `scientific_value_flags`，没有
+可靠依据时保持空列表。
 
-`A+` 不再被当成另一个分数区间，而是 A 级结果上的独立科学价值标记：
+## 视觉层冻结
 
-- 只能附着在 A 级结果上；
-- 必须同时给出科学价值理由；
-- 未进行专门审查时为 `null`，不能默认写成 `false`。
+版本 0.16.0 没有修改 FITS 读取、前景星系建模和减除、SEP 多参数检测、
+多 S/N 阈值、圆/椭圆几何路线、路线内补充搜索、结构恢复、候选四路交接或
+诊断图。两个验证样本直接读取既有 Observation，不批量重跑视觉层。
 
-## 本版明确没有做什么
+## 标定仍需的数据
 
-- 没有编写评分前的最终量化审计表；
-- 没有猜测各项证据权重；
-- 没有使用 A/B/C 文件夹反推临时阈值；
-- 没有接入 LLM 或 VLM；
-- 没有改变 v0.14.0 的视觉检测、椭圆路线或候选四路交接。
+正式 `official_expert_score` 仍需：
 
-下一步需要使用带有 Q1 `expert_score` 的标定数据，建立量化证据表、确定缺失值
-语义、校准评分器，并在完全独立的样本上验证后，才允许产生正式等级。
+1. 与本项目输入可合法匹配的 Q1 连续聚合 `expert_score`；
+2. 每个对象的专家投票数、投票分布和专家偏差校正说明；
+3. 独立训练/校准/盲测划分，包含高质量正例和困难负例；
+4. 预先冻结的评价指标、弃权策略和误差分析方案。
+
+这些标签只能在当前独立视觉评估之后用于校准和 post-hoc evaluation，不能
+反向调整单个样本规则。

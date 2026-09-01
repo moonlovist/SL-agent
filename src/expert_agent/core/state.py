@@ -15,6 +15,11 @@ from ..schemas.reasoning import (
     Hypothesis,
     HypothesisAnalysis,
     ObservationAuditResult,
+    DecisionAuditResult,
+    EvidenceDossier,
+    GradingSchemeStatus,
+    HypothesisComparison,
+    ProvisionalExpertAssessment,
 )
 
 
@@ -39,6 +44,11 @@ class ExpertState:
     final_decision: dict[str, Any] | None = None
     final_report_markdown: str | None = None
     reasoning_trace: list[dict[str, Any]] = field(default_factory=list)
+    evidence_dossier: EvidenceDossier | None = None
+    hypothesis_comparison: list[HypothesisComparison] = field(default_factory=list)
+    expert_assessment: ProvisionalExpertAssessment | None = None
+    decision_audit: DecisionAuditResult | None = None
+    grading_scheme: GradingSchemeStatus = field(default_factory=GradingSchemeStatus)
 
     def require_observation(self) -> ObservationDocument:
         if self.observation_document is None:
@@ -55,19 +65,13 @@ class ExpertState:
                 return {key: dump(item) for key, item in value.items()}
             return value
 
-        return {
+        active = {
             "object_id": self.object_id,
-            "observation": dump(self.observation_document),
-            "observation_summary": dump(self.observations),
-            "observation_audit": dump(self.observation_audit),
-            "hypotheses": dump(self.hypotheses),
-            "evidence_plan": dump(self.evidence_plan),
-            "evidence": dump(self.evidence),
-            "evidence_comparisons": dump(self.evidence_comparisons),
-            "contradictions": dump(self.contradictions),
-            "hypothesis_analyses": dump(self.hypothesis_analyses),
-            "evidence_audit": dump(self.evidence_audit),
-            "grading": dump(self.grade_assessment),
-            "audit": dump(self.audit_result),
+            "evidence_dossier": dump(self.evidence_dossier),
+            "hypothesis_comparison": dump(self.hypothesis_comparison),
+            "expert_assessment": dump(self.expert_assessment),
+            "decision_audit": dump(self.decision_audit),
+            "grading_scheme": dump(self.grading_scheme),
             "reasoning_trace": dump(self.reasoning_trace),
         }
+        return active

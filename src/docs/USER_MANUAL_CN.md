@@ -1,14 +1,14 @@
 # Lens Expert Agent 中文使用说明书
 
-> 适用版本：`lens-expert-agent 0.15.0`
+> 适用版本：`lens-expert-agent 0.16.0`
 >
-> 当前状态：视觉层已暂时冻结；旧评分已退出；Q1 评分等待标定数据
+> 当前状态：视觉层冻结；输出暂定专家投票锚点；正式 Q1 分数等待标定
 
 ## 1. 当前版本一句话说明
 
-程序可以把 FITS/PNG 转换为可追溯的视觉测量，建立四种竞争解释，并列出支持
-证据、反证、缺失信息和审计结果；但在 Q1 标定完成前，它不会假装给出
-`expert_score` 或 A/B/C。
+程序把 FITS/PNG 转换为可追溯视觉测量，由唯一的 `ExpertAssessmentAgent`
+建立证据档案、比较五类解释并给出明确标为未校准的投票锚点或区间；独立
+`DecisionAudit` 只检查错误。正式 `official_expert_score` 在 Q1 标定前保持空值。
 
 ## 2. 实际处理流程
 
@@ -21,19 +21,14 @@ FITS / PNG
 ↓
 Observation JSON（只记录看到了什么）
 ↓
-观察审计
+ExpertAssessmentAgent：证据档案 + 五类竞争解释 + 整体投票锚点
 ↓
-H1 强透镜 / H2 星系自身结构 / H3 并合相互作用 / H4 伪影
+DecisionAudit：轻量独立错误检查
 ↓
-支持证据、反证、缺失证据、跨假设比较
-↓
-证据审计与推理结构审计
-↓
-评级准备状态
+暂定 Q1 映射与报告
 ```
 
-视觉层不输出“这是透镜”。它只提供测量。推理层也不再用未经标定的旧公式把
-测量强行变成等级。
+视觉层不输出“这是透镜”。专家层不把分项相加，也不把暂定分数解释成概率。
 
 ## 3. 安装
 
@@ -84,7 +79,7 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 | `vision_signal_audit.png` | 候选信号质量与交接结果 |
 | `vision_artifacts.npz` | 像素级数值溯源；VS Code 普通文本编辑器不能直接阅读 |
 | `vision_manifest.json` | 输入指纹、运行参数和产物路径 |
-| `reasoning.json` | 完整多假设证据链与评级状态 |
+| `reasoning.json` | Evidence Dossier、五类解释、暂定专家判断与DecisionAudit |
 | `summary.json` | 面向程序使用的精简结果 |
 | `report.md` | 面向人工阅读的专家证据报告 |
 
@@ -99,17 +94,17 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 
 这些名称只描述“信号怎样交接”，不等于弧、环、多重像或透镜标签。
 
-## 8. 四种竞争假设
+## 8. 五种竞争解释
 
-| 编号 | 解释 |
+| 标识 | 解释 |
 |---|---|
-| H1 | 强引力透镜 |
-| H2 | 前景星系自己的旋臂、环或星形成结构 |
-| H3 | 星系并合、相互作用或潮汐结构 |
-| H4 | 噪声、PSF、坏像素或前景减除伪影 |
+| `strong_gravitational_lens` | 强引力透镜 |
+| `intrinsic_galaxy_morphology` | 前景星系自身形态 |
+| `merger_or_interaction` | 星系并合或相互作用 |
+| `foreground_subtraction_or_psf_artifact` | 前景减除或 PSF 伪影 |
+| `noise_bad_pixel_or_projected_source` | 噪声、坏像素或随机投影源 |
 
-同一观察事实会对四个假设分别记录 `support`（支持）、`oppose`（反对）、
-`neutral`（中性）或 `unknown`（尚无解释规则）。缺失测量不能当作反对证据。
+每个解释记录支持事实、冲突事实、缺失信息和理由。缺失测量不能当作反对证据。
 
 ## 9. 为什么不再显示旧分数和 confidence
 
@@ -121,32 +116,33 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 元数据，不会相乘产生最终等级。未来量化审计完成后，应优先读取原始测量值、
 误差、可观测性和相关证据组，而不是把这些旧描述值直接当成 Q1 分数。
 
-## 10. 怎样阅读 grading
+## 10. 怎样阅读 expert_assessment
 
 当前 `summary.json` 包含：
 
 ```json
 {
-  "grading": {
-    "grading_scheme": "euclid_q1_paper",
-    "status": "calibration_pending",
-    "expert_score": null,
-    "grade": null,
-    "a_plus": null,
-    "rationale": "...",
-    "missing_requirements": ["..."]
+  "expert_assessment": {
+    "expert_vote_anchor": 1,
+    "provisional_expert_score": 1.0,
+    "provisional_score_range": null,
+    "provisional_grade": "C",
+    "score_status": "provisional_uncalibrated",
+    "calibration_required": true,
+    "official_expert_score": null,
+    "scientific_value_flags": []
   }
 }
 ```
 
 状态含义：
 
-| 状态 | 应怎样理解 |
+| 输出 | 应怎样理解 |
 |---|---|
-| `calibration_pending` | 流程正常，但评分器还没有用 Q1 数据标定 |
-| `insufficient_data` | 数据无法支持科学评级，不等于非透镜 |
-| `blocked_by_audit` | 证据来源或推理结构有问题，修复前不能评级 |
-| `graded` | 未来标定并验证完成后才会出现 |
+| `provisional_uncalibrated` | 当前结果是透明规则层的暂定专家判断，不等价于人类聚合分数 |
+| `provisional_score_range` | 证据跨越两个锚点，程序拒绝制造点分和等级 |
+| `insufficient_for_grading` | 数据无法支持科学评级，不等于非透镜 |
+| `official_expert_score: null` | 尚未进行 Q1 标定与独立验证 |
 
 `null` 表示“没有进行这项判断”。它和数字 0、等级 X、`false` 完全不同。
 
@@ -162,9 +158,9 @@ B：1.5 < expert_score <= 2.0
 C：expert_score <= 1.5
 ```
 
-映射本身已经实现并测试，但目前没有任何活动模块获准生成 `expert_score`。
-Q1论文没有规定`expert_score <= 1.0`自动映射为X的目录分箱，因此当前实现
-不会自行增加该边界。
+活动模块只能生成明确标为 provisional 的单专家锚点或区间，不能生成正式聚合
+`official_expert_score`。X=0、C=1、B=2、A/A+=3来自论文的单次专家投票编码；
+正式目录等级必须等待多专家聚合、专家偏差校正和本项目校准。
 
 A+ 是 A 级上的独立科学价值标记，不是更高的数值区间。只有先得到 A，并完成
 专门科学价值审查后，才能写 `a_plus=true`，同时必须记录理由。
@@ -175,17 +171,12 @@ X 的意思是“现有可用信息更支持非透镜”。如果图像损坏、
 像素不足，专家其实无法判断。程序会输出 `insufficient_data`，防止把“看不清”
 错误写成“确定不是”。
 
-## 13. 当前审计和未来评分前审计的区别
+## 13. 当前 DecisionAudit 与未来标定审计的区别
 
-当前已经存在：
-
-- Observation Audit：检查数据、噪声、前景模型和测量来源；
-- Evidence Audit：检查证据引用、重复信息、相关性和低区分力；
-- Reasoning Audit：检查四个假设案卷和推理引用是否完整。
-
-尚未实现的是“评分前量化审计表”。它需要把中心关系、切向关系、径向一致性、
-颜色/形态相容性、前景模型敏感性和替代解释等字段统一整理，并使用 Q1 标注数据
-校准。当前版本只为它留出清晰接口，没有猜测阈值或权重。
+当前 `DecisionAudit` 检查事实引用、缺失当反证、相关证据重复、测量当证明、
+恢复自动降级、替代解释遗漏、答案泄漏、文字分数冲突和弃权需要。它不重跑多
+假设分析。未来标定审计需要用 Q1 标注数据验证投票锚点、区间和弃权策略，不能
+从单个案例猜测权重。
 
 ## 14. 数据整理建议
 
@@ -210,8 +201,8 @@ Q1 expert_score
 python -m pytest
 ```
 
-测试覆盖视觉测量、WCS、前景模型、几何搜索、候选交接、推理引用、不可评级
-状态、Q1 分界点和 A+ 约束。
+测试覆盖视觉测量、WCS、前景模型、几何搜索、候选交接，以及15项专家判断边界、
+不可评级状态、Q1 分界点和 A+ 约束。
 
 ## 16. 当前科研边界
 
@@ -219,14 +210,14 @@ python -m pytest
 
 - 程序测量到了什么；
 - 测量来自哪些像素和处理步骤；
-- 各观察事实支持或反对哪些解释；
+- 各观察事实如何影响五类竞争解释；
 - 哪些信息缺失或存在冲突；
-- 数据和推理链是否具备进入评分阶段的条件。
+- 当前整体专家投票锚点或诚实区间，以及 DecisionAudit 是否通过。
 
 当前版本不能可靠回答：
 
 - 该目标的正式 Q1 `expert_score` 是多少；
-- 它应当被分为 A/B/C 中的哪一级；
+- 它的暂定等级是否等价于 Q1 多专家正式目录等级；
 - 某个内部数字是否是真实透镜概率。
 
 这些限制不是程序故障，而是为了在标定完成前避免用主观数字冒充科研结论。

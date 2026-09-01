@@ -156,34 +156,43 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-Version 0.15.0 runs these explicit stages:
+Version 0.16.0 has one primary interpretation pass:
 
-1. normalize observed facts;
-2. audit data usability, measurement reliability, and observation provenance;
-3. maintain four competing hypotheses;
-4. plan discriminating evidence;
-5. map measurements to directional, cited evidence for every relevant hypothesis;
-6. build an explicit cross-hypothesis matrix showing how one fact affects H1-H4;
-7. expose opposing evidence as contradictions;
-8. create a separate case file for each hypothesis with support, opposition,
-   missing evidence, uncertainties, explained observations, and unexplained facts;
-9. audit evidence provenance, dependence, specificity, and missing-evidence handling;
-10. audit schema/reference integrity without selecting a winning hypothesis;
-11. report one of `calibration_pending`, `insufficient_data`, or
-    `blocked_by_audit` while no calibrated estimator is installed;
-12. write JSON and Markdown reports without creating a score or grade.
+```text
+ObservationDocument -> ExpertAssessmentAgent -> DecisionAudit -> ReportWriter
+```
 
-Unavailable measurements are not negative evidence. The v0.14 provisional
-`weighted_score`, hypothesis ranking, confidence formula, and threshold-based
-decision audit were removed from the active code in v0.15. They were useful for
-early workflow testing but were not calibrated to Euclid Q1 expert scores.
+`ExpertAssessmentAgent` builds one evidence dossier containing cited observed facts,
+signal reality, lens specificity, supporting and contradicting evidence, five
+competing explanations, missing information, processing cautions, correlation groups,
+unused fields, null tests, and future tool requests. It then answers the six holistic
+expert questions and emits either a vote anchor (X=0, C=1, B=2, A/A+=3), an honest
+C-to-B interval, or `insufficient_for_grading`. No component scores are added or
+averaged. High S/N, SEP persistence, threshold survival, and route agreement cannot
+individually satisfy the lens-specificity gate.
 
-The grading contract contains exactly one continuous field, `expert_score`, and
-one mapping scheme, `euclid_q1_paper`. The mapping is implemented and unit tested,
-but `expert_score` remains null until a labelled calibration set, a validated
-pre-grading evidence audit, and an independently evaluated estimator are supplied.
-An A+ flag is represented separately and can only accompany grade A. Scientifically
-unusable data are `insufficient_data`, never silently converted to X.
+`DecisionAudit` is deliberately lightweight. It checks references, missing-as-negative
+errors, correlated double counting, measurement-as-proof errors, automatic recovery
+penalties, ignored alternatives, external-answer leakage, score/rationale mismatch,
+and required abstention. It never reconstructs the competing-hypothesis analysis and
+never generates an alternative score.
+
+The old `HypothesisAgent`, `EvidenceAgent`, `CounterEvidenceAgent`,
+`HypothesisAnalysisAgent`, `EvidenceAuditor`, `ReasoningAuditor`, and
+`GradingPreparationAgent` modules remain in the repository for history and safe Git
+rollback, but they are not imported by the active workflow.
+
+Unavailable measurements are uncertainty, not negative evidence. Route recovery is
+provenance, not an automatic penalty. Search-route and candidate-system records remain
+available to explain discovery context but cannot convert the number of residual
+components into a multiple-image claim.
+
+The active grading scheme is `euclid_q1_paper`. Provisional point outputs may display
+the paper boundaries (A > 2.0, B for 1.5 < score <= 2.0, C <= 1.5), but are explicitly
+`provisional_uncalibrated`. `official_expert_score` remains null until labelled Q1
+aggregate scores and an independently evaluated calibration procedure are supplied.
+A+ is represented by separate scientific-value flags. Scientifically unusable data
+abstain as `insufficient_for_grading`, never as X.
 
 ## Knowledge and skill separation
 
@@ -194,11 +203,11 @@ agent procedures. Python code remains responsible for measurement, validation,
 threshold enforcement, and structured outputs. Loading knowledge never creates an
 observation and never overrides measurement provenance.
 
-The active audits have distinct meanings. Observation audit asks whether the
-measurements are usable. Evidence audit asks whether claims are traceable,
-independent enough, and proportionate to specificity. `ReasoningAuditor` remains a
-structural integrity check. The forthcoming pre-grading evidence audit is not yet
-implemented because its quantitative rubric must be calibrated rather than guessed.
+The active `DecisionAudit` is a decision-integrity check, not a second expert. Data
+usability, measurement reliability, independence, specificity, missing information,
+and competing explanations are all assembled once inside the evidence dossier. Any
+future quantitative calibration audit must be added as a post-assessment calibration
+stage and validated on labelled data rather than guessed from individual examples.
 
 ## Visual trace bundle
 
