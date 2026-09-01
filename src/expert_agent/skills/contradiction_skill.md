@@ -29,13 +29,13 @@ The expert also asks:
 # Contradiction Search Procedure
 
 
-## Step 1: Identify the Current Preferred Hypothesis
+## Step 1: Challenge Every Viable Hypothesis
 
 Review:
 
-- current leading hypothesis;
+- each viable hypothesis;
 - supporting evidence;
-- confidence level.
+- evidence reliability and specificity.
 
 
 Then ask:
@@ -69,7 +69,7 @@ Check:
 
 If yes:
 
-Reduce lens confidence.
+Record explicit opposing evidence for the lens hypothesis.
 
 
 ---
@@ -188,34 +188,18 @@ Would additional data change the conclusion?
 
 ---
 
-# Step 4: Update Confidence
+# Step 4: Record Effect Without Scoring
 
 
-Contradictions should modify confidence.
+Contradictions must remain attached to the affected hypothesis and their source
+measurements. They do not directly create a numerical score.
 
 
 Rules:
 
 
-Strong contradiction:
-
-↓
-
-large confidence reduction.
-
-
-Weak contradiction:
-
-↓
-
-small confidence reduction.
-
-
-No contradiction:
-
-↓
-
-confidence may increase.
+Record severity, reliability, correlation group, and rationale separately. Absence
+of a detected contradiction is not positive evidence.
 
 
 ---
@@ -231,7 +215,7 @@ confidence may increase.
             "alternative_explanation": "",
             "evidence": "",
             "severity": "",
-            "impact_on_confidence": ""
+            "affected_hypothesis": ""
         }
     ],
 

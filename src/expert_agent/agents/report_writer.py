@@ -9,26 +9,19 @@ class ReportWriter(BaseAgent):
         super().__init__("ReportWriter")
 
     def run(self, state: ExpertState) -> ExpertState:
-        self.log("生成可审计专家报告")
+        self.log("生成不含未标定分数的可审计报告")
         self.load_skill("report_generation_skill")
         document = state.require_observation()
-        decision = state.decision_result
-        confidence = state.confidence_assessment
         audit = state.audit_result
-        decision_audit = state.decision_audit
-        if decision is None or confidence is None or audit is None or decision_audit is None:
-            raise ValueError("ReportWriter requires decision, confidence, and all audit results")
-        effective_classification = (
-            decision_audit.effective_classification if audit.valid else "indeterminate"
-        )
-        effective_confidence = (
-            decision_audit.effective_confidence_level if audit.valid else "insufficient"
-        )
-        top_rows = decision.ranking
+        grading = state.grade_assessment
+        if audit is None or grading is None:
+            raise ValueError("ReportWriter requires reasoning audit and grading status")
+
         structure_lines = [
             (
-                f"- {item.id}: radius={item.radius_px:.2f} px, PA={item.position_angle_deg:.1f}°, "
-                f"S/N={item.integrated_snr:.1f}, extent={item.angular_extent_deg:.1f}°, "
+                f"- {item.id}: radius={item.radius_px:.2f} px, "
+                f"PA={item.position_angle_deg:.1f}°, S/N={item.integrated_snr:.1f}, "
+                f"extent={item.angular_extent_deg:.1f}°, "
                 f"tangential misalignment={item.tangential_misalignment_deg:.1f}°"
             )
             for item in document.structures
@@ -40,8 +33,8 @@ class ReportWriter(BaseAgent):
                 f"partition={item.pixel_partition}, review priority={item.review_priority}, "
                 f"parent SEP={item.parent_sep_component_id or 'none'}, "
                 f"radius={item.radius_px:.2f} px, pixels={item.pixel_count}, "
-                f"integrated S/N={item.integrated_snr:.1f}, paths={','.join(item.path_ids) or 'none'}; "
-                "retained with candidate-level provenance"
+                f"integrated S/N={item.integrated_snr:.1f}, "
+                f"paths={','.join(item.path_ids) or 'none'}"
             )
             for item in document.model_candidates
         ] or ["- No model-chain candidate was retained."]
@@ -54,86 +47,75 @@ class ReportWriter(BaseAgent):
         ] or ["- No candidate-structure audit was recorded."]
         system_lines = [
             (
-                f"- {item.id}: path={item.path_id}, members={','.join(item.member_candidate_ids)}, "
+                f"- {item.id}: path={item.path_id}, "
+                f"members={','.join(item.member_candidate_ids)}, "
                 f"SEP members={','.join(item.sep_candidate_ids) or 'none'}, "
                 f"recovered members={','.join(item.recovered_candidate_ids) or 'none'}, "
-                f"components={item.component_count}; candidate grouping only, not a lens system claim"
+                f"components={item.component_count}; candidate grouping only"
             )
             for item in document.candidate_systems
         ] or ["- No route-associated candidate system was assembled."]
         path_lines = [
             (
-                f"- {item.id}: mode={item.mode}, seeds={','.join(item.seed_candidate_ids) or 'none'}, "
+                f"- {item.id}: mode={item.mode}, "
+                f"seeds={','.join(item.seed_candidate_ids) or 'none'}, "
                 f"linked={','.join(item.linked_candidate_ids) or 'none'}, "
-                f"recovered candidates={','.join(item.recovered_candidate_ids) or 'none'}; "
-                "the path is a search route, not a ring claim"
+                f"recovered={','.join(item.recovered_candidate_ids) or 'none'}; "
+                "search route only, not a ring claim"
             )
             for item in document.geometric_paths
         ] or ["- No geometry-guided search path was retained."]
-        hypothesis_lines = [
-            (
-                f"- {row.hypothesis_id} `{row.hypothesis}`: evidence={row.evidence_score:.3f}, "
-                f"contradiction={row.contradiction_penalty:.3f}, final={row.final_score:.3f}"
-            )
-            for row in top_rows
-        ]
-        hypothesis_case_lines: list[str] = []
+
+        hypothesis_lines: list[str] = []
         for hypothesis in state.hypotheses:
             analysis = state.hypothesis_analyses[hypothesis.id]
             missing = (
-                "\n".join(
-                    f"  - {item.question_id}: {item.question} Why it matters: {item.reason}"
-                    for item in analysis.missing_evidence
-                )
+                "; ".join(item.question_id for item in analysis.missing_evidence)
                 or "none"
             )
-            hypothesis_case_lines.extend(
-                [
-                    f"### {hypothesis.id}: {hypothesis.name}",
-                    "",
-                    f"- Current status: {analysis.status}",
-                    f"- Supporting evidence: {', '.join(analysis.supporting_evidence_refs) or 'none'}",
-                    f"- Opposing evidence: {', '.join(analysis.opposing_evidence_refs) or 'none'}",
-                    "- Missing evidence questions:",
-                    missing,
-                    f"- Unexplained relevant measurements: {', '.join(analysis.unexplained_relevant_observation_refs) or 'none'}",
-                    "",
-                ]
+            hypothesis_lines.append(
+                f"- {hypothesis.id} `{hypothesis.name}`: status={analysis.status}; "
+                f"support={','.join(analysis.supporting_evidence_refs) or 'none'}; "
+                f"opposition={','.join(analysis.opposing_evidence_refs) or 'none'}; "
+                f"missing={missing}"
             )
         comparison_lines = [
             (
                 f"- {item.id}: {item.observed_fact} | "
                 + "; ".join(
-                    f"{effect.hypothesis_id}={effect.effect}"
-                    for effect in item.effects
+                    f"{effect.hypothesis_id}={effect.effect}" for effect in item.effects
                 )
                 + f" | discriminating={item.discriminating}"
             )
             for item in state.evidence_comparisons
         ] or ["- No cross-hypothesis comparison was available."]
-        selected_id = top_rows[0].hypothesis_id if decision.selected_hypothesis else None
-        support_lines = [
+        lens_support_lines = [
             f"- {item.id}: {item.claim} (refs: {', '.join(item.observation_refs)})"
-            for item in state.evidence.get(selected_id or "", [])
+            for item in state.evidence.get("H1", [])
             if item.status == "evaluated" and item.polarity == "support"
-        ] or ["- No hypothesis-specific supporting evidence cleared evaluation."]
+        ] or ["- No evaluated support item is currently recorded for H1."]
         contradiction_lines = [
             f"- {item.id} [{item.hypothesis_id}]: {item.description} "
             f"(refs: {', '.join(item.observation_refs)})"
             for items in state.contradictions.values()
             for item in items
-        ] or ["- No explicit contradictory measurement was identified."]
-        limitation_lines = [f"- {item}" for item in confidence.remaining_uncertainties]
+        ] or ["- No explicit contradiction was identified."]
+        limitation_lines = [f"- {item}" for item in document.limitations] or [
+            "- No limitation was recorded."
+        ]
+        missing_grading_lines = [
+            f"- {item}" for item in grading.missing_requirements
+        ] or ["- None"]
         trace_labels = {
             "overview_diagnostic": "overview diagnostic",
             "snr_threshold_process": "S/N threshold process",
             "sep_consensus_diagnostic": "SEP consensus process",
             "model_chain_diagnostic": "SEP-to-geometry model-chain process",
             "expert_views_diagnostic": "Euclid-style VIS expert views",
-            "foreground_model_comparison_diagnostic": "foreground-subtraction model comparison",
-            "geometric_path_search_diagnostic": "geometry-guided missed-structure search",
-            "field_context_diagnostic": "full-field structure location audit",
-            "rgb_context_diagnostic": "RGB-to-FITS structure location audit",
+            "foreground_model_comparison_diagnostic": "foreground-model comparison",
+            "geometric_path_search_diagnostic": "geometry-guided search",
+            "field_context_diagnostic": "full-field location audit",
+            "rgb_context_diagnostic": "RGB-to-FITS location audit",
             "vision_manifest": "trace manifest",
             "vision_arrays": "numerical trace arrays",
         }
@@ -142,9 +124,17 @@ class ReportWriter(BaseAgent):
             for key in trace_labels
             if key in document.artifacts
         ] or ["- No visual trace bundle was written for this run."]
+
+        score_text = (
+            f"{grading.expert_score:.3f}" if grading.expert_score is not None else "not issued"
+        )
+        grade_text = grading.grade or "not issued"
+        a_plus_text = (
+            "yes" if grading.a_plus is True else "no" if grading.a_plus is False else "not evaluated"
+        )
         markdown = "\n".join(
             [
-                f"# Strong-lens expert report: {document.object_id}",
+                f"# Strong-lens evidence report: {document.object_id}",
                 "",
                 "## Data reliability",
                 "",
@@ -160,7 +150,7 @@ class ReportWriter(BaseAgent):
                 "",
                 *trace_lines,
                 "",
-                "## Candidate-structure promotion audit",
+                "## Candidate-structure handoff audit",
                 "",
                 *candidate_audit_lines,
                 "",
@@ -168,58 +158,57 @@ class ReportWriter(BaseAgent):
                 "",
                 *structure_lines,
                 "",
-                "## Model-chain candidates and trace",
+                "## Model-chain candidates",
                 "",
                 *candidate_lines,
                 "",
-                "## Route-associated candidate systems",
+                "## Route-associated candidate groups",
                 "",
                 *system_lines,
                 "",
-                "## Geometry-guided missed-structure search",
+                "## Geometry-guided search routes",
                 "",
                 *path_lines,
                 "",
-                "## Competing hypotheses",
+                "## Competing hypothesis case files",
                 "",
                 *hypothesis_lines,
                 "",
-                "## Per-hypothesis analysis",
-                "",
-                *hypothesis_case_lines,
                 "## Cross-hypothesis evidence comparison",
                 "",
                 *comparison_lines,
                 "",
-                "## Supporting evidence for the preferred explanation",
+                "## Evidence supporting the strong-lens hypothesis",
                 "",
-                *support_lines,
+                *lens_support_lines,
                 "",
-                "## Contradictions by hypothesis",
+                "## Explicit contradictions",
                 "",
                 *contradiction_lines,
                 "",
-                "## Expert judgement",
+                "## Q1 grading status",
                 "",
-                f"- Classification: **{effective_classification}**",
-                f"- Preferred explanation: {decision.selected_hypothesis or 'none (abstained)'}",
-                f"- Confidence: **{effective_confidence}** (raw score={confidence.score:.3f})",
-                f"- Decision basis: {decision.decision_reasoning}",
-                f"- Decision audit: {decision_audit.verdict}",
-                f"- Structural audit valid: {audit.valid}",
+                f"- Scheme: `{grading.grading_scheme}`",
+                f"- Status: **{grading.status}**",
+                f"- expert_score: **{score_text}**",
+                f"- Grade: **{grade_text}**",
+                f"- A+ scientific-value flag: **{a_plus_text}**",
+                f"- Rationale: {grading.rationale}",
+                "- Missing requirements:",
+                *missing_grading_lines,
                 "",
-                "## Remaining uncertainty",
+                "## Remaining limitations",
                 "",
                 *limitation_lines,
                 "",
-                "This report is an evidence-based candidate assessment, not a calibrated lens probability or a substitute for expert review.",
+                "No provisional numerical score, confidence value, or A/B/C label is "
+                "issued before calibration. This is an evidence report, not a lens probability.",
             ]
         )
         state.final_report_markdown = markdown
         state.final_decision = {
             "object_id": document.object_id,
-            "classification": effective_classification,
-            "decision": decision.model_dump(mode="json"),
+            "grading": grading.model_dump(mode="json"),
             "hypothesis_analyses": {
                 key: value.model_dump(mode="json")
                 for key, value in state.hypothesis_analyses.items()
@@ -227,10 +216,8 @@ class ReportWriter(BaseAgent):
             "evidence_comparisons": [
                 item.model_dump(mode="json") for item in state.evidence_comparisons
             ],
-            "confidence": confidence.model_dump(mode="json"),
             "observation_audit": state.observation_audit.model_dump(mode="json"),
             "evidence_audit": state.evidence_audit.model_dump(mode="json"),
-            "decision_audit": decision_audit.model_dump(mode="json"),
             "audit": audit.model_dump(mode="json"),
             "report_markdown": markdown,
         }
@@ -238,9 +225,9 @@ class ReportWriter(BaseAgent):
             state,
             "report_generation",
             {
-                "classification": effective_classification,
-                "effective_confidence": effective_confidence,
-                "decision_audit_verdict": decision_audit.verdict,
+                "grading_status": grading.status,
+                "grade": grading.grade,
+                "expert_score": grading.expert_score,
                 "audit_valid": audit.valid,
             },
         )

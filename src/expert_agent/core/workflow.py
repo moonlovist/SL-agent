@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from ..agents.confidence_agent import ConfidenceAgent
 from ..agents.counter_evidence_agent import CounterEvidenceAgent
-from ..agents.decision_agent import DecisionAgent
-from ..agents.decision_auditor import DecisionAuditor
 from ..agents.evidence_agent import EvidenceAgent
 from ..agents.evidence_auditor import EvidenceAuditor
 from ..agents.evidence_comparison_agent import EvidenceComparisonAgent
 from ..agents.evidence_planner import EvidencePlannerAgent
 from ..agents.hypothesis_agent import HypothesisAgent
 from ..agents.hypothesis_analysis_agent import HypothesisAnalysisAgent
+from ..agents.grading_preparation_agent import GradingPreparationAgent
 from ..agents.observer_agent import ObserverAgent
 from ..agents.observation_auditor import ObservationAuditor
 from ..agents.reasoning_auditor import ReasoningAuditor
@@ -31,10 +29,8 @@ class ExpertWorkflow:
             CounterEvidenceAgent(),
             HypothesisAnalysisAgent(),
             EvidenceAuditor(reasoning_config),
-            DecisionAgent(reasoning_config),
-            ConfidenceAgent(reasoning_config),
-            DecisionAuditor(reasoning_config),
             ReasoningAuditor(),
+            GradingPreparationAgent(),
             ReportWriter(),
         ]
 

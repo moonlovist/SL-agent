@@ -66,7 +66,7 @@ class ObservationAuditor(BaseAgent):
             findings=findings,
             checks=checks,
             reliability_summary=f"Observation quality is {quality}; {len(findings)} audit finding(s) were recorded.",
-            recommendation=("Measurements may enter reasoning with the stated limitations." if valid else "Do not issue a scientific classification; retain only an indeterminate result."),
+            recommendation=("Measurements may enter reasoning with the stated limitations." if valid else "Do not issue a scientific grade; mark the case as insufficient_data."),
         )
         self.record_reasoning(state, "observation_quality_audit", {
             **state.observation_audit.model_dump(mode="json"),

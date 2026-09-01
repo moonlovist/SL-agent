@@ -97,7 +97,7 @@ Check:
 - relation with lens candidate center.
 
 
-Higher confidence when:
+The lens hypothesis receives more geometry-specific support when:
 
 - arc curvature center approximately matches lens center;
 - structure is tangentially aligned.
@@ -115,18 +115,9 @@ Evaluate:
 - semi-ring.
 
 
-Confidence ranking:
-
-
-Full ring
-
->
-
-Partial ring
-
->
-
-No ring
+Do not impose a universal full-ring > partial-ring > no-ring ranking. A clear arc
+or multiple-image system may be strong without a complete ring, and an intrinsic
+ring galaxy may produce a full ring-like morphology.
 
 
 Check:

@@ -14,10 +14,6 @@ class ReasoningAuditor(BaseAgent):
         document = state.require_observation()
         issues: list[str] = []
         measurement_ids = [item.id for item in document.measurements]
-        evidence_ids = [item.id for items in state.evidence.values() for item in items]
-        contradiction_ids = [
-            item.id for items in state.contradictions.values() for item in items
-        ]
         unique_measurements = len(measurement_ids) == len(set(measurement_ids))
         if not unique_measurements:
             issues.append("Observation contains duplicate measurement IDs.")
@@ -73,46 +69,15 @@ class ReasoningAuditor(BaseAgent):
         )
         if not analyses_complete:
             issues.append("One or more hypotheses lack a complete case analysis.")
-        decision = state.decision_result
-        decision_valid = decision is not None
-        if not decision_valid:
-            issues.append("Decision stage did not run.")
-        elif decision.selected_hypothesis is not None:
-            valid_decision_refs = set(decision.evidence_refs).issubset(
-                set(evidence_ids) | set(contradiction_ids)
-            ) and bool(decision.evidence_refs)
-            if not valid_decision_refs:
-                decision_valid = False
-                issues.append("Selected hypothesis lacks valid evidence references.")
-            if decision.score_margin <= 0:
-                decision_valid = False
-                issues.append("A tied hypothesis was selected instead of abstaining.")
-        confidence_valid = state.confidence_assessment is not None
-        if not confidence_valid:
-            issues.append("Confidence calibration did not run.")
         layered_audits_present = all(
             item is not None
             for item in (
                 state.observation_audit,
                 state.evidence_audit,
-                state.decision_audit,
             )
         )
         if not layered_audits_present:
-            issues.append("One or more layered scientific audits did not run.")
-        audit_enforcement = layered_audits_present
-        if layered_audits_present:
-            upstream_failed = (
-                not state.observation_audit.valid or not state.evidence_audit.valid
-            )
-            audit_enforcement = not upstream_failed or (
-                state.decision_audit.verdict == "abstain"
-                and state.decision_audit.effective_classification == "indeterminate"
-            )
-            if not audit_enforcement:
-                issues.append(
-                    "A blocking scientific audit was not enforced by the decision audit."
-                )
+            issues.append("One or more pre-grading scientific audits did not run.")
         checks = {
             "observation_schema": True,
             "unique_measurement_ids": unique_measurements,
@@ -122,10 +87,7 @@ class ReasoningAuditor(BaseAgent):
             "cross_hypothesis_comparison": has_comparisons,
             "contradiction_provenance": valid_contradiction_refs,
             "per_hypothesis_analysis": analyses_complete,
-            "decision_constraints": decision_valid,
-            "confidence_present": confidence_valid,
-            "layered_scientific_audits": layered_audits_present,
-            "scientific_audit_enforcement": audit_enforcement,
+            "pre_grading_scientific_audits": layered_audits_present,
         }
         valid = all(checks.values())
         state.audit_result = AuditResult(
@@ -133,9 +95,9 @@ class ReasoningAuditor(BaseAgent):
             issues=issues,
             checks=checks,
             recommendation=(
-                "Reasoning structure and audit enforcement are complete; retain stated scientific limitations."
+                "The evidence-first reasoning trace is structurally complete and may enter a calibrated grading stage."
                 if valid
-                else "Treat the result as indeterminate until the audit issues are resolved."
+                else "Block grading until the reasoning-trace issues are resolved."
             ),
         )
         self.record_reasoning(

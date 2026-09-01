@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-import numpy as np
-
 from ..core.base_agent import BaseAgent
 from ..core.state import ExpertState
 from ..schemas.reasoning import (
@@ -51,7 +49,6 @@ class EvidenceComparisonAgent(BaseAgent):
                         HypothesisEvidenceEffect(
                             hypothesis_id=hypothesis.id,
                             effect="unknown",
-                            weighted_effect=0.0,
                             explanation="No current reasoning rule maps this fact to the hypothesis.",
                         )
                     )
@@ -67,13 +64,6 @@ class EvidenceComparisonAgent(BaseAgent):
                         hypothesis_id=hypothesis.id,
                         effect=effect,
                         evidence_refs=[item.id for item in hypothesis_items],
-                        weighted_effect=float(
-                            np.clip(
-                                np.mean([item.weighted_score for item in hypothesis_items]),
-                                -1.0,
-                                1.0,
-                            )
-                        ),
                         explanation=" ".join(item.rationale for item in hypothesis_items),
                     )
                 )

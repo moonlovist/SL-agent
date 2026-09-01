@@ -4,6 +4,7 @@ import unittest
 
 from expert_agent.core.state import ExpertState
 from expert_agent.core.workflow import ExpertWorkflow
+from expert_agent.core.grading import build_q1_paper_grade, map_q1_paper_grade
 from expert_agent.schemas.observation import (
     DataQuality,
     Measurement,
@@ -118,17 +119,17 @@ def make_observation(with_arcs: bool) -> ObservationDocument:
 
 
 class ReasoningTests(unittest.TestCase):
-    def test_arc_geometry_prefers_lens_with_valid_audit(self):
+    def test_arc_geometry_builds_evidence_without_uncalibrated_grade(self):
         observation = make_observation(True)
         result = ExpertWorkflow().run(
             ExpertState(observation_document=observation)
         )
-        self.assertEqual(result.decision_result.classification, "strong_lens_candidate")
-        self.assertEqual(
-            result.decision_result.selected_hypothesis, "strong_gravitational_lens"
-        )
         self.assertTrue(result.audit_result.valid)
-        self.assertTrue(result.decision_result.evidence_refs)
+        self.assertEqual(result.grade_assessment.status, "calibration_pending")
+        self.assertIsNone(result.grade_assessment.expert_score)
+        self.assertIsNone(result.grade_assessment.grade)
+        self.assertIsNone(result.grade_assessment.a_plus)
+        self.assertTrue(result.hypothesis_analyses["H1"].supporting_evidence_refs)
         self.assertEqual(set(result.hypothesis_analyses), {"H1", "H2", "H3", "H4"})
         self.assertTrue(result.evidence_comparisons)
         self.assertTrue(
@@ -139,11 +140,6 @@ class ReasoningTests(unittest.TestCase):
         )
         self.assertTrue(result.observation_audit.valid)
         self.assertTrue(result.evidence_audit.valid)
-        self.assertIn(result.decision_audit.verdict, {"confirm", "downgrade"})
-        self.assertEqual(
-            result.decision_audit.effective_classification,
-            "strong_lens_candidate",
-        )
 
     def test_each_hypothesis_records_missing_evidence_and_uncertainty(self):
         observation = make_observation(True)
@@ -157,14 +153,13 @@ class ReasoningTests(unittest.TestCase):
         self.assertIn("per_hypothesis_analysis", result.audit_result.checks)
         self.assertTrue(result.audit_result.checks["cross_hypothesis_comparison"])
 
-    def test_empty_observation_abstains(self):
+    def test_empty_usable_observation_is_not_automatically_x(self):
         observation = make_observation(False)
         result = ExpertWorkflow().run(
             ExpertState(observation_document=observation)
         )
-        self.assertEqual(result.decision_result.classification, "indeterminate")
-        self.assertIsNone(result.decision_result.selected_hypothesis)
-        self.assertNotEqual(result.confidence_assessment.level, "medium")
+        self.assertEqual(result.grade_assessment.status, "calibration_pending")
+        self.assertIsNone(result.grade_assessment.grade)
 
     def test_observation_1_0_remains_readable(self):
         payload = make_observation(True).model_dump(mode="json")
@@ -179,7 +174,7 @@ class ReasoningTests(unittest.TestCase):
         self.assertEqual(observation.schema_version, "1.0")
         self.assertEqual(set(result.hypothesis_analyses), {"H1", "H2", "H3", "H4"})
 
-    def test_non_specific_arc_evidence_cannot_force_lens(self):
+    def test_non_specific_arc_evidence_remains_explicit_without_grade(self):
         observation = make_observation(True)
         observation.structures = observation.structures[:1]
         for item in observation.measurements:
@@ -192,18 +187,22 @@ class ReasoningTests(unittest.TestCase):
                 item.value = 60.0
         observation.structures[0].tangential_misalignment_deg = 60.0
         result = ExpertWorkflow().run(ExpertState(observation_document=observation))
-        self.assertNotEqual(result.decision_result.classification, "strong_lens_candidate")
+        self.assertTrue(result.hypothesis_analyses["H1"].opposing_evidence_refs)
+        self.assertIsNone(result.grade_assessment.grade)
 
-    def test_unusable_observation_forces_audited_abstention(self):
+    def test_unusable_observation_is_insufficient_data_not_x(self):
         observation = make_observation(True)
         observation.data_quality.usable = False
         result = ExpertWorkflow().run(ExpertState(observation_document=observation))
         self.assertFalse(result.observation_audit.valid)
         self.assertEqual(result.observation_audit.quality_level, "unusable")
-        self.assertEqual(result.decision_audit.verdict, "abstain")
-        self.assertEqual(result.decision_audit.effective_classification, "indeterminate")
         self.assertTrue(result.audit_result.valid)
-        self.assertEqual(result.final_decision["classification"], "indeterminate")
+        self.assertEqual(result.grade_assessment.status, "insufficient_data")
+        self.assertIsNone(result.grade_assessment.expert_score)
+        self.assertIsNone(result.grade_assessment.grade)
+        self.assertEqual(
+            result.final_decision["grading"]["status"], "insufficient_data"
+        )
 
     def test_evidence_audit_exposes_correlated_groups(self):
         result = ExpertWorkflow().run(
@@ -212,7 +211,33 @@ class ReasoningTests(unittest.TestCase):
         self.assertTrue(result.evidence_audit.correlated_groups)
         self.assertTrue(result.evidence_audit.checks["measurement_provenance"])
         self.assertIn("observation_audit", result.to_dict())
-        self.assertIn("decision_audit", result.final_decision)
+        self.assertIn("grading", result.final_decision)
+        self.assertNotIn("decision", result.to_dict())
+        self.assertNotIn("confidence", result.to_dict())
+        self.assertNotIn("decision_audit", result.final_decision)
+
+    def test_q1_paper_grade_mapping_boundaries(self):
+        self.assertEqual(map_q1_paper_grade(0.0), "C")
+        self.assertEqual(map_q1_paper_grade(1.0), "C")
+        self.assertEqual(map_q1_paper_grade(1.5), "C")
+        self.assertEqual(map_q1_paper_grade(1.5001), "B")
+        self.assertEqual(map_q1_paper_grade(2.0), "B")
+        self.assertEqual(map_q1_paper_grade(2.0001), "A")
+        self.assertEqual(map_q1_paper_grade(3.0), "A")
+        with self.assertRaises(ValueError):
+            map_q1_paper_grade(-0.01)
+        with self.assertRaises(ValueError):
+            map_q1_paper_grade(3.01)
+
+    def test_a_plus_is_separate_from_grade_mapping(self):
+        result = build_q1_paper_grade(
+            2.7,
+            rationale="Calibrated test fixture.",
+            a_plus=True,
+            a_plus_reason="Independent scientific-value review.",
+        )
+        self.assertEqual(result.grade, "A")
+        self.assertTrue(result.a_plus)
 
 
 if __name__ == "__main__":

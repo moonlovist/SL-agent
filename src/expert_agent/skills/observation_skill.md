@@ -59,7 +59,7 @@ Output:
 
 If data quality is poor:
 
-reduce confidence in later conclusions.
+mark later interpretation as limited; do not turn poor quality into negative evidence.
 
 
 ---
@@ -192,7 +192,7 @@ Interpretation belongs to later stages.
 
 Every observation should include:
 
-- confidence;
+- measurement reliability;
 - ambiguity;
 - possible observational limitation.
 
@@ -222,7 +222,7 @@ Return structured observations:
     "lens_candidate": {
         "location": "",
         "morphology": "",
-        "confidence": ""
+        "measurement_reliability": ""
     },
 
     "source_candidates": [],

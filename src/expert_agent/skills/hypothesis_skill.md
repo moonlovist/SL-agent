@@ -214,7 +214,6 @@ Each hypothesis should contain:
     "category": "",
     "name": "",
     "description": "",
-    "initial_confidence": "",
     "supporting_observations": [],
     "required_evidence": [],
     "possible_contradictions": []
@@ -287,7 +286,6 @@ Return:
             "category": "",
             "name": "",
             "description": "",
-            "initial_confidence": "",
             "supporting_observations": [],
             "required_evidence": [],
             "possible_contradictions": []

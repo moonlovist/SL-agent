@@ -6,14 +6,12 @@ from typing import Any
 from ..schemas.observation import ObservationDocument
 from ..schemas.reasoning import (
     AuditResult,
-    DecisionAuditResult,
     EvidenceAuditResult,
-    ConfidenceAssessment,
     ContradictionItem,
-    DecisionResult,
     EvidenceItem,
     CrossHypothesisEvidenceComparison,
     EvidenceQuestion,
+    GradeAssessment,
     Hypothesis,
     HypothesisAnalysis,
     ObservationAuditResult,
@@ -36,9 +34,7 @@ class ExpertState:
     contradictions: dict[str, list[ContradictionItem]] = field(default_factory=dict)
     hypothesis_analyses: dict[str, HypothesisAnalysis] = field(default_factory=dict)
     evidence_audit: EvidenceAuditResult | None = None
-    decision_result: DecisionResult | None = None
-    confidence_assessment: ConfidenceAssessment | None = None
-    decision_audit: DecisionAuditResult | None = None
+    grade_assessment: GradeAssessment | None = None
     audit_result: AuditResult | None = None
     final_decision: dict[str, Any] | None = None
     final_report_markdown: str | None = None
@@ -71,9 +67,7 @@ class ExpertState:
             "contradictions": dump(self.contradictions),
             "hypothesis_analyses": dump(self.hypothesis_analyses),
             "evidence_audit": dump(self.evidence_audit),
-            "decision": dump(self.decision_result),
-            "confidence": dump(self.confidence_assessment),
-            "decision_audit": dump(self.decision_audit),
+            "grading": dump(self.grade_assessment),
             "audit": dump(self.audit_result),
             "reasoning_trace": dump(self.reasoning_trace),
         }

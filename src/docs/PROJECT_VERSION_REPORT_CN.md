@@ -1,5 +1,15 @@
 # 强引力透镜专家推理 Agent 项目版本报告
 
+## v0.15.0：退出临时评分并建立Q1评级契约
+
+本版本冻结v0.14.0视觉流程，不修改SEP、多阈值S/N、椭圆路线、前景减除或候选四路交接。主要调整发生在后端：删除未经Euclid Q1数据标定的`weighted_score`、假设综合分、分数差、`confidence.score`以及依赖人工阈值的Decision/Confidence/DecisionAudit活动链。原始测量、证据方向、可靠性、区分力、相关证据组、四种竞争假设、支持证据、反证和缺失证据继续保留。
+
+新增唯一的`grading`契约，明确区分`graded`、`calibration_pending`、`insufficient_data`和`blocked_by_audit`。在新评分器标定完成前，正常样本只输出等待标定，不生成临时A/B/C；科学数据不可用时输出`insufficient_data`，不会把“看不清”误写成低分。`expert_score`、`grade`和A+在未评估时统一为`null`。
+
+项目只保留Euclid Q1论文等级映射：A为`expert_score>2.0`，B为`1.5<score<=2.0`，C为`score<=1.5`。论文没有规定`score<=1.0`自动成为X的目录分箱，因此本项目不发明该边界。A+作为A上的独立科学价值标记，必须单独审查并记录理由。映射边界已经实现自动测试，但没有任何未标定模块获准产生`expert_score`。本轮共35项自动化测试通过。下一步等待带连续`expert_score`的Q1标定数据，再建立评分前量化审计表、校准评分器和独立验证。
+
+---
+
 ## v0.14.0：视觉候选四路分流与后端交接
 
 本版本修正v0.13将几乎所有可测残差信号等权晋级的问题。候选现在同时接受候选级多阈值S/N连通存活、椭圆路线支持和前景污染检查，并分为`primary_candidate`、`recovery_candidate`、`foreground_contaminated`和`trace_candidate`。只有主候选生成当前规则层读取的`structures`；其余候选不删除，继续保存在Observation和像素掩膜中。

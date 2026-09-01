@@ -49,14 +49,9 @@ class VisionConfig:
 
 @dataclass(frozen=True)
 class ReasoningConfig:
-    decision_min_score: float = 0.12
-    decision_min_margin: float = 0.06
-    high_confidence_score: float = 0.72
-    medium_confidence_score: float = 0.48
     observation_min_finite_fraction: float = 0.99
     observation_min_reliability: float = 0.20
     evidence_low_specificity_threshold: float = 0.35
-    decision_downgrade_completeness: float = 0.60
 
 
 @dataclass(frozen=True)

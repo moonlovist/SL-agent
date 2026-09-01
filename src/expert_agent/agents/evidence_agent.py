@@ -18,7 +18,6 @@ class EvidenceAgent(BaseAgent):
     def run(self, state: ExpertState) -> ExpertState:
         self.log("评价观测对各假设的支持关系")
         self.load_skill("evidence_evaluation_skill")
-        self.load_skill("evidence_scoring_skill")
         knowledge_topics = [
             "lens_geometry",
             "arc_morphology",
@@ -56,8 +55,6 @@ class EvidenceAgent(BaseAgent):
                 if ref_list
                 else 0.0
             )
-            sign = 1.0 if polarity == "support" else -1.0 if polarity == "oppose" else 0.0
-            score = float(np.clip(sign * strength * reliability * specificity, -1.0, 1.0))
             evidence[hypothesis_id].append(
                 EvidenceItem(
                     id=f"E{serial}",
@@ -68,7 +65,6 @@ class EvidenceAgent(BaseAgent):
                     strength=float(np.clip(strength, 0.0, 1.0)),
                     reliability=reliability,
                     specificity=float(np.clip(specificity, 0.0, 1.0)),
-                    weighted_score=score,
                     correlation_group=group,
                     rationale=rationale,
                     status=status,

@@ -33,7 +33,7 @@ None is a lens label.
 
 FITS input uses supplied flux and RMS extensions when present. PNG input estimates
 noise from pixels and uses a reduced parameter grid and radial foreground model.
-This limitation is recorded in the Observation document and lowers confidence.
+This limitation is recorded in the Observation document for the future grading audit.
 
 ## Observation contract
 
@@ -156,27 +156,34 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-The deterministic v0.4 MWA runs these explicit stages:
+Version 0.15.0 runs these explicit stages:
 
 1. normalize observed facts;
 2. audit data usability, measurement reliability, and observation provenance;
 3. maintain four competing hypotheses;
 4. plan discriminating evidence;
-5. map measurements to signed, cited evidence for every relevant hypothesis;
+5. map measurements to directional, cited evidence for every relevant hypothesis;
 6. build an explicit cross-hypothesis matrix showing how one fact affects H1-H4;
 7. expose opposing evidence as contradictions;
 8. create a separate case file for each hypothesis with support, opposition,
    missing evidence, uncertainties, explained observations, and unexplained facts;
-9. audit evidence provenance, dependence, specificity, and over-interpretation;
-10. synthesize and rank hypotheses with correlation-aware aggregation and abstention;
-11. calibrate confidence from score, margin, completeness, and data quality;
-12. adversarially audit the decision and confirm, downgrade, or abstain;
-13. audit schema/reference integrity and enforcement of scientific audit failures;
-14. write JSON and Markdown reports without creating new facts.
+9. audit evidence provenance, dependence, specificity, and missing-evidence handling;
+10. audit schema/reference integrity without selecting a winning hypothesis;
+11. report one of `calibration_pending`, `insufficient_data`, or
+    `blocked_by_audit` while no calibrated estimator is installed;
+12. write JSON and Markdown reports without creating a score or grade.
 
-Unavailable measurements are not negative evidence. A strong-lens decision also
-requires at least one sufficiently specific geometry item; signal significance or
-visual extent alone cannot pass this gate.
+Unavailable measurements are not negative evidence. The v0.14 provisional
+`weighted_score`, hypothesis ranking, confidence formula, and threshold-based
+decision audit were removed from the active code in v0.15. They were useful for
+early workflow testing but were not calibrated to Euclid Q1 expert scores.
+
+The grading contract contains exactly one continuous field, `expert_score`, and
+one mapping scheme, `euclid_q1_paper`. The mapping is implemented and unit tested,
+but `expert_score` remains null until a labelled calibration set, a validated
+pre-grading evidence audit, and an independently evaluated estimator are supplied.
+An A+ flag is represented separately and can only accompany grade A. Scientifically
+unusable data are `insufficient_data`, never silently converted to X.
 
 ## Knowledge and skill separation
 
@@ -187,12 +194,11 @@ agent procedures. Python code remains responsible for measurement, validation,
 threshold enforcement, and structured outputs. Loading knowledge never creates an
 observation and never overrides measurement provenance.
 
-The three scientific audits have distinct meanings. Observation audit asks whether
-the measurements are usable. Evidence audit asks whether claims are traceable,
-independent enough, and proportionate to specificity. Decision audit challenges the
-proposed conclusion and can only preserve, reduce, or abstain. `ReasoningAuditor`
-remains a structural integrity check; a scientifically unusable case can therefore
-have a valid reasoning trace when the decision audit correctly abstains.
+The active audits have distinct meanings. Observation audit asks whether the
+measurements are usable. Evidence audit asks whether claims are traceable,
+independent enough, and proportionate to specificity. `ReasoningAuditor` remains a
+structural integrity check. The forthcoming pre-grading evidence audit is not yet
+implemented because its quantitative rubric must be calibrated rather than guessed.
 
 ## Visual trace bundle
 

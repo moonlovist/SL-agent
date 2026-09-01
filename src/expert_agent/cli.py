@@ -49,13 +49,10 @@ def analyze(args: argparse.Namespace) -> int:
     )
     result = _reason(observation, output_dir)
     print(f"Object: {observation.object_id}")
-    print(f"Classification: {result.final_decision['classification']}")
-    print(
-        f"Confidence: {result.decision_audit.effective_confidence_level} "
-        f"({result.confidence_assessment.score:.3f})"
-    )
-    print(f"Decision audit: {result.decision_audit.verdict}")
-    print(f"Structural audit valid: {result.audit_result.valid}")
+    print(f"Grading status: {result.grade_assessment.status}")
+    print(f"expert_score: {result.grade_assessment.expert_score}")
+    print(f"Q1 paper grade: {result.grade_assessment.grade}")
+    print(f"Reasoning audit valid: {result.audit_result.valid}")
     print(f"Report: {output_dir / 'report.md'}")
     return 0
 
@@ -66,7 +63,8 @@ def reason(args: argparse.Namespace) -> int:
     output_dir = Path(args.output).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     result = _reason(observation, output_dir)
-    print(f"Classification: {result.final_decision['classification']}")
+    print(f"Grading status: {result.grade_assessment.status}")
+    print(f"Q1 paper grade: {result.grade_assessment.grade}")
     print(f"Report: {output_dir / 'report.md'}")
     return 0
 

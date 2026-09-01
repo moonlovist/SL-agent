@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictModel(BaseModel):
@@ -34,7 +34,6 @@ class EvidenceItem(StrictModel):
     strength: float = Field(ge=0.0, le=1.0)
     reliability: float = Field(ge=0.0, le=1.0)
     specificity: float = Field(ge=0.0, le=1.0)
-    weighted_score: float = Field(ge=-1.0, le=1.0)
     correlation_group: str
     rationale: str
     status: Literal["evaluated", "not_available"]
@@ -55,7 +54,6 @@ class HypothesisEvidenceEffect(StrictModel):
     hypothesis_id: Literal["H1", "H2", "H3", "H4"]
     effect: Literal["support", "oppose", "neutral", "unknown"]
     evidence_refs: list[str] = Field(default_factory=list)
-    weighted_effect: float = Field(ge=-1.0, le=1.0)
     explanation: str
 
 
@@ -87,34 +85,52 @@ class HypothesisAnalysis(StrictModel):
     unexplained_relevant_observation_refs: list[str]
 
 
-class HypothesisScore(StrictModel):
-    hypothesis_id: str
-    hypothesis: str
-    evidence_score: float = Field(ge=-1.0, le=1.0)
-    contradiction_penalty: float = Field(ge=0.0, le=1.0)
-    final_score: float = Field(ge=-1.0, le=1.0)
+class GradeAssessment(StrictModel):
+    """Versioned grading contract with no uncalibrated fallback score."""
 
-
-class DecisionResult(StrictModel):
-    classification: Literal[
-        "strong_lens_candidate", "not_lens_preferred", "indeterminate"
+    grading_scheme: Literal["euclid_q1_paper"] = "euclid_q1_paper"
+    status: Literal[
+        "graded", "calibration_pending", "insufficient_data", "blocked_by_audit"
     ]
-    selected_hypothesis: str | None
-    ranking: list[HypothesisScore]
-    score_margin: float = Field(ge=0.0, le=2.0)
-    decision_reasoning: str
-    evidence_refs: list[str]
-    remaining_competitors: list[str]
+    expert_score: float | None = Field(default=None, ge=0.0, le=3.0)
+    grade: Literal["A", "B", "C"] | None = None
+    a_plus: bool | None = None
+    a_plus_reason: str | None = None
+    rationale: str
+    missing_requirements: list[str] = Field(default_factory=list)
 
-
-class ConfidenceAssessment(StrictModel):
-    level: Literal["high", "medium", "low", "insufficient"]
-    score: float = Field(ge=0.0, le=1.0)
-    completeness: float = Field(ge=0.0, le=1.0)
-    reasoning: str
-    supporting_evidence_refs: list[str]
-    limiting_factors: list[str]
-    remaining_uncertainties: list[str]
+    @model_validator(mode="after")
+    def validate_grading_state(self) -> "GradeAssessment":
+        if self.status == "graded":
+            if self.expert_score is None or self.grade is None:
+                raise ValueError("A graded result requires expert_score and grade")
+            if self.a_plus is None:
+                raise ValueError("A graded result must explicitly evaluate A+")
+            expected_grade = (
+                "A"
+                if self.expert_score > 2.0
+                else "B"
+                if self.expert_score > 1.5
+                else "C"
+            )
+            if self.grade != expected_grade:
+                raise ValueError(
+                    "grade is inconsistent with the Euclid Q1 paper score mapping"
+                )
+            if self.a_plus and self.grade != "A":
+                raise ValueError("A+ may only be attached to an A-grade result")
+            if self.a_plus and not self.a_plus_reason:
+                raise ValueError("A+ requires a scientific-value rationale")
+        elif (
+            self.expert_score is not None
+            or self.grade is not None
+            or self.a_plus is not None
+            or self.a_plus_reason is not None
+        ):
+            raise ValueError(
+                "Ungraded results must not contain expert_score, grade, or A+ claims"
+            )
+        return self
 
 
 class AuditFinding(StrictModel):
@@ -143,17 +159,6 @@ class EvidenceAuditResult(StrictModel):
     checks: dict[str, bool]
     correlated_groups: dict[str, list[str]]
     low_specificity_evidence_refs: list[str]
-    recommendation: str
-
-
-class DecisionAuditResult(StrictModel):
-    verdict: Literal["confirm", "downgrade", "abstain"]
-    effective_classification: Literal[
-        "strong_lens_candidate", "not_lens_preferred", "indeterminate"
-    ]
-    effective_confidence_level: Literal["high", "medium", "low", "insufficient"]
-    findings: list[AuditFinding]
-    checks: dict[str, bool]
     recommendation: str
 
 
