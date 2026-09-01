@@ -156,7 +156,7 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-Version 0.16.0 has one primary interpretation pass:
+Version 0.17.0 has one primary interpretation pass:
 
 ```text
 ObservationDocument -> ExpertAssessmentAgent -> DecisionAudit -> ReportWriter
@@ -166,10 +166,17 @@ ObservationDocument -> ExpertAssessmentAgent -> DecisionAudit -> ReportWriter
 signal reality, lens specificity, supporting and contradicting evidence, five
 competing explanations, missing information, processing cautions, correlation groups,
 unused fields, null tests, and future tool requests. It then answers the six holistic
-expert questions and emits either a vote anchor (X=0, C=1, B=2, A/A+=3), an honest
-C-to-B interval, or `insufficient_for_grading`. No component scores are added or
+expert questions and emits either one categorical vote, a contiguous plausible vote
+set (for example B-to-A or C-to-B-to-A), or `insufficient_for_grading`. Numeric anchors
+remain deprecated compatibility encodings only. No component scores are added or
 averaged. High S/N, SEP persistence, threshold survival, and route agreement cannot
 individually satisfy the lens-specificity gate.
+
+The v0.17.0 reasoning gates allow coherent two-image systems, slightly wider
+common-radius scatter, and robust single tangential arcs to retain A as a plausible
+expert vote. Tidal asymmetry alone is never an equally strong non-lens alternative.
+Stable geometry-linked held candidates may widen the vote set but are not promoted as
+equal-weight primary structures.
 
 `DecisionAudit` is deliberately lightweight. It checks references, missing-as-negative
 errors, correlated double counting, measurement-as-proof errors, automatic recovery

@@ -1,5 +1,15 @@
 # 强引力透镜专家推理 Agent 项目版本报告
 
+## v0.17.0：类别优先投票与正例召回修正
+
+本版将主输出改为 `vote_category` 或连续的 `plausible_vote_categories`，旧的
+anchor、score、grade 仅作为兼容编码，不再冒充论文聚合 `expert_score`。针对
+已知 A 开发样本暴露出的系统性压分，放宽双像、共同半径和稳健单弧门控；单独
+的 tidal-asymmetry 代理不再构成同等强反解释；强 held candidate 在提取冲突时
+保留 C-B-A，而不是强制 X。规则没有读取对象 ID 或标签。正式 catalogue 层只
+保留论文明确的 A/B score cuts，低于 B 的连续分记为 `below_B_cut`。新增回归
+测试后共 51 项测试。
+
 ## v0.16.0：单一专家判断层与轻量DecisionAudit
 
 本版本继续冻结v0.14.0视觉层，Observation schema保持1.13。活动推理流程收敛为

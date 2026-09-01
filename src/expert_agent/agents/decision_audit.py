@@ -97,8 +97,11 @@ class DecisionAudit(BaseAgent):
 
         specificity_refs = set(dossier.lens_specificity.fact_refs)
         measurement_as_proof: list[str] = []
-        if assessment.expert_vote_anchor in (2, 3) and not specificity_refs.intersection(decisive):
-            measurement_as_proof.append("B/A anchor lacks decisive lens-specific relational evidence.")
+        high_vote_possible = any(
+            item in {"B", "A"} for item in assessment.plausible_vote_categories
+        )
+        if high_vote_possible and not specificity_refs.intersection(decisive):
+            measurement_as_proof.append("B/A vote set lacks decisive lens-specific relational evidence.")
 
         recovery_penalized = [
             item.id
@@ -119,11 +122,15 @@ class DecisionAudit(BaseAgent):
         expected = {0: "X", 1: "C", 2: "B", 3: "A"}
         if assessment.expert_vote_anchor is not None and assessment.provisional_grade != expected[assessment.expert_vote_anchor]:
             mismatch.append("Expert vote anchor and provisional grade disagree.")
+        if assessment.vote_code != assessment.expert_vote_anchor:
+            mismatch.append("Vote code and compatibility anchor disagree.")
+        if assessment.vote_category not in {None, "insufficient_for_grading"} and assessment.provisional_grade != assessment.vote_category:
+            mismatch.append("Vote category and compatibility grade disagree.")
         if assessment.provisional_score_range is not None and assessment.provisional_grade is not None:
             mismatch.append("An ambiguous score range was forced into a point grade.")
 
         abstention = not document.data_quality.usable
-        if abstention and assessment.provisional_grade != "insufficient_for_grading":
+        if abstention and assessment.vote_category != "insufficient_for_grading":
             mismatch.append("Unusable data should trigger abstention, not X or a lens grade.")
 
         categories = [

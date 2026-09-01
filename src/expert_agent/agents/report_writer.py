@@ -37,6 +37,11 @@ class ReportWriter(BaseAgent):
             if assessment.provisional_score_range
             else "null"
         )
+        compatibility_text = (
+            str(assessment.provisional_expert_score)
+            if assessment.provisional_expert_score is not None
+            else range_text
+        )
         markdown = "\n".join(
             [
                 f"# Strong-lens expert assessment: {state.object_id}",
@@ -60,10 +65,11 @@ class ReportWriter(BaseAgent):
                 "",
                 "## Provisional expert assessment",
                 "",
-                f"- Expert vote anchor: **{assessment.expert_vote_anchor}**",
-                f"- Provisional expert score: **{assessment.provisional_expert_score}**",
-                f"- Provisional score range: **{range_text}**",
-                f"- Provisional grade: **{assessment.provisional_grade}**",
+                f"- Vote category: **{assessment.vote_category}**",
+                f"- Plausible vote categories: **{list(assessment.plausible_vote_categories)}**",
+                f"- Vote code: **{assessment.vote_code}**",
+                f"- Compatibility anchor (deprecated): **{assessment.expert_vote_anchor}**",
+                f"- Compatibility score/range (not an expert_score): **{compatibility_text}**",
                 f"- Score status: **{assessment.score_status}**",
                 "- Official expert score: **null**",
                 f"- Rationale: {assessment.assessment_rationale}",
@@ -76,8 +82,9 @@ class ReportWriter(BaseAgent):
                 "",
                 "## Grading contract",
                 "",
-                "The Euclid Q1 paper mapping is displayed provisionally only. The current "
-                "score is not calibrated to the aggregate human expert_score and is not a probability. "
+                "The current output is a categorical single-agent vote or a contiguous plausible "
+                "vote set. Its compatibility code/range is not calibrated to the aggregate human "
+                "expert_score and is not a probability. "
                 "A formal official_expert_score remains null until labelled Q1 calibration and "
                 "independent validation are completed.",
                 "",

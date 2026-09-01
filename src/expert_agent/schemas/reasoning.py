@@ -93,7 +93,8 @@ class GradeAssessment(StrictModel):
         "graded", "calibration_pending", "insufficient_data", "blocked_by_audit"
     ]
     expert_score: float | None = Field(default=None, ge=0.0, le=3.0)
-    grade: Literal["A", "B", "C"] | None = None
+    catalog_bin: Literal["A", "B", "below_B_cut"] | None = None
+    grade: Literal["A", "B"] | None = None
     a_plus: bool | None = None
     a_plus_reason: str | None = None
     rationale: str
@@ -102,33 +103,37 @@ class GradeAssessment(StrictModel):
     @model_validator(mode="after")
     def validate_grading_state(self) -> "GradeAssessment":
         if self.status == "graded":
-            if self.expert_score is None or self.grade is None:
-                raise ValueError("A graded result requires expert_score and grade")
+            if self.expert_score is None or self.catalog_bin is None:
+                raise ValueError("A graded result requires expert_score and catalog bin")
             if self.a_plus is None:
                 raise ValueError("A graded result must explicitly evaluate A+")
-            expected_grade = (
+            expected_bin = (
                 "A"
                 if self.expert_score > 2.0
                 else "B"
                 if self.expert_score > 1.5
-                else "C"
+                else "below_B_cut"
             )
-            if self.grade != expected_grade:
+            if self.catalog_bin != expected_bin:
                 raise ValueError(
-                    "grade is inconsistent with the Euclid Q1 paper score mapping"
+                    "catalog bin is inconsistent with the Euclid Q1 paper score cuts"
                 )
+            expected_grade = expected_bin if expected_bin in {"A", "B"} else None
+            if self.grade != expected_grade:
+                raise ValueError("only the Q1 A/B catalogue bins receive a final grade")
             if self.a_plus and self.grade != "A":
                 raise ValueError("A+ may only be attached to an A-grade result")
             if self.a_plus and not self.a_plus_reason:
                 raise ValueError("A+ requires a scientific-value rationale")
         elif (
             self.expert_score is not None
+            or self.catalog_bin is not None
             or self.grade is not None
             or self.a_plus is not None
             or self.a_plus_reason is not None
         ):
             raise ValueError(
-                "Ungraded results must not contain expert_score, grade, or A+ claims"
+                "Ungraded results must not contain expert_score, catalog bin, grade, or A+ claims"
             )
         return self
 
@@ -268,6 +273,9 @@ class HypothesisComparison(StrictModel):
 
 
 class ProvisionalExpertAssessment(StrictModel):
+    vote_category: Literal["X", "C", "B", "A", "insufficient_for_grading"] | None
+    plausible_vote_categories: tuple[Literal["X", "C", "B", "A"], ...] = ()
+    vote_code: Literal[0, 1, 2, 3] | None
     expert_vote_anchor: Literal[0, 1, 2, 3] | None
     provisional_expert_score: float | None = Field(default=None, ge=0.0, le=3.0)
     provisional_score_range: tuple[float, float] | None = None
@@ -283,11 +291,20 @@ class ProvisionalExpertAssessment(StrictModel):
 
     @model_validator(mode="after")
     def validate_provisional_state(self) -> "ProvisionalExpertAssessment":
+        code_for = {"X": 0, "C": 1, "B": 2, "A": 3}
+        categories = self.plausible_vote_categories
+        category_codes = [code_for[item] for item in categories]
+        if len(set(categories)) != len(categories) or category_codes != sorted(category_codes):
+            raise ValueError("plausible vote categories must be unique and ordered X-to-A")
+        if category_codes and category_codes != list(range(category_codes[0], category_codes[-1] + 1)):
+            raise ValueError("plausible vote categories must form a contiguous range")
         if self.provisional_score_range is not None:
             low, high = self.provisional_score_range
             if not 0.0 <= low <= high <= 3.0:
                 raise ValueError("provisional_score_range must be ordered within [0, 3]")
         if self.provisional_grade == "insufficient_for_grading":
+            if self.vote_category != "insufficient_for_grading" or categories or self.vote_code is not None:
+                raise ValueError("insufficient cases must use the explicit abstention category only")
             if any(
                 value is not None
                 for value in (
@@ -299,14 +316,23 @@ class ProvisionalExpertAssessment(StrictModel):
                 raise ValueError("insufficient cases must abstain from all score fields")
             return self
         if self.provisional_score_range is not None:
+            if self.vote_category is not None or self.vote_code is not None or len(categories) < 2:
+                raise ValueError("an interval assessment requires multiple plausible vote categories")
             if self.expert_vote_anchor is not None or self.provisional_expert_score is not None:
                 raise ValueError("an interval assessment must not manufacture a point score")
             if self.provisional_grade is not None:
                 raise ValueError("an interval assessment must not manufacture a grade")
+            expected_range = (float(category_codes[0]), float(category_codes[-1]))
+            if self.provisional_score_range != expected_range:
+                raise ValueError("provisional score range must mirror the plausible vote categories")
             return self
+        if len(categories) != 1 or self.vote_category != categories[0]:
+            raise ValueError("a point assessment requires one matching vote category")
         if self.expert_vote_anchor is None or self.provisional_expert_score is None:
             raise ValueError("a point assessment requires an anchor and provisional score")
         expected = {0: "X", 1: "C", 2: "B", 3: "A"}[self.expert_vote_anchor]
+        if self.vote_code != self.expert_vote_anchor or self.vote_code != code_for[self.vote_category]:
+            raise ValueError("vote code and compatibility anchor disagree")
         if self.provisional_grade != expected:
             raise ValueError("provisional grade is inconsistent with the expert vote anchor")
         return self

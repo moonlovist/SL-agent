@@ -52,6 +52,14 @@ class ReasoningConfig:
     observation_min_finite_fraction: float = 0.99
     observation_min_reliability: float = 0.20
     evidence_low_specificity_threshold: float = 0.35
+    common_radius_cv_max: float = 0.30
+    tangential_misalignment_max_deg: float = 25.0
+    unified_system_min_coverage_deg: float = 60.0
+    clear_system_min_coverage_deg: float = 90.0
+    compelling_single_arc_min_extent_deg: float = 60.0
+    independent_signal_survival_min: float = 0.50
+    independent_signal_robust_min: float = 0.75
+    tidal_asymmetry_proxy_high: float = 0.65
 
 
 @dataclass(frozen=True)

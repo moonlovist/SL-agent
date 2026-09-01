@@ -58,23 +58,29 @@ python -m pytest
 ```
 
 The current MWA uses transparent holistic pattern gates rather than additive
-sub-scores. It can issue a clearly labelled `provisional_expert_score`, vote anchor,
-or interval, but `official_expert_score` remains null until a labelled Euclid Q1
-calibration set and independently tested estimator are available. The only implemented
-grade mapping is the Q1 paper scheme:
-`A > 2.0`, `B: 1.5 < score <= 2.0`, and `C: score <= 1.5`.
+sub-scores. It issues a categorical single-agent vote or a contiguous set of plausible
+votes. Numeric anchor fields are retained only as deprecated compatibility encodings;
+`official_expert_score` remains null until a labelled Euclid Q1 calibration set and
+independently tested estimator are available. The formal catalogue layer implements
+only the Q1 paper cuts explicitly defined for `A > 2.0` and
+`B: 1.5 < score <= 2.0`; lower aggregate scores are `below_B_cut`, not an invented
+continuous X/C boundary.
 
 Version 0.14.0 routes every visual candidate through candidate-level connected
 S/N persistence, ellipse-route support, and foreground-contamination checks.
-Only primary candidates enter the current expert rules; recovery candidates,
-foreground-contaminated residuals, and weak trace candidates remain fully
-recorded for later review. Version 0.15.0 freezes that visual path, removes the
+Only primary candidates can establish a point vote. A strong audited held candidate
+may widen the plausible vote set without becoming equal-weight primary evidence;
+other recovery, contaminated, and trace candidates remain recorded for review.
+Version 0.15.0 freezes that visual path, removes the
 uncalibrated decision/confidence formulas, adds an explicit Q1 grading contract,
 and distinguishes `insufficient_data` from a scientifically assessed low score.
 Version 0.16.0 freezes that same visual layer, consolidates all primary reasoning in
 `ExpertAssessmentAgent`, adds a lightweight independent `DecisionAudit`, and emits
-provisional vote anchors without interpreting them as probabilities. Version 0.5
-added WCS-aware sky coordinates, angular
+provisional vote anchors without interpreting them as probabilities.
+Version 0.17.0 makes the expert decision category-first, permits audited contiguous
+vote sets such as B-to-A, relaxes overly strict double-image/common-radius gates, and
+prevents tidal asymmetry alone from acting as an equally strong non-lens explanation.
+Version 0.5 added WCS-aware sky coordinates, angular
 scales, sky position angles, and full-field/RGB location audits. See the
 [current-version note](src/docs/CURRENT_VERSION_CN.md).
 

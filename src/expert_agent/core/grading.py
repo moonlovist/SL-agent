@@ -6,8 +6,8 @@ from ..schemas.reasoning import GradeAssessment
 Q1_PAPER_GRADING_SCHEME = "euclid_q1_paper"
 
 
-def map_q1_paper_grade(expert_score: float) -> str:
-    """Map a calibrated 0--3 expert score to the Q1 paper grade bins."""
+def map_q1_catalog_bin(expert_score: float) -> str:
+    """Apply only the A/B catalogue cuts explicitly defined by the Q1 paper."""
 
     score = float(expert_score)
     if not 0.0 <= score <= 3.0:
@@ -16,7 +16,13 @@ def map_q1_paper_grade(expert_score: float) -> str:
         return "A"
     if score > 1.5:
         return "B"
-    return "C"
+    return "below_B_cut"
+
+
+def map_q1_paper_grade(expert_score: float) -> str:
+    """Compatibility function name for :func:`map_q1_catalog_bin`."""
+
+    return map_q1_catalog_bin(expert_score)
 
 
 def build_q1_paper_grade(
@@ -28,11 +34,12 @@ def build_q1_paper_grade(
 ) -> GradeAssessment:
     """Build a validated graded result after an external calibrated estimator runs."""
 
-    grade = map_q1_paper_grade(expert_score)
+    catalog_bin = map_q1_catalog_bin(expert_score)
     return GradeAssessment(
         status="graded",
         expert_score=float(expert_score),
-        grade=grade,
+        catalog_bin=catalog_bin,
+        grade=catalog_bin if catalog_bin in {"A", "B"} else None,
         a_plus=a_plus,
         a_plus_reason=a_plus_reason,
         rationale=rationale,

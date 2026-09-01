@@ -104,6 +104,41 @@ class ExpertAssessmentAgent(BaseAgent):
             )
             structure_fact_ids.append(sid)
 
+        review_fact_ids: list[str] = []
+        strong_review_fact_ids: list[str] = []
+        for audit in document.candidate_structure_audits:
+            if audit.verdict != "hold_for_review":
+                continue
+            checks = audit.checks
+            measurable = bool(
+                checks.get("existing_detector_acceptance")
+                and checks.get("connected_signal_present")
+                and checks.get("positive_integrated_signal")
+            )
+            if not measurable:
+                continue
+            stable = checks.get("snr_multi_threshold_stable") is True
+            survives_comparison = checks.get("comparison_model_does_not_fully_erase") is True
+            geometry_recorded = bool(
+                checks.get("geometry_route_relation_recorded")
+                or audit.discovery_context == "global_sep_plus_geometry"
+            )
+            fid = add_fact(
+                f"F-review-candidate-{audit.candidate_id}",
+                (
+                    f"Held candidate {audit.candidate_id} contains connected positive signal; "
+                    f"multi-threshold stable={stable}, independent-model survival={survives_comparison}, "
+                    f"and geometry relation recorded={geometry_recorded}. It widens the expert vote "
+                    "set but is not promoted as equal-weight primary evidence."
+                ),
+                [audit.id],
+                source="primary_residual_measurement",
+                reliability="medium" if stable and survives_comparison else "low",
+            )
+            review_fact_ids.append(fid)
+            if stable and survives_comparison and geometry_recorded:
+                strong_review_fact_ids.append(fid)
+
         scene_id: str | None = None
         if document.scene_geometry is not None:
             scene = document.scene_geometry
@@ -183,12 +218,24 @@ class ExpertAssessmentAgent(BaseAgent):
             usable
             and promoted_count
             and (
-                (independent_survival is not None and independent_survival >= 0.5)
+                (
+                    independent_survival is not None
+                    and independent_survival >= self.config.independent_signal_survival_min
+                )
                 or len(persistent_structures) >= max(1, promoted_count // 2)
             )
         )
-        signal_status = "unavailable" if not usable else "credible" if signal_credible else "mixed" if promoted_count else "weak"
-        signal_refs = [*structure_fact_ids]
+        review_signal_credible = bool(usable and strong_review_fact_ids)
+        signal_status = (
+            "unavailable"
+            if not usable
+            else "credible"
+            if signal_credible
+            else "mixed"
+            if promoted_count or review_signal_credible
+            else "weak"
+        )
+        signal_refs = [*structure_fact_ids, *review_fact_ids]
         if comparison_id:
             signal_refs.append(comparison_id)
         signal_reality = EvidenceDimension(
@@ -201,27 +248,74 @@ class ExpertAssessmentAgent(BaseAgent):
         )
 
         scene = document.scene_geometry
-        common_radius = bool(scene and promoted_count >= 2 and scene.common_radius_cv is not None and scene.common_radius_cv <= 0.20)
+        common_radius = bool(
+            scene
+            and promoted_count >= 2
+            and scene.common_radius_cv is not None
+            and scene.common_radius_cv <= self.config.common_radius_cv_max
+        )
         tangential = bool(
             scene
             and promoted_count >= 2
             and (
-                (scene.mean_tangential_misalignment_deg is not None and scene.mean_tangential_misalignment_deg <= 20.0)
+                (
+                    scene.mean_tangential_misalignment_deg is not None
+                    and scene.mean_tangential_misalignment_deg
+                    <= self.config.tangential_misalignment_max_deg
+                )
                 or (scene.tangential_alignment_fraction is not None and scene.tangential_alignment_fraction >= 0.67)
             )
         )
+        single_arc_tangential = bool(
+            promoted_count == 1
+            and document.structures[0].tangential_misalignment_deg is not None
+            and document.structures[0].tangential_misalignment_deg
+            <= self.config.tangential_misalignment_max_deg
+        )
         angular_coverage = scene.total_angular_coverage_deg if scene else 0.0
-        unified_system = common_radius and tangential and angular_coverage >= 60.0
+        unified_system = (
+            common_radius
+            and tangential
+            and angular_coverage >= self.config.unified_system_min_coverage_deg
+        )
         non_core_fraction = sum(not item.near_core for item in document.structures) / promoted_count if promoted_count else 0.0
         coherent_ring = any(
             ring.longest_above_local_background_deg >= 180.0 and ring.on_minus_off_ring_snr > 0
             for ring in document.ring_candidates
         ) and promoted_count >= 2
-        clear_system = signal_credible and unified_system and (
-            (promoted_count >= 3 and angular_coverage >= 120.0) or coherent_ring
-        ) and non_core_fraction >= 0.5
-        lens_status = "unavailable" if not usable else "credible" if clear_system else "mixed" if unified_system or tangential or coherent_ring else "weak"
-        lens_fact_refs = ([scene_id] if scene_id and (unified_system or tangential) else []) + ring_fact_ids
+        clear_system = bool(
+            signal_credible
+            and unified_system
+            and (
+                promoted_count >= 2
+                and angular_coverage >= self.config.clear_system_min_coverage_deg
+                or coherent_ring
+            )
+            and non_core_fraction >= 0.5
+        )
+        compelling_single_arc = bool(
+            signal_credible
+            and promoted_count == 1
+            and single_arc_tangential
+            and angular_coverage >= self.config.compelling_single_arc_min_extent_deg
+            and non_core_fraction == 1.0
+            and independent_survival is not None
+            and independent_survival >= self.config.independent_signal_robust_min
+        )
+        lens_status = (
+            "unavailable"
+            if not usable
+            else "credible"
+            if clear_system
+            else "mixed"
+            if unified_system or tangential or coherent_ring or compelling_single_arc or strong_review_fact_ids
+            else "weak"
+        )
+        lens_fact_refs = (
+            ([scene_id] if scene_id and (unified_system or tangential or compelling_single_arc) else [])
+            + ring_fact_ids
+            + strong_review_fact_ids
+        )
         lens_specificity = EvidenceDimension(
             status=lens_status,
             fact_refs=lens_fact_refs,
@@ -234,14 +328,31 @@ class ExpertAssessmentAgent(BaseAgent):
         alt = document.alternative_indicators
         artifact_strong = bool(
             promoted_count
-            and ((independent_survival is not None and independent_survival < 0.60) or non_core_fraction < 0.5)
+            and (
+                (
+                    independent_survival is not None
+                    and independent_survival < self.config.independent_signal_survival_min
+                )
+                or non_core_fraction < 0.5
+            )
         )
         if not document.data_quality.model_success:
             artifact_strong = artifact_strong or not (
-                comparison and comparison.comparison_success and independent_survival is not None and independent_survival >= 0.75
+                comparison
+                and comparison.comparison_success
+                and independent_survival is not None
+                and independent_survival >= self.config.independent_signal_robust_min
             )
+        tidal_proxy_high = bool(
+            alt
+            and alt.tidal_asymmetry is not None
+            and alt.tidal_asymmetry >= self.config.tidal_asymmetry_proxy_high
+        )
+        intrinsic_viable = bool(
+            alt and (alt.inner_connected_structure_count > 0 or tidal_proxy_high)
+        )
         intrinsic_strong = bool(
-            alt and (alt.inner_connected_structure_count > 0 or (alt.tidal_asymmetry is not None and alt.tidal_asymmetry >= 0.65))
+            alt and alt.inner_connected_structure_count > 0 and tidal_proxy_high
         )
         merger_viable = bool(alt and alt.multiple_core_count is not None and alt.multiple_core_count > 0)
         bad_pixel_viable = bool(alt and alt.bad_pixel_fraction > 0)
@@ -256,10 +367,10 @@ class ExpertAssessmentAgent(BaseAgent):
             contradiction_facts.append(next(item for item in facts if item.id == alternative_id))
 
         alternatives = [
-            CompetingExplanation(id="strong_gravitational_lens", status="favored" if clear_system and not equally_strong_alternative else "viable" if unified_system or tangential else "weakened", supporting_fact_refs=lens_fact_refs, contradicting_fact_refs=[item.id for item in contradiction_facts], rationale="Evaluated from the joint geometry and signal-reality dossier, not from candidate count or S/N alone."),
-            CompetingExplanation(id="intrinsic_galaxy_morphology", status="viable" if intrinsic_strong else "unknown" if alternative_id is None else "weakened", supporting_fact_refs=[alternative_id] if intrinsic_strong and alternative_id else [], contradicting_fact_refs=lens_fact_refs if clear_system else [], rationale="Residual connectivity and tidal-asymmetry proxies may support ordinary galaxy morphology, but are not definitive classifications."),
+            CompetingExplanation(id="strong_gravitational_lens", status="favored" if clear_system and not equally_strong_alternative else "viable" if clear_system or unified_system or tangential or compelling_single_arc or strong_review_fact_ids else "weakened", supporting_fact_refs=lens_fact_refs, contradicting_fact_refs=[item.id for item in contradiction_facts], rationale="Evaluated from the joint geometry and signal-reality dossier, not from candidate count or S/N alone."),
+            CompetingExplanation(id="intrinsic_galaxy_morphology", status="viable" if intrinsic_viable else "unknown" if alternative_id is None else "weakened", supporting_fact_refs=[alternative_id] if intrinsic_viable and alternative_id else [], contradicting_fact_refs=lens_fact_refs if clear_system else [], rationale="Residual connectivity and tidal-asymmetry proxies may support ordinary galaxy morphology. Tidal asymmetry alone is non-specific and cannot become an equally strong alternative."),
             CompetingExplanation(id="merger_or_interaction", status="viable" if merger_viable else "unknown" if not alt or alt.multiple_core_count is None else "weakened", supporting_fact_refs=[alternative_id] if merger_viable and alternative_id else [], contradicting_fact_refs=lens_fact_refs if clear_system else [], rationale="This explanation is kept viable only when the Observation contains a multiple-core or related proxy."),
-            CompetingExplanation(id="foreground_subtraction_or_psf_artifact", status="viable" if artifact_strong else "weakened" if comparison_id else "unknown", supporting_fact_refs=[item for item in [model_id, comparison_id] if item] if artifact_strong else [], contradicting_fact_refs=[comparison_id] if comparison_id and independent_survival is not None and independent_survival >= 0.75 else [], rationale="Foreground-model failure, near-core location, and model sensitivity increase uncertainty; none imposes a fixed grade ceiling."),
+            CompetingExplanation(id="foreground_subtraction_or_psf_artifact", status="viable" if artifact_strong else "weakened" if comparison_id else "unknown", supporting_fact_refs=[item for item in [model_id, comparison_id] if item] if artifact_strong else [], contradicting_fact_refs=[comparison_id] if comparison_id and independent_survival is not None and independent_survival >= self.config.independent_signal_robust_min else [], rationale="Foreground-model failure, near-core location, and model sensitivity increase uncertainty; none imposes a fixed grade ceiling."),
             CompetingExplanation(id="noise_bad_pixel_or_projected_source", status="viable" if bad_pixel_viable or not signal_credible else "weakened", supporting_fact_refs=[alternative_id] if bad_pixel_viable and alternative_id else [], contradicting_fact_refs=signal_refs if signal_credible else [], rationale="Persistence and independent-model survival can weaken a noise explanation but cannot identify lensing physics."),
         ]
 
@@ -276,29 +387,52 @@ class ExpertAssessmentAgent(BaseAgent):
         ]
 
         if not usable:
-            anchor = score = score_range = None
-            grade = "insufficient_for_grading"
+            vote_category = "insufficient_for_grading"
+            categories: tuple[str, ...] = ()
             rationale = "Observation usability or essential noise integrity is insufficient; the expert abstains rather than assigning X."
         elif clear_system and not equally_strong_alternative:
-            anchor, score, score_range, grade = 3, 3.0, None, "A"
+            vote_category, categories = "A", ("A",)
             rationale = "Credible signals form a clear, unified, lens-specific system and no equally strong measured non-lens explanation remains."
         elif clear_system and equally_strong_alternative:
-            anchor = score = None
-            score_range, grade = (1.0, 2.0), None
-            rationale = "The joint geometry is lens-like, but an Observation-supported non-lens explanation remains competitive; the result stays between C and B."
-        elif signal_credible and unified_system and not equally_strong_alternative:
-            anchor, score, score_range, grade = 2, 2.0, None, "B"
-            rationale = "The credible structures show directional lens-specific coherence, but additional information is still required for a clear unified system."
-        elif promoted_count and (signal_credible or tangential or coherent_ring):
-            anchor, score, score_range, grade = 1, 1.0, None, "C"
+            vote_category, categories = None, ("B", "A")
+            rationale = "The joint geometry supports a clear lens system, but an Observation-supported non-lens explanation remains competitive; the honest single-expert vote set is B-to-A."
+        elif compelling_single_arc:
+            vote_category, categories = None, ("B", "A")
+            rationale = "One robust, non-core tangential arc survives the independent foreground check. A single component cannot establish multiplicity, so the honest vote set remains B-to-A."
+        elif signal_credible and unified_system:
+            vote_category, categories = None, (("C", "B", "A") if equally_strong_alternative else ("B", "A"))
+            rationale = "Credible structures show a lens-specific common-radius and tangential relationship, but the available evidence does not justify forcing one adjacent expert category."
+        elif review_signal_credible:
+            vote_category, categories = None, ("C", "B", "A")
+            rationale = "No primary structure was promoted, but a measurable, stable, geometry-linked held candidate survives the comparison model. Upstream extraction conflict widens the vote set instead of forcing X."
+        elif promoted_count and (tangential or coherent_ring):
+            vote_category, categories = None, ("C", "B")
             rationale = "The candidate has a lens-like appearance, but specificity is incomplete or an alternative explanation is comparably plausible."
+        elif promoted_count and signal_credible:
+            vote_category, categories = "C", ("C",)
+            rationale = "A credible residual signal is present, but no lens-specific spatial relationship supports a B or A vote."
         else:
-            anchor, score, score_range, grade = 0, 0.0, None, "X"
+            vote_category, categories = "X", ("X",)
             rationale = "The usable Observation does not contain a credible lens-specific structural relationship and is better described by non-lens or noise explanations."
 
-        decisive = list(dict.fromkeys(lens_fact_refs if anchor in (2, 3) else signal_refs[:1]))
+        code_for = {"X": 0, "C": 1, "B": 2, "A": 3}
+        vote_code = code_for.get(vote_category) if vote_category else None
+        anchor = vote_code
+        score = float(vote_code) if vote_code is not None else None
+        score_range = (
+            (float(code_for[categories[0]]), float(code_for[categories[-1]]))
+            if len(categories) > 1
+            else None
+        )
+        grade = vote_category
+
+        high_vote_possible = any(item in {"B", "A"} for item in categories)
+        decisive = list(dict.fromkeys(lens_fact_refs if high_vote_possible else signal_refs[:1]))
         decisive_counter = list(dict.fromkeys(item.id for item in contradiction_facts))
         assessment = ProvisionalExpertAssessment(
+            vote_category=vote_category,
+            plausible_vote_categories=categories,
+            vote_code=vote_code,
             expert_vote_anchor=anchor,
             provisional_expert_score=score,
             provisional_score_range=score_range,
@@ -336,7 +470,7 @@ class ExpertAssessmentAgent(BaseAgent):
             for item in alternatives
         ]
         state.expert_assessment = assessment
-        self.record_reasoning(state, "expert_assessment", {"single_primary_reasoning_pass": True, "subscore_aggregation_used": False, "expert_vote_anchor": anchor, "provisional_grade": grade})
+        self.record_reasoning(state, "expert_assessment", {"single_primary_reasoning_pass": True, "subscore_aggregation_used": False, "vote_category": vote_category, "plausible_vote_categories": categories, "vote_code": vote_code})
         return state
 
     @staticmethod

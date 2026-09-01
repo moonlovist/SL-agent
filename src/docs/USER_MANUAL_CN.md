@@ -1,6 +1,6 @@
 # Lens Expert Agent 中文使用说明书
 
-> 适用版本：`lens-expert-agent 0.16.0`
+> 适用版本：`lens-expert-agent 0.17.0`
 >
 > 当前状态：视觉层冻结；输出暂定专家投票锚点；正式 Q1 分数等待标定
 
@@ -123,10 +123,13 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 ```json
 {
   "expert_assessment": {
-    "expert_vote_anchor": 1,
-    "provisional_expert_score": 1.0,
-    "provisional_score_range": null,
-    "provisional_grade": "C",
+    "vote_category": null,
+    "plausible_vote_categories": ["B", "A"],
+    "vote_code": null,
+    "expert_vote_anchor": null,
+    "provisional_expert_score": null,
+    "provisional_score_range": [2.0, 3.0],
+    "provisional_grade": null,
     "score_status": "provisional_uncalibrated",
     "calibration_required": true,
     "official_expert_score": null,
@@ -139,6 +142,9 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 
 | 输出 | 应怎样理解 |
 |---|---|
+| `vote_category` | Agent 可以明确选择的单个专家类别 |
+| `plausible_vote_categories` | 无法诚实单选时保留的连续类别集合，是当前主结果 |
+| `vote_code` | 单类别的 0/1/2/3 机械编码，不是聚合 expert_score |
 | `provisional_uncalibrated` | 当前结果是透明规则层的暂定专家判断，不等价于人类聚合分数 |
 | `provisional_score_range` | 证据跨越两个锚点，程序拒绝制造点分和等级 |
 | `insufficient_for_grading` | 数据无法支持科学评级，不等于非透镜 |
@@ -148,14 +154,13 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 
 ## 11. Q1 论文等级映射
 
-项目只保留一套论文口径映射。论文原文明确给出 A 和 B 的分界，并将低于 B
-分界的结果描述为 C 或更低；来源见
+项目只把论文明确给出的 A 和 B 分界用于正式 catalogue 分箱；来源见
 [Euclid Q1 Strong Lensing Discovery Engine论文](https://arxiv.org/abs/2503.15324)：
 
 ```text
 A：expert_score > 2.0
 B：1.5 < expert_score <= 2.0
-C：expert_score <= 1.5
+below_B_cut：expert_score <= 1.5（论文未给连续 X/C 完整边界）
 ```
 
 活动模块只能生成明确标为 provisional 的单专家锚点或区间，不能生成正式聚合

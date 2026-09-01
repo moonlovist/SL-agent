@@ -9,6 +9,7 @@ from expert_agent.core.state import ExpertState
 from expert_agent.core.workflow import ExpertWorkflow
 from expert_agent.schemas.observation import (
     AlternativeIndicators,
+    CandidateStructureAuditObservation,
     DataQuality,
     ForegroundModelComparisonObservation,
     GeometricPathObservation,
@@ -164,7 +165,8 @@ def test_sep_stability_alone_is_not_lens_proof():
     observation = make_observation(structure_count=1, coherent=False)
     observation.structures[0].sep_survival_fraction = 1.0
     result = run(observation)
-    assert result.expert_assessment.expert_vote_anchor <= 1
+    assert result.expert_assessment.vote_category == "C"
+    assert result.expert_assessment.vote_code == 1
     assert "cannot identify lensing physics" in next(
         item.rationale for item in result.evidence_dossier.competing_explanations
         if item.id == "noise_bad_pixel_or_projected_source"
@@ -241,10 +243,63 @@ def test_many_random_structures_are_not_multiple_images():
     assert result.evidence_dossier.lens_specificity.status == "weak"
 
 
-def test_competing_non_lens_explanation_keeps_c_to_b_interval():
+def test_clear_lens_geometry_with_competitor_keeps_b_to_a_vote_set():
     result = run(make_observation(competitor=True))
-    assert result.expert_assessment.provisional_score_range == (1.0, 2.0)
+    assert result.expert_assessment.plausible_vote_categories == ("B", "A")
+    assert result.expert_assessment.provisional_score_range == (2.0, 3.0)
     assert result.expert_assessment.provisional_grade is None
+
+
+def test_tidal_asymmetry_proxy_alone_does_not_force_a_downgrade():
+    observation = make_observation()
+    observation.alternative_indicators.tidal_asymmetry = 0.9
+    result = run(observation)
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_two_image_geometry_can_reach_a_without_three_promoted_structures():
+    result = run(make_observation(structure_count=2))
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_robust_single_tangential_arc_keeps_b_to_a_vote_set():
+    observation = make_observation(structure_count=1)
+    observation.scene_geometry.total_angular_coverage_deg = 70.0
+    result = run(observation)
+    assert result.expert_assessment.plausible_vote_categories == ("B", "A")
+
+
+def test_common_radius_cv_just_above_old_cut_remains_eligible():
+    observation = make_observation(structure_count=2)
+    observation.scene_geometry.common_radius_cv = 0.25
+    result = run(observation)
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_strong_held_candidate_widens_vote_set_instead_of_forcing_x():
+    observation = make_observation(structure_count=0, coherent=False, model_success=False)
+    observation.candidate_structure_audits = [
+        CandidateStructureAuditObservation(
+            id="CSA-review",
+            candidate_id="C-review",
+            verdict="hold_for_review",
+            handoff_class="foreground_contaminated",
+            discovery_context="global_sep_plus_geometry",
+            checks={
+                "existing_detector_acceptance": True,
+                "connected_signal_present": True,
+                "positive_integrated_signal": True,
+                "snr_multi_threshold_stable": True,
+                "comparison_model_does_not_fully_erase": True,
+                "geometry_route_relation_recorded": True,
+            },
+            rationale="Synthetic extraction conflict.",
+        )
+    ]
+    result = run(observation)
+    assert result.expert_assessment.plausible_vote_categories == ("C", "B", "A")
+    assert result.expert_assessment.provisional_score_range == (1.0, 3.0)
+    assert result.decision_audit.audit_passed is True
 
 
 def test_unusable_data_abstains_instead_of_x():
@@ -328,8 +383,8 @@ def test_observation_1_0_remains_readable():
 
 
 def test_q1_paper_grade_mapping_boundaries():
-    assert map_q1_paper_grade(0.0) == "C"
-    assert map_q1_paper_grade(1.5) == "C"
+    assert map_q1_paper_grade(0.0) == "below_B_cut"
+    assert map_q1_paper_grade(1.5) == "below_B_cut"
     assert map_q1_paper_grade(1.5001) == "B"
     assert map_q1_paper_grade(2.0) == "B"
     assert map_q1_paper_grade(2.0001) == "A"
@@ -343,3 +398,9 @@ def test_a_plus_is_separate_from_grade_mapping():
     result = build_q1_paper_grade(2.7, rationale="Calibrated test fixture.", a_plus=True, a_plus_reason="Independent scientific-value review.")
     assert result.grade == "A"
     assert result.a_plus is True
+
+
+def test_below_b_cut_does_not_manufacture_a_continuous_c_grade():
+    result = build_q1_paper_grade(1.2, rationale="Calibrated low-score fixture.")
+    assert result.catalog_bin == "below_B_cut"
+    assert result.grade is None

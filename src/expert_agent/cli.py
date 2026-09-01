@@ -50,8 +50,8 @@ def analyze(args: argparse.Namespace) -> int:
     result = _reason(observation, output_dir)
     print(f"Object: {observation.object_id}")
     print(f"Score status: {result.expert_assessment.score_status}")
-    print(f"Provisional expert score: {result.expert_assessment.provisional_expert_score}")
-    print(f"Provisional Q1 paper grade: {result.expert_assessment.provisional_grade}")
+    print(f"Vote category: {result.expert_assessment.vote_category}")
+    print(f"Plausible vote categories: {list(result.expert_assessment.plausible_vote_categories)}")
     print(f"Decision audit passed: {result.decision_audit.audit_passed}")
     print(f"Report: {output_dir / 'report.md'}")
     return 0
@@ -64,7 +64,8 @@ def reason(args: argparse.Namespace) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     result = _reason(observation, output_dir)
     print(f"Score status: {result.expert_assessment.score_status}")
-    print(f"Provisional Q1 paper grade: {result.expert_assessment.provisional_grade}")
+    print(f"Vote category: {result.expert_assessment.vote_category}")
+    print(f"Plausible vote categories: {list(result.expert_assessment.plausible_vote_categories)}")
     print(f"Decision audit passed: {result.decision_audit.audit_passed}")
     print(f"Report: {output_dir / 'report.md'}")
     return 0

@@ -230,11 +230,11 @@ split
 ```text
 A：expert_score > 2.0
 B：1.5 < expert_score <= 2.0
-C：expert_score <= 1.5
+below_B_cut：expert_score <= 1.5
 ```
 
-Q1论文没有规定`expert_score <= 1.0`自动映射为X的目录分箱，因此不要自行制造
-X边界。A+是A上的独立科学价值标记，也不能由分数自动生成。
+Q1论文没有规定连续 expert_score 的完整 C/X 目录分箱，因此不要自行制造
+C或X边界。A+是A上的独立科学价值标记，也不能由分数自动生成。
 
 如果只有A/B/C目录而没有连续`expert_score`，必须在汇总中明确写出：这些数据可
 用于初步等级研究，但不足以严格重建论文的连续专家分数。
