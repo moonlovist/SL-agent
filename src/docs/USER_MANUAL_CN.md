@@ -1,13 +1,14 @@
 # Lens Expert Agent 中文使用说明书
 
-> 适用版本：`lens-expert-agent 0.17.0`
+> 适用版本：`lens-expert-agent 0.18.0`
 >
-> 当前状态：视觉层冻结；输出暂定专家投票锚点；正式 Q1 分数等待标定
+> 当前状态：底层视觉测量保持稳定；候选交接已升级；输出单专家暂定类别；正式 Q1 聚合分数等待标定
 
 ## 1. 当前版本一句话说明
 
 程序把 FITS/PNG 转换为可追溯视觉测量，由唯一的 `ExpertAssessmentAgent`
-建立证据档案、比较五类解释并给出明确标为未校准的投票锚点或区间；独立
+建立证据档案、比较八类透镜构型与五类竞争解释，并给出明确标为未校准的
+单专家类别；独立
 `DecisionAudit` 只检查错误。正式 `official_expert_score` 在 Q1 标定前保持空值。
 
 ## 2. 实际处理流程
@@ -17,11 +18,13 @@ FITS / PNG
 ↓
 前景光建模与减除
 ↓
-残差 S/N、多阈值、SEP、椭圆路线和候选交接
+残差 S/N、多阈值、SEP和椭圆路线
+↓
+信号真实性审计：可信绿色与青色结构完整交接
 ↓
 Observation JSON（只记录看到了什么）
 ↓
-ExpertAssessmentAgent：证据档案 + 五类竞争解释 + 整体投票锚点
+ExpertAssessmentAgent：证据档案 + 八类构型 + 五类竞争解释 + A/B/C/X单选
 ↓
 DecisionAudit：轻量独立错误检查
 ↓
@@ -88,11 +91,18 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 | 类别 | 含义 |
 |---|---|
 | `primary_candidate` | 当前最适合进入后端解释的可测残差信号 |
-| `recovery_candidate` | 可能有用但证据不完整，保留待复核 |
-| `foreground_contaminated` | 容易受前景减除误差污染 |
+| `recovery_candidate` | 路线外稳定信号或恢复信号；可信者带完整测量进入评级 |
+| `foreground_contaminated` | 独立比较模型明确擦除的候选，隔离但保留追溯 |
 | `trace_candidate` | 弱线索，只保留追溯 |
 
 这些名称只描述“信号怎样交接”，不等于弧、环、多重像或透镜标签。
+接近核心、主前景模型失败或未命中椭圆路线只形成风险/来源标记，不能单独删除
+独立模型仍保留的真实信号。
+
+专家层分别检查八种构型：环/部分环、切向弧、折叠弧、尖点弧、径向弧、
+紧致多像（包括爱因斯坦十字）、高度不对称多像和单像。它们是互相替代的解释
+路径，不是八个可相加的分项。短弧、径向弧或紧致多像不再被统一的60度弧长、
+切向角或结构数门槛排除。
 
 ## 8. 五种竞争解释
 
@@ -123,13 +133,13 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 ```json
 {
   "expert_assessment": {
-    "vote_category": null,
-    "plausible_vote_categories": ["B", "A"],
+    "vote_category": "A",
+    "plausible_vote_categories": ["A"],
     "vote_code": null,
     "expert_vote_anchor": null,
     "provisional_expert_score": null,
-    "provisional_score_range": [2.0, 3.0],
-    "provisional_grade": null,
+    "provisional_score_range": null,
+    "provisional_grade": "A",
     "score_status": "provisional_uncalibrated",
     "calibration_required": true,
     "official_expert_score": null,
@@ -143,10 +153,10 @@ lens-agent reason "outputs\样本名\observation.json" --output "outputs\reasoni
 | 输出 | 应怎样理解 |
 |---|---|
 | `vote_category` | Agent 可以明确选择的单个专家类别 |
-| `plausible_vote_categories` | 无法诚实单选时保留的连续类别集合，是当前主结果 |
-| `vote_code` | 单类别的 0/1/2/3 机械编码，不是聚合 expert_score |
+| `plausible_vote_categories` | 与单专家选择一致的单元素类别列表 |
+| `vote_code` | 兼容字段，当前保持空值；单专家不制造数字分 |
 | `provisional_uncalibrated` | 当前结果是透明规则层的暂定专家判断，不等价于人类聚合分数 |
-| `provisional_score_range` | 证据跨越两个锚点，程序拒绝制造点分和等级 |
+| `provisional_score_range` | 兼容字段，当前保持空值 |
 | `insufficient_for_grading` | 数据无法支持科学评级，不等于非透镜 |
 | `official_expert_score: null` | 尚未进行 Q1 标定与独立验证 |
 
@@ -163,7 +173,7 @@ B：1.5 < expert_score <= 2.0
 below_B_cut：expert_score <= 1.5（论文未给连续 X/C 完整边界）
 ```
 
-活动模块只能生成明确标为 provisional 的单专家锚点或区间，不能生成正式聚合
+活动模块只能生成明确标为 provisional 的单专家类别，不能生成正式聚合
 `official_expert_score`。X=0、C=1、B=2、A/A+=3来自论文的单次专家投票编码；
 正式目录等级必须等待多专家聚合、专家偏差校正和本项目校准。
 
@@ -180,7 +190,7 @@ X 的意思是“现有可用信息更支持非透镜”。如果图像损坏、
 
 当前 `DecisionAudit` 检查事实引用、缺失当反证、相关证据重复、测量当证明、
 恢复自动降级、替代解释遗漏、答案泄漏、文字分数冲突和弃权需要。它不重跑多
-假设分析。未来标定审计需要用 Q1 标注数据验证投票锚点、区间和弃权策略，不能
+假设分析。未来标定审计需要用 Q1 标注数据验证类别投票和弃权策略，不能
 从单个案例猜测权重。
 
 ## 14. 数据整理建议
@@ -206,7 +216,7 @@ Q1 expert_score
 python -m pytest
 ```
 
-测试覆盖视觉测量、WCS、前景模型、几何搜索、候选交接，以及15项专家判断边界、
+测试覆盖视觉测量、WCS、前景模型、几何搜索、候选交接，以及多构型专家判断边界、
 不可评级状态、Q1 分界点和 A+ 约束。
 
 ## 16. 当前科研边界
@@ -217,7 +227,7 @@ python -m pytest
 - 测量来自哪些像素和处理步骤；
 - 各观察事实如何影响五类竞争解释；
 - 哪些信息缺失或存在冲突；
-- 当前整体专家投票锚点或诚实区间，以及 DecisionAudit 是否通过。
+- 当前单专家 A/B/C/X 类别，以及 DecisionAudit 是否通过。
 
 当前版本不能可靠回答：
 

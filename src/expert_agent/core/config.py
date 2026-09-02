@@ -56,7 +56,16 @@ class ReasoningConfig:
     tangential_misalignment_max_deg: float = 25.0
     unified_system_min_coverage_deg: float = 60.0
     clear_system_min_coverage_deg: float = 90.0
-    compelling_single_arc_min_extent_deg: float = 60.0
+    # Configuration-recognition bands.  These are interpretation aids rather
+    # than universal physical cuts: no single value assigns a grade.
+    tangential_compatible_max_deg: float = 35.0
+    radial_alignment_min_deg: float = 65.0
+    morphology_min_axis_ratio: float = 1.5
+    short_arc_min_extent_deg: float = 20.0
+    robust_arc_min_extent_deg: float = 30.0
+    fold_pair_max_separation_deg: float = 60.0
+    cusp_group_max_span_deg: float = 100.0
+    compact_image_max_extent_deg: float = 25.0
     independent_signal_survival_min: float = 0.50
     independent_signal_robust_min: float = 0.75
     tidal_asymmetry_proxy_high: float = 0.65

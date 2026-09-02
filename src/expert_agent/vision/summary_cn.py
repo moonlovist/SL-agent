@@ -322,8 +322,8 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
     }
     handoff_names = {
         "primary_candidate": "主要候选（进入当前规则层）",
-        "recovery_candidate": "恢复候选（保留作补充）",
-        "foreground_contaminated": "前景污染候选（隔离）",
+        "recovery_candidate": "恢复候选（可信者带完整测量进入规则层）",
+        "foreground_contaminated": "前景污染候选（仅在独立模型擦除时隔离）",
         "trace_candidate": "弱线索（只留追溯）",
     }
     section_names = {

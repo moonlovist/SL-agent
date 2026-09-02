@@ -37,7 +37,7 @@ This limitation is recorded in the Observation document for the future grading a
 
 ## Observation contract
 
-`schema_version=1.13` records:
+`schema_version=1.14` records:
 
 - input identity, format, band, shape, and nucleus;
 - measured central foreground-light properties, without assigning a lens label;
@@ -142,6 +142,13 @@ Only primary candidates create current-rule `structures`; recovery,
 foreground-contaminated, and trace candidates remain machine-readable and
 pixel-traceable for later hypothesis-specific analysis.
 
+Version 1.14 corrects that handoff boundary. A stable off-route candidate is now
+promoted with `recovery_candidate` provenance and complete structure measurements;
+route membership cannot block a real measurable signal. Near-core overlap and a
+fallback primary foreground model remain cautions. They isolate a candidate only when
+the independent comparison foreground model affirmatively erases it. Both primary and
+promoted-recovery structures enter scene geometry and expert configuration analysis.
+
 Version 1.3 originally recorded a fixed Euclid Q1 SLDE cutout contract, and renames the scientific extraction
 product to an unclassified residual structure, and adds clean VIS arcsinh/MTF
 expert views. The legacy `arc_mask` NPZ key remains only as a compatibility alias.
@@ -156,7 +163,7 @@ morphology classifiers and cannot independently decide a hypothesis.
 
 ## Expert workflow
 
-Version 0.17.0 has one primary interpretation pass:
+Version 0.18.0 has one primary interpretation pass:
 
 ```text
 ObservationDocument -> ExpertAssessmentAgent -> DecisionAudit -> ReportWriter
@@ -165,18 +172,18 @@ ObservationDocument -> ExpertAssessmentAgent -> DecisionAudit -> ReportWriter
 `ExpertAssessmentAgent` builds one evidence dossier containing cited observed facts,
 signal reality, lens specificity, supporting and contradicting evidence, five
 competing explanations, missing information, processing cautions, correlation groups,
-unused fields, null tests, and future tool requests. It then answers the six holistic
-expert questions and emits either one categorical vote, a contiguous plausible vote
-set (for example B-to-A or C-to-B-to-A), or `insufficient_for_grading`. Numeric anchors
-remain deprecated compatibility encodings only. No component scores are added or
-averaged. High S/N, SEP persistence, threshold survival, and route agreement cannot
-individually satisfy the lens-specificity gate.
+unused fields, null tests, future tool requests, and eight traceable lens-configuration
+hypotheses. It then answers the holistic expert questions and emits one categorical
+X/C/B/A vote, or `insufficient_for_grading`. Numeric compatibility fields remain null.
+No component scores are added or averaged. High S/N, SEP persistence, threshold
+survival, and route agreement cannot individually satisfy the lens-specificity gate.
 
-The v0.17.0 reasoning gates allow coherent two-image systems, slightly wider
-common-radius scatter, and robust single tangential arcs to retain A as a plausible
-expert vote. Tidal asymmetry alone is never an equally strong non-lens alternative.
-Stable geometry-linked held candidates may widen the vote set but are not promoted as
-equal-weight primary structures.
+The v0.18.0 interpretation recognizes annular/partial-ring, tangential-arc, fold-arc,
+cusp-arc, radial-arc, compact-multiple-image, asymmetric-multiple-image, and single-image
+hypotheses. A robust partial arc may support A without mandatory multiplicity; a short
+arc may support A through a fold/cusp relationship; radial arcs are not rejected by a
+tangential-only gate; compact quads need not contain a long arc. These hypotheses are
+alternative morphology routes, not additive votes or universal hard cuts.
 
 `DecisionAudit` is deliberately lightweight. It checks references, missing-as-negative
 errors, correlated double counting, measurement-as-proof errors, automatic recovery

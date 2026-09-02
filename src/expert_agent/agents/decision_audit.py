@@ -101,7 +101,7 @@ class DecisionAudit(BaseAgent):
             item in {"B", "A"} for item in assessment.plausible_vote_categories
         )
         if high_vote_possible and not specificity_refs.intersection(decisive):
-            measurement_as_proof.append("B/A vote set lacks decisive lens-specific relational evidence.")
+            measurement_as_proof.append("B/A vote lacks decisive lens-specific relational evidence.")
 
         recovery_penalized = [
             item.id

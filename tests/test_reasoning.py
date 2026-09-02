@@ -166,7 +166,8 @@ def test_sep_stability_alone_is_not_lens_proof():
     observation.structures[0].sep_survival_fraction = 1.0
     result = run(observation)
     assert result.expert_assessment.vote_category == "C"
-    assert result.expert_assessment.vote_code == 1
+    assert result.expert_assessment.vote_code is None
+    assert result.expert_assessment.provisional_expert_score is None
     assert "cannot identify lensing physics" in next(
         item.rationale for item in result.evidence_dossier.competing_explanations
         if item.id == "noise_bad_pixel_or_projected_source"
@@ -243,11 +244,18 @@ def test_many_random_structures_are_not_multiple_images():
     assert result.evidence_dossier.lens_specificity.status == "weak"
 
 
-def test_clear_lens_geometry_with_competitor_keeps_b_to_a_vote_set():
+def test_correlated_intrinsic_proxies_do_not_override_clear_lens_configuration():
     result = run(make_observation(competitor=True))
-    assert result.expert_assessment.plausible_vote_categories == ("B", "A")
-    assert result.expert_assessment.provisional_score_range == (2.0, 3.0)
-    assert result.expert_assessment.provisional_grade is None
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_measured_multiple_core_competitor_receives_single_b_vote():
+    observation = make_observation()
+    observation.alternative_indicators.multiple_core_count = 1
+    result = run(observation)
+    assert result.expert_assessment.vote_category == "B"
+    assert result.expert_assessment.plausible_vote_categories == ("B",)
+    assert result.expert_assessment.provisional_score_range is None
 
 
 def test_tidal_asymmetry_proxy_alone_does_not_force_a_downgrade():
@@ -262,11 +270,73 @@ def test_two_image_geometry_can_reach_a_without_three_promoted_structures():
     assert result.expert_assessment.vote_category == "A"
 
 
-def test_robust_single_tangential_arc_keeps_b_to_a_vote_set():
+def test_robust_single_tangential_arc_can_receive_a_vote():
     observation = make_observation(structure_count=1)
     observation.scene_geometry.total_angular_coverage_deg = 70.0
     result = run(observation)
-    assert result.expert_assessment.plausible_vote_categories == ("B", "A")
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_short_tangential_arc_alone_is_not_forced_to_a():
+    observation = make_observation(structure_count=1)
+    observation.structures[0].angular_extent_deg = 22.0
+    observation.scene_geometry.total_angular_coverage_deg = 22.0
+    result = run(observation)
+    assert result.expert_assessment.vote_category == "B"
+
+
+def test_fold_pair_of_short_arcs_can_reach_a_without_large_total_coverage():
+    observation = make_observation(structure_count=2)
+    for structure, position_angle in zip(observation.structures, (15.0, 38.0)):
+        structure.position_angle_deg = position_angle
+        structure.angular_extent_deg = 24.0
+    observation.scene_geometry.total_angular_coverage_deg = 45.0
+    result = run(observation)
+    fold = next(
+        item for item in result.evidence_dossier.configuration_hypotheses
+        if item.id == "fold_arc"
+    )
+    assert fold.status == "supported"
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_radial_arc_is_not_rejected_by_tangential_gate():
+    observation = make_observation(structure_count=2)
+    observation.structures[0].tangential_misalignment_deg = 80.0
+    observation.structures[0].position_angle_deg = 20.0
+    observation.structures[1].position_angle_deg = 150.0
+    observation.scene_geometry.common_radius_cv = 0.5
+    observation.scene_geometry.total_angular_coverage_deg = 35.0
+    observation.scene_geometry.mean_tangential_misalignment_deg = 45.0
+    observation.scene_geometry.tangential_alignment_fraction = 0.5
+    result = run(observation)
+    radial = next(
+        item for item in result.evidence_dossier.configuration_hypotheses
+        if item.id == "radial_arc"
+    )
+    assert radial.status == "supported"
+    assert result.expert_assessment.vote_category == "A"
+
+
+def test_compact_four_image_configuration_does_not_require_long_arcs():
+    observation = make_observation(structure_count=4)
+    for structure, position_angle in zip(
+        observation.structures, (0.0, 90.0, 180.0, 270.0)
+    ):
+        structure.position_angle_deg = position_angle
+        structure.angular_extent_deg = 10.0
+        structure.axis_ratio = 1.1
+        structure.tangential_misalignment_deg = 50.0
+    observation.scene_geometry.total_angular_coverage_deg = 270.0
+    observation.scene_geometry.mean_tangential_misalignment_deg = 50.0
+    observation.scene_geometry.tangential_alignment_fraction = 0.0
+    result = run(observation)
+    compact = next(
+        item for item in result.evidence_dossier.configuration_hypotheses
+        if item.id == "compact_multiple_image"
+    )
+    assert compact.status == "supported"
+    assert result.expert_assessment.vote_category == "A"
 
 
 def test_common_radius_cv_just_above_old_cut_remains_eligible():
@@ -276,7 +346,7 @@ def test_common_radius_cv_just_above_old_cut_remains_eligible():
     assert result.expert_assessment.vote_category == "A"
 
 
-def test_strong_held_candidate_widens_vote_set_instead_of_forcing_x():
+def test_strong_held_candidate_receives_c_instead_of_forcing_x():
     observation = make_observation(structure_count=0, coherent=False, model_success=False)
     observation.candidate_structure_audits = [
         CandidateStructureAuditObservation(
@@ -297,8 +367,8 @@ def test_strong_held_candidate_widens_vote_set_instead_of_forcing_x():
         )
     ]
     result = run(observation)
-    assert result.expert_assessment.plausible_vote_categories == ("C", "B", "A")
-    assert result.expert_assessment.provisional_score_range == (1.0, 3.0)
+    assert result.expert_assessment.vote_category == "C"
+    assert result.expert_assessment.provisional_score_range is None
     assert result.decision_audit.audit_passed is True
 
 
@@ -311,9 +381,9 @@ def test_unusable_data_abstains_instead_of_x():
     assert result.decision_audit.abstention_recommended is True
 
 
-def test_coherent_ring_arc_or_multiple_image_system_can_reach_a_anchor():
+def test_coherent_ring_arc_or_multiple_image_system_can_reach_a_vote():
     result = run(make_observation())
-    assert result.expert_assessment.expert_vote_anchor == 3
+    assert result.expert_assessment.expert_vote_anchor is None
     assert result.expert_assessment.provisional_grade == "A"
     assert result.evidence_dossier.lens_specificity.status == "credible"
 
@@ -380,6 +450,12 @@ def test_observation_1_0_remains_readable():
     result = run(observation)
     assert observation.schema_version == "1.0"
     assert result.expert_assessment.score_status == "provisional_uncalibrated"
+
+
+def test_new_observation_uses_recall_preserving_schema_version():
+    observation = make_observation()
+    assert observation.schema_version == "1.14"
+    assert observation.provenance.pipeline_version == "0.18.0"
 
 
 def test_q1_paper_grade_mapping_boundaries():

@@ -3,7 +3,7 @@
 > 用途：把本文件中“可复制 Prompt”一节完整复制到新的 Codex 任务中，再补充本次
 > 输入目录、输出目录和样本范围。
 >
-> 基线版本：LensAgent `0.15.0`，Git commit `a1aaa1e`
+> 基线版本：LensAgent `0.18.0` 或之后经用户确认的版本
 
 ## 使用前需要填写
 
@@ -33,8 +33,8 @@
 → 多种可能解释
 → 支持证据与反证
 → 证据审计
-→ expert_score
-→ Euclid Q1 等级
+→ 单专家 A/B/C/X 类别
+→ 独立决策审计
 ```
 
 视觉层回答“图中测到了什么”，不能直接判断透镜。后端同时维护：
@@ -44,23 +44,22 @@
 - H3：星系并合或相互作用；
 - H4：噪声、PSF或前景减除伪影。
 
-当前基线为 LensAgent `0.15.0`，Git commit `a1aaa1e`。v0.14.0 的视觉层已经暂时
-冻结；v0.15.0 删除了未经Euclid Q1数据标定的旧假设分数、旧
-`confidence.score`和旧阈值判决。
+当前基线为 LensAgent `0.18.0`。底层 FITS、前景建模、SEP、多S/N阈值、几何
+路线和像素恢复保持稳定；候选交接允许稳定的路线外结构以恢复来源进入评级，
+专家层按八类透镜构型进行单类别投票。
 
 因此当前正常输出应当是：
 
 ```json
 {
-  "grading_scheme": "euclid_q1_paper",
-  "status": "calibration_pending",
-  "expert_score": null,
-  "grade": null,
-  "a_plus": null
+  "vote_category": "A | B | C | X | insufficient_for_grading",
+  "provisional_expert_score": null,
+  "provisional_score_range": null,
+  "official_expert_score": null
 }
 ```
 
-这不是程序失败，而是科研边界：在标定完成前禁止制造临时分数或等级。
+类别是一个 Agent 模拟一名专家的暂定选择；数字聚合分数仍为空，这是科研边界。
 
 ### 二、本次任务
 
@@ -107,8 +106,8 @@ lens-agent --help
 
 期望看到：
 
-- 最新提交为`a1aaa1e`或它之后经用户确认的新提交；
-- 安装版本为`0.15.0`或之后经确认的版本；
+- 最新提交包含经用户确认的`v0.18.0`升级；
+- 安装版本为`0.18.0`或之后经确认的版本；
 - 现有未跟踪的outputs、`.tmp`和数据目录属于历史产物，不得擅自删除、移动或提交。
 
 若可编辑安装元数据不是当前版本，但源码基线正确，可以执行：
@@ -138,10 +137,10 @@ lens-agent reason "<observation.json>" --output "<新的输出目录>"
 - `observation.json`能正常读取；
 - `reasoning.json`、`summary.json`和`report.md`存在；
 - 完整运行时视觉诊断图和`vision_manifest.json`存在；
-- `summary.json.grading.status`为`calibration_pending`、`insufficient_data`或
-  `blocked_by_audit`之一；
+- `summary.json.expert_assessment.vote_category`为一个类别或明确弃权；
+- `summary.json.decision_audit.audit_passed`存在；
 - 未出现旧字段`confidence`、旧假设总分或旧`decision_audit`；
-- `expert_score`和`grade`在未标定阶段必须为`null`。
+- `official_expert_score`和所有临时数字分数字段必须为`null`。
 
 先把试运行位置和检查结果告诉用户；如果用户已明确要求无需再次确认，则可继续
 批量运行。
@@ -151,13 +150,13 @@ lens-agent reason "<observation.json>" --output "<新的输出目录>"
 1. 使用全新的输出根目录，例如：
 
    ```text
-   outputs_v0150_<数据集名称>_<日期>
+   outputs_v0180_<数据集名称>_<日期>
    ```
 
 2. 每个样本独立运行，不把多个目标写入同一个样本目录。
 3. 默认顺序运行，避免多个天文图像任务同时抢占大量内存。
 4. 每个样本结束后记录：样本ID、输入路径、输出路径、成功/失败状态、
-   `grading.status`、错误摘要。
+   `expert_assessment.vote_category`、`decision_audit.audit_passed`、错误摘要。
 5. 已成功写完且输入指纹一致的样本可以在恢复任务时跳过；不得仅凭目录存在就认定
    已完成。
 6. 某个样本损坏时记录失败并根据用户要求继续或停止；若出现连续异常、磁盘空间
@@ -251,16 +250,16 @@ C或X边界。A+是A上的独立科学价值标记，也不能由分数自动生
 成功数：
 失败数：
 跳过数：
-calibration_pending数：
-insufficient_data数：
-blocked_by_audit数：
+A/B/C/X数：
+insufficient_for_grading数：
+DecisionAudit失败数：
 失败样本与原因：
 是否修改源码：否
 是否覆盖或删除历史结果：否
 ```
 
 如果拥有标签，可以报告运行覆盖率和各状态分布，但在正式量化审计与评分器完成前，
-不得报告Agent的A/B/C准确率，因为当前版本根本没有产生正式等级。
+不得把开发样本上的A/B/C命中率冒充独立准确率；类别仍需困难负例和盲测集验证。
 
 ### 十、推理纪律
 

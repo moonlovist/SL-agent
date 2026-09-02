@@ -4,13 +4,13 @@ An evidence-first expert reasoning system for strong gravitational lens candidat
 inspection. The system separates astronomical measurement from interpretation:
 
 ```text
-FITS/PNG -> frozen VisionPipeline -> Observation JSON -> ExpertAssessmentAgent -> DecisionAudit -> report
+FITS/PNG -> VisionPipeline -> signal-reality handoff -> Observation JSON -> configuration-aware ExpertAssessmentAgent -> DecisionAudit -> report
 ```
 
 The vision layer reports measured facts and provenance. It never emits a lens
 classification. `ExpertAssessmentAgent` is the only active scientific interpretation
 layer: it builds one traceable evidence dossier, compares competing explanations, and
-issues an explicitly uncalibrated expert-vote anchor or interval. `DecisionAudit` only
+issues one explicitly uncalibrated expert vote category. `DecisionAudit` only
 checks the assessment for integrity mistakes; it does not repeat the hypothesis analysis.
 
 ## Install
@@ -57,20 +57,17 @@ only the Observation document and does not read FITS, PNG, or NPZ pixels.
 python -m pytest
 ```
 
-The current MWA uses transparent holistic pattern gates rather than additive
-sub-scores. It issues a categorical single-agent vote or a contiguous set of plausible
-votes. Numeric anchor fields are retained only as deprecated compatibility encodings;
+The current MWA uses transparent configuration hypotheses rather than additive
+sub-scores. It issues one categorical single-agent vote. Deprecated numeric anchor and
+score fields remain null; they are not a substitute for multi-expert aggregation.
 `official_expert_score` remains null until a labelled Euclid Q1 calibration set and
 independently tested estimator are available. The formal catalogue layer implements
 only the Q1 paper cuts explicitly defined for `A > 2.0` and
 `B: 1.5 < score <= 2.0`; lower aggregate scores are `below_B_cut`, not an invented
 continuous X/C boundary.
 
-Version 0.14.0 routes every visual candidate through candidate-level connected
-S/N persistence, ellipse-route support, and foreground-contamination checks.
-Only primary candidates can establish a point vote. A strong audited held candidate
-may widen the plausible vote set without becoming equal-weight primary evidence;
-other recovery, contaminated, and trace candidates remain recorded for review.
+Version 0.14.0 introduced candidate-level connected S/N persistence, ellipse-route
+provenance, and foreground-contamination checks.
 Version 0.15.0 freezes that visual path, removes the
 uncalibrated decision/confidence formulas, adds an explicit Q1 grading contract,
 and distinguishes `insufficient_data` from a scientifically assessed low score.
@@ -80,6 +77,12 @@ provisional vote anchors without interpreting them as probabilities.
 Version 0.17.0 makes the expert decision category-first, permits audited contiguous
 vote sets such as B-to-A, relaxes overly strict double-image/common-radius gates, and
 prevents tidal asymmetry alone from acting as an equally strong non-lens explanation.
+Version 0.18.0 repairs the evidence handoff exposed by real A-sample runs: stable
+off-route candidates now enter reasoning with complete measurements, near-core or
+fallback-model cautions no longer erase independently surviving signals, and only
+affirmative comparison-model erasure isolates foreground contamination. The expert
+layer evaluates annular/partial rings, tangential arcs, fold and cusp arcs, radial arcs,
+compact multiple images, and asymmetric configurations before casting one A/B/C/X vote.
 Version 0.5 added WCS-aware sky coordinates, angular
 scales, sky position angles, and full-field/RGB location audits. See the
 [current-version note](src/docs/CURRENT_VERSION_CN.md).

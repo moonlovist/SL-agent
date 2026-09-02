@@ -16,10 +16,12 @@ def audit_structure_candidates(
     """Audit signal reality, then route candidates for downstream reasoning.
 
     Signal validation and lens-system relevance are deliberately separate.
-    Geometry is never used to claim that a signal is real, but it may route a
-    validated signal to the primary lens-candidate handoff. Stable off-route
-    signals remain recovery candidates. Subtraction-sensitive signals remain
-    traceable without becoming equal-weight lens evidence.
+    Geometry is never used to claim that a signal is real.  Stable off-route
+    signals are promoted with recovery provenance so that the expert layer can
+    evaluate their morphology instead of losing them at the handoff boundary.
+    Proximity to the subtraction core is a caution, not an exclusion: only
+    affirmative erasure by the independent foreground comparison isolates a
+    candidate as foreground-contaminated.
     """
 
     results: list[CandidateStructureAuditObservation] = []
@@ -61,13 +63,7 @@ def audit_structure_candidates(
             candidate.near_core
             or (core_overlap is not None and core_overlap > 0.0)
         )
-        foreground_contamination_risk = bool(
-            comparison_not_erased is False
-            or (
-                touches_subtraction_core
-                and (not foreground_model_success or not geometry_support)
-            )
-        )
+        foreground_contamination_risk = comparison_not_erased is False
         discovery_context = (
             "route_recovery"
             if candidate.origin == "path_recovery"
@@ -164,7 +160,7 @@ def audit_structure_candidates(
                 "configuration or is erased by the comparison foreground model; "
                 "it is isolated from positive lens evidence."
             )
-        elif geometry_support and threshold_stable is True:
+        elif threshold_stable is True and geometry_support:
             verdict = "promoted"
             handoff_class = "primary_candidate"
             geometry_used_for_handoff = True
@@ -175,12 +171,13 @@ def audit_structure_candidates(
                 "this is not a lens classification."
             )
         elif threshold_stable is True:
-            verdict = "hold_for_review"
+            verdict = "promoted"
             handoff_class = "recovery_candidate"
             rationale = (
                 "The off-route signal is stable across the configured S/N grid. "
-                "It is preserved as a recovery candidate, but is not equal-weight "
-                "primary lens evidence."
+                "It is promoted with recovery provenance and enters downstream "
+                "reasoning with complete measurements; route membership is not a "
+                "signal-reality or lens-grade gate."
             )
         elif geometry_support:
             verdict = "hold_for_review"

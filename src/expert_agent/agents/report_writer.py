@@ -32,16 +32,10 @@ class ReportWriter(BaseAgent):
             f"- `{item.id}`: **{item.status}** - {item.rationale}"
             for item in dossier.competing_explanations
         ]
-        range_text = (
-            f"[{assessment.provisional_score_range[0]:.1f}, {assessment.provisional_score_range[1]:.1f}]"
-            if assessment.provisional_score_range
-            else "null"
-        )
-        compatibility_text = (
-            str(assessment.provisional_expert_score)
-            if assessment.provisional_expert_score is not None
-            else range_text
-        )
+        configuration_lines = [
+            f"- `{item.id}`: **{item.status}** - {item.rationale}"
+            for item in dossier.configuration_hypotheses
+        ] or ["- None evaluated."]
         markdown = "\n".join(
             [
                 f"# Strong-lens expert assessment: {state.object_id}",
@@ -59,6 +53,10 @@ class ReportWriter(BaseAgent):
                 "",
                 *alternative_lines,
                 "",
+                "### Lens-configuration hypotheses",
+                "",
+                *configuration_lines,
+                "",
                 "### Missing information",
                 "",
                 *missing_lines,
@@ -66,10 +64,6 @@ class ReportWriter(BaseAgent):
                 "## Provisional expert assessment",
                 "",
                 f"- Vote category: **{assessment.vote_category}**",
-                f"- Plausible vote categories: **{list(assessment.plausible_vote_categories)}**",
-                f"- Vote code: **{assessment.vote_code}**",
-                f"- Compatibility anchor (deprecated): **{assessment.expert_vote_anchor}**",
-                f"- Compatibility score/range (not an expert_score): **{compatibility_text}**",
                 f"- Score status: **{assessment.score_status}**",
                 "- Official expert score: **null**",
                 f"- Rationale: {assessment.assessment_rationale}",
@@ -82,14 +76,15 @@ class ReportWriter(BaseAgent):
                 "",
                 "## Grading contract",
                 "",
-                "The current output is a categorical single-agent vote or a contiguous plausible "
-                "vote set. Its compatibility code/range is not calibrated to the aggregate human "
-                "expert_score and is not a probability. "
+                "The current output is one categorical single-agent vote. It does not manufacture "
+                "a numeric expert_score from one agent. "
                 "A formal official_expert_score remains null until labelled Q1 calibration and "
                 "independent validation are completed.",
                 "",
-                "The visual layer remains frozen. No FITS reading, foreground subtraction, SEP, "
-                "S/N-threshold, geometry-route, recovery, handoff, or diagnostic logic was rerun here.",
+                "FITS reading, foreground subtraction, SEP, S/N-threshold detection, and geometry-route "
+                "generation remain unchanged. The candidate handoff is recall-preserving: stable "
+                "off-route structures enter reasoning with recovery provenance, and near-core/model-fit "
+                "cautions do not erase independently surviving signals.",
             ]
         )
         state.final_report_markdown = markdown

@@ -508,7 +508,10 @@ class VisionPipeline:
         promoted_structure_id_by_candidate: dict[str, str] = {}
         structure_masks: dict[str, np.ndarray] = {}
         for audit in candidate_structure_audits:
-            if audit.handoff_class != "primary_candidate":
+            if audit.verdict != "promoted" or audit.handoff_class not in {
+                "primary_candidate",
+                "recovery_candidate",
+            }:
                 continue
             candidate = candidate_by_id[audit.candidate_id]
             mask = model_candidate_masks[candidate.id]
@@ -633,7 +636,8 @@ class VisionPipeline:
                     measurement_ids=measurement_ids,
                     flags=[
                         "candidate_structure_audit_promoted",
-                        "primary_reasoning_handoff",
+                        "complete_reasoning_handoff",
+                        f"handoff_class:{audit.handoff_class}",
                         "not_a_lens_label",
                         f"audit_discovery_context:{audit.discovery_context}",
                         "geometry_route_relation_recorded"
@@ -670,6 +674,7 @@ class VisionPipeline:
         audited_structure_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         for structure_mask in structure_masks.values():
             audited_structure_mask |= structure_mask
+        audit_primary_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         audit_recovery_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         audit_foreground_contaminated_mask = np.zeros_like(
             model_candidate_mask, dtype=bool
@@ -677,7 +682,9 @@ class VisionPipeline:
         audit_trace_mask = np.zeros_like(model_candidate_mask, dtype=bool)
         for audit in candidate_structure_audits:
             candidate_mask = model_candidate_masks[audit.candidate_id]
-            if audit.handoff_class == "recovery_candidate":
+            if audit.handoff_class == "primary_candidate":
+                audit_primary_mask |= candidate_mask
+            elif audit.handoff_class == "recovery_candidate":
                 audit_recovery_mask |= candidate_mask
             elif audit.handoff_class == "foreground_contaminated":
                 audit_foreground_contaminated_mask |= candidate_mask
@@ -1061,7 +1068,7 @@ class VisionPipeline:
                 "sep_geometry_consistent_mask": sep_geometry_mask.astype(np.uint8),
                 "geometry_recovered_candidate_mask": geometry_recovered_mask.astype(np.uint8),
                 "residual_structure_mask": audited_structure_mask.astype(np.uint8),
-                "handoff_primary_candidate_mask": audited_structure_mask.astype(np.uint8),
+                "handoff_primary_candidate_mask": audit_primary_mask.astype(np.uint8),
                 "handoff_recovery_candidate_mask": audit_recovery_mask.astype(np.uint8),
                 "handoff_foreground_contaminated_mask": audit_foreground_contaminated_mask.astype(np.uint8),
                 "handoff_trace_candidate_mask": audit_trace_mask.astype(np.uint8),
@@ -1134,7 +1141,7 @@ class VisionPipeline:
             "Disk connectivity, multiple-core count, and residual asymmetry are screening proxies rather than calibrated morphology classifiers.",
             "S/N multi-threshold persistence measures reproducibility on one foreground-subtracted residual and cannot by itself distinguish lens light from subtraction residuals.",
             "Geometry is not used to declare a signal real, but it is used with S/N persistence to route candidates into primary, recovery, foreground-contaminated, or trace handoff classes.",
-            "Only primary candidates enter the formal structure list used by current reasoning rules; all other candidates remain fully traceable for later hypothesis-specific review.",
+            "Primary candidates and stable off-route recovery candidates enter the formal structure list with distinct provenance; comparison-erased and trace-only candidates remain fully traceable for review.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:

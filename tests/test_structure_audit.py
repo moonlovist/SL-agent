@@ -66,14 +66,14 @@ def test_route_supported_stable_candidate_is_primary() -> None:
     assert result.geometry_used_for_handoff is True
 
 
-def test_off_route_stable_candidate_is_recovery_not_primary() -> None:
+def test_off_route_stable_candidate_is_promoted_with_recovery_provenance() -> None:
     result = audit_structure_candidates(
         [_candidate(review_priority="downgraded_trace")],
         data_usable=True,
         foreground_model_success=True,
     )[0]
 
-    assert result.verdict == "hold_for_review"
+    assert result.verdict == "promoted"
     assert result.handoff_class == "recovery_candidate"
     assert result.discovery_context == "global_sep"
     assert result.geometry_used_for_handoff is False
@@ -106,15 +106,17 @@ def test_comparison_model_erasure_is_foreground_contaminated() -> None:
     assert result.handoff_class == "foreground_contaminated"
 
 
-def test_fallback_foreground_core_overlap_is_contaminated() -> None:
+def test_fallback_foreground_core_overlap_is_caution_not_erasure() -> None:
     result = audit_structure_candidates(
         [_candidate(core_overlap=0.5)],
         data_usable=True,
         foreground_model_success=False,
     )[0]
 
-    assert result.handoff_class == "foreground_contaminated"
+    assert result.verdict == "promoted"
+    assert result.handoff_class == "primary_candidate"
     assert "primary_foreground_fit_used_fallback" in result.caution_flags
+    assert "touches_subtraction_sensitive_core" in result.caution_flags
 
 
 def test_fallback_foreground_far_route_candidate_can_remain_primary() -> None:

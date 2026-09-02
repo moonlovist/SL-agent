@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.14.0"
+    pipeline_version: str = "0.18.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -320,7 +320,7 @@ class CandidateStructureAuditObservation(StrictModel):
 
 
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13"] = "1.13"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14"] = "1.14"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]

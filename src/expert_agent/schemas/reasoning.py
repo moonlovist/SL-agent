@@ -248,6 +248,29 @@ class RequestedTest(StrictModel):
     status: Literal["not_measured", "unavailable", "future"]
 
 
+ConfigurationId = Literal[
+    "annular_or_partial_ring",
+    "tangential_arc",
+    "fold_arc",
+    "cusp_arc",
+    "radial_arc",
+    "compact_multiple_image",
+    "asymmetric_multiple_image",
+    "single_image",
+]
+
+
+class LensingConfigurationAssessment(StrictModel):
+    """A traceable morphology hypothesis, never a lens label by itself."""
+
+    id: ConfigurationId
+    status: Literal["supported", "possible", "not_supported", "not_measured"]
+    structure_ids: list[str] = Field(default_factory=list)
+    observation_refs: list[str] = Field(default_factory=list)
+    high_confidence_capable: bool = False
+    rationale: str
+
+
 class EvidenceDossier(StrictModel):
     observed_facts: list[TraceableFact]
     signal_reality: EvidenceDimension
@@ -261,6 +284,9 @@ class EvidenceDossier(StrictModel):
     unused_facts: list[UnusedFact]
     null_tests: list[RequestedTest]
     future_tool_requests: list[RequestedTest]
+    configuration_hypotheses: list[LensingConfigurationAssessment] = Field(
+        default_factory=list
+    )
 
 
 class HypothesisComparison(StrictModel):
@@ -328,13 +354,21 @@ class ProvisionalExpertAssessment(StrictModel):
             return self
         if len(categories) != 1 or self.vote_category != categories[0]:
             raise ValueError("a point assessment requires one matching vote category")
-        if self.expert_vote_anchor is None or self.provisional_expert_score is None:
-            raise ValueError("a point assessment requires an anchor and provisional score")
-        expected = {0: "X", 1: "C", 2: "B", 3: "A"}[self.expert_vote_anchor]
-        if self.vote_code != self.expert_vote_anchor or self.vote_code != code_for[self.vote_category]:
-            raise ValueError("vote code and compatibility anchor disagree")
-        if self.provisional_grade != expected:
-            raise ValueError("provisional grade is inconsistent with the expert vote anchor")
+        if self.provisional_grade != self.vote_category:
+            raise ValueError("provisional grade is inconsistent with the expert vote category")
+        numeric_values = (
+            self.vote_code,
+            self.expert_vote_anchor,
+            self.provisional_expert_score,
+        )
+        if any(value is not None for value in numeric_values):
+            if any(value is None for value in numeric_values):
+                raise ValueError("deprecated numeric compatibility fields must be all null or all set")
+            expected_code = code_for[self.vote_category]
+            if self.vote_code != expected_code or self.expert_vote_anchor != expected_code:
+                raise ValueError("numeric compatibility fields disagree with vote category")
+            if self.provisional_expert_score != float(expected_code):
+                raise ValueError("numeric compatibility score disagrees with vote category")
         return self
 
 

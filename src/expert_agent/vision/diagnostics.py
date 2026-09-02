@@ -409,7 +409,7 @@ def write_signal_audit(
     )
     axes[1].scatter(
         recovery_x, recovery_y, s=8, c="deepskyblue", marker="s",
-        label="恢复候选：保留作补充",
+        label="恢复候选：带恢复标记进入规则层",
     )
     axes[1].scatter(
         contaminated_x, contaminated_y, s=8, c="red", marker="s",
@@ -427,7 +427,7 @@ def write_signal_audit(
     axes[1].set_title("审计后的四路交接（不是透镜等级）")
     axes[1].legend(loc="upper right", fontsize=7)
     figure.suptitle(
-        "先检查信号与前景污染，再用路线关系分流；只有绿色进入当前规则层"
+        "先审计信号真实性；绿色和可信青色均带完整测量进入规则层"
     )
     figure.tight_layout()
     path = output / "vision_signal_audit.png"
@@ -820,13 +820,13 @@ def write_manifest(
             "sep_only_candidate_mask": "all raw SEP pixels outside admissible route-supported partitions; downgraded trace",
             "sep_geometry_consistent_mask": "local raw SEP pixel partitions inside admissible geometric routes",
             "geometry_recovered_candidate_mask": "supplementary candidates found by route-masked SEP",
-            "residual_structure_mask": "union of primary candidates handed to the current reasoning rules; not a lens or arc label",
+            "residual_structure_mask": "union of promoted primary and recovery-provenance structures handed to reasoning; not a lens or arc label",
             "handoff_primary_candidate_mask": "S/N-stable, geometry-supported candidates handed to current reasoning",
-            "handoff_recovery_candidate_mask": "stable off-route or geometry-supported weak candidates retained as supplementary evidence",
-            "handoff_foreground_contaminated_mask": "measurable signals isolated because foreground subtraction can explain them",
+            "handoff_recovery_candidate_mask": "stable off-route candidates handed to reasoning with recovery provenance, plus weak geometry-supported candidates retained for review",
+            "handoff_foreground_contaminated_mask": "measurable signals isolated only when the independent comparison model erases them",
             "handoff_trace_candidate_mask": "weak or unusable candidates retained only for traceability",
-            "signal_audit_verified_mask": "compatibility alias of the primary handoff mask",
-            "signal_audit_review_mask": "compatibility union of recovery and foreground-contaminated masks",
+            "signal_audit_verified_mask": "compatibility alias of the complete promoted-structure mask",
+            "signal_audit_review_mask": "compatibility union of recovery-provenance and foreground-contaminated masks",
             "signal_audit_trace_mask": "candidates retained only for traceability because detector-level signal facts were insufficient",
             "arc_mask": "deprecated compatibility alias of residual_structure_mask; it must not be interpreted as a confirmed arc mask",
             "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
@@ -887,7 +887,7 @@ def write_visual_audit_bundle(
         signal_audit_path = write_signal_audit(
             prep,
             model_candidate_mask,
-            residual_structure_mask,
+            residual_structure_mask & ~audit_recovery_mask,
             audit_recovery_mask,
             audit_foreground_contaminated_mask,
             audit_trace_mask,
