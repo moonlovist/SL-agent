@@ -1,5 +1,27 @@
 # LensAgent MWA Architecture
 
+## v0.21 experimental superseding contract
+
+Read [DETERMINISTIC_V0210_CN.md](DETERMINISTIC_V0210_CN.md). FITS pixels are
+measured by deterministic numerical algorithms, not a multimodal model. Complete
+candidate measurements are canonicalized before ONE expert-rule decision.
+DecisionAudit replays that decision from source measurements; it is not a second
+vote or independent physical test. Failed audits cannot publish ABC. Sections
+below describing v0.19 or earlier are historical, not alternative runtime modes.
+
+## v0.19 current delta
+
+Foreground selection now uses a target-position prior (cutout centre by default,
+or explicit pixel coordinates) and records ambiguous selections for abstention.
+Observation 1.15 adds per-structure comparison survival, occupied angular bins,
+radial fractional width and local tangent measurements. The expert evaluates
+independent survival on the structures supporting a configuration, not on an
+unrelated pooled mask. Low pooled survival remains a processing caution, not an
+artifact verdict by itself. Weak held recovery evidence may justify C but cannot
+be promoted to a formal structure or justify A by that fact alone.
+See [the Chinese v0.19 guide](V0190_CENTER_STRUCTURE_CHANGE_CN.md) for thresholds,
+compatibility boundaries and validation limitations.
+
 ## Non-negotiable boundary
 
 The vision layer may measure morphology, geometry, signal-to-noise, and detector
@@ -25,7 +47,9 @@ source mask, and segmentation. The v0.10 detection path is deliberately chained:
 6. a candidate-structure audit combines candidate-level connected S/N
    persistence, route support, and foreground-contamination checks to route each
    candidate to primary, recovery, foreground-contaminated, or trace handoff;
-7. only primary candidates create `structures` for the current expert rules.
+7. primary candidates and promoted stable recovery candidates create `structures`
+   for the current expert rules; held recovery, foreground-contaminated, and trace
+   candidates remain available for review and provenance.
 
 The search route is never filled with synthetic signal. Raw SEP detections, route
 statistics, and route-masked SEP candidates share one residual and are correlated.
@@ -244,10 +268,11 @@ axes are transformed through the local WCS before tangential misalignment is
 calculated. FITS diagnostics use the native pixel grid with `origin=lower` and
 explicit N/E arrows; no unrecorded reprojection is performed.
 
-Two sample-dependent location audits connect measurements back to the source data.
-`vision_field_context.png` shows the full scientific field, crop, annulus, and IDs.
-When a sibling RGB preview passes orientation-correlation validation,
-`vision_rgb_context.png` records the chosen mapping and overlays the same geometry.
+`vision_field_context.png` connects measurements back to the source data by showing
+the full scientific FITS field, crop, annulus, and IDs. RGB previews are not emitted
+as a separate context diagnostic. Target-routing values remain in the manifest and
+Observation; `vision_target_selection.png` is emitted only for a close score
+competition, a centre-prior conflict, or a human override.
 
 The fixed architecture diagram is maintained once in `VISION_PROCESS_FLOW_CN.md`.
 Per-object output directories contain only sample-dependent diagnostic images; they

@@ -11,7 +11,7 @@ class ExpertWorkflow:
     def __init__(self, config: ReasoningConfig | None = None):
         reasoning_config = config or ReasoningConfig()
         self.expert_assessment_agent = ExpertAssessmentAgent(reasoning_config)
-        self.decision_audit = DecisionAudit()
+        self.decision_audit = DecisionAudit(reasoning_config)
         self.agents = [
             self.expert_assessment_agent,
             self.decision_audit,

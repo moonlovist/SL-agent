@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 
 class StrictModel(BaseModel):
@@ -93,8 +93,8 @@ class GradeAssessment(StrictModel):
         "graded", "calibration_pending", "insufficient_data", "blocked_by_audit"
     ]
     expert_score: float | None = Field(default=None, ge=0.0, le=3.0)
-    catalog_bin: Literal["A", "B", "below_B_cut"] | None = None
-    grade: Literal["A", "B"] | None = None
+    catalog_bin: Literal["A", "B", "C", "below_C_cut", "below_B_cut"] | None = None
+    grade: Literal["A", "B", "C"] | None = None
     a_plus: bool | None = None
     a_plus_reason: str | None = None
     rationale: str
@@ -112,15 +112,17 @@ class GradeAssessment(StrictModel):
                 if self.expert_score > 2.0
                 else "B"
                 if self.expert_score > 1.5
-                else "below_B_cut"
+                else "C"
+                if self.expert_score > 1.0
+                else "below_C_cut"
             )
             if self.catalog_bin != expected_bin:
                 raise ValueError(
                     "catalog bin is inconsistent with the Euclid Q1 paper score cuts"
                 )
-            expected_grade = expected_bin if expected_bin in {"A", "B"} else None
+            expected_grade = expected_bin if expected_bin in {"A", "B", "C"} else None
             if self.grade != expected_grade:
-                raise ValueError("only the Q1 A/B catalogue bins receive a final grade")
+                raise ValueError("only the Q1 A/B/C catalogue bins receive a final grade")
             if self.a_plus and self.grade != "A":
                 raise ValueError("A+ may only be attached to an A-grade result")
             if self.a_plus and not self.a_plus_reason:
@@ -254,6 +256,7 @@ ConfigurationId = Literal[
     "fold_arc",
     "cusp_arc",
     "radial_arc",
+    "cross_quad",
     "compact_multiple_image",
     "asymmetric_multiple_image",
     "single_image",
@@ -271,6 +274,52 @@ class LensingConfigurationAssessment(StrictModel):
     rationale: str
 
 
+class CandidateConfigurationReview(StrictModel):
+    """Search-conditioned candidate groups; no grading weight is implied."""
+
+    id: str
+    path_id: str | None = None
+    candidate_ids: list[str]
+    unresolved_candidate_ids: list[str]
+    observation_refs: list[str]
+    status: Literal["requires_validation"] = "requires_validation"
+    used_for_grading: Literal[False] = False
+    rationale: str
+
+
+VoteCategory = Literal["X", "C", "B", "A", "insufficient_for_grading"]
+
+
+class CandidateGradingItem(StrictModel):
+    """Deterministic qualification of one measured candidate."""
+
+    candidate_id: str
+    role: Literal["excluded", "companion", "clear_arc"]
+    observation_refs: list[str]
+    reasons: list[str]
+
+
+class CandidateGradingConfiguration(StrictModel):
+    """A spatial relation used once, not one vote per correlated feature."""
+
+    id: str
+    primary_candidate_id: str
+    companion_candidate_id: str
+    azimuth_separation_deg: float = Field(ge=0.0, le=180.0)
+    radius_ratio: float = Field(ge=1.0)
+    observation_refs: list[str]
+
+
+class CandidateEvidenceIntegration(StrictModel):
+    """Trace of candidate evidence already integrated into the one final vote."""
+
+    policy: Literal["integrated_candidate_evidence_v1"] = "integrated_candidate_evidence_v1"
+    grading_items: list[CandidateGradingItem]
+    configurations: list[CandidateGradingConfiguration]
+    competitive_non_lens_explanation: bool
+    decisive_observation_refs: list[str]
+    rationale: str
+
 class EvidenceDossier(StrictModel):
     observed_facts: list[TraceableFact]
     signal_reality: EvidenceDimension
@@ -287,6 +336,16 @@ class EvidenceDossier(StrictModel):
     configuration_hypotheses: list[LensingConfigurationAssessment] = Field(
         default_factory=list
     )
+    candidate_review_facts: list[TraceableFact] = Field(default_factory=list)
+    candidate_configuration_review: list[CandidateConfigurationReview] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def omit_empty_trial_for_legacy_readers(self, handler):
+        result = handler(self)
+        for key in ("candidate_review_facts", "candidate_configuration_review"):
+            if not getattr(self, key):
+                result.pop(key, None)
+        return result
 
 
 class HypothesisComparison(StrictModel):
@@ -299,7 +358,7 @@ class HypothesisComparison(StrictModel):
 
 
 class ProvisionalExpertAssessment(StrictModel):
-    vote_category: Literal["X", "C", "B", "A", "insufficient_for_grading"] | None
+    vote_category: VoteCategory | None
     plausible_vote_categories: tuple[Literal["X", "C", "B", "A"], ...] = ()
     vote_code: Literal[0, 1, 2, 3] | None
     expert_vote_anchor: Literal[0, 1, 2, 3] | None

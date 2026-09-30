@@ -44,10 +44,13 @@ from .detectors import (
     threshold_stability,
 )
 from .diagnostics import write_visual_audit_bundle
-from .foreground_models import fit_psf_mge_comparison
-from .preprocess import load_image, preprocess
+from .foreground_models import fit_foreground_model_bank
+from .foreground_review import ForegroundOverride, apply_foreground_override
+from .preprocess import load_image, preprocess, robust_rms
+from .segmentation import write_layered_segmentation_fits
 from .summary_cn import write_observation_summary_cn
 from .structure_audit import audit_structure_candidates
+from .curved_geometry import measure_curved_geometry
 
 
 class VisionPipeline:
@@ -55,7 +58,10 @@ class VisionPipeline:
         self.config = config or VisionConfig()
 
     def run(
-        self, input_path: str | Path, output_dir: str | Path | None = None
+        self,
+        input_path: str | Path,
+        output_dir: str | Path | None = None,
+        foreground_override: ForegroundOverride | None = None,
     ) -> ObservationDocument:
         output: Path | None = None
         if output_dir is not None:
@@ -88,14 +94,88 @@ class VisionPipeline:
                 ),
             )
         prep = preprocess(image, runtime_config)
-        threshold_detections, level_map = threshold_stability(prep, runtime_config)
-        configured_threshold_masks, _ = threshold_masks(prep, runtime_config)
-        consensus_detections = sep_consensus(prep, runtime_config)
-        segments, residual_segmentation, footprint, sep_seed_mask = consensus_residual_structures(
-            prep, runtime_config, consensus_detections
-        )
-        geometric_paths_raw = geometric_path_search(prep, runtime_config, segments)
-        comparison = fit_psf_mge_comparison(prep)
+        if foreground_override is not None:
+            prep = apply_foreground_override(
+                prep,
+                foreground_override,
+                ring_outer_px=runtime_config.ring_outer_px,
+            )
+        prep, comparison = fit_foreground_model_bank(prep, runtime_config)
+        if prep.model_success and runtime_config.adaptive_residual_snr:
+            yy, xx = np.indices(prep.image.data.shape)
+            radius = np.hypot(xx - prep.nucleus_yx[1], yy - prep.nucleus_yx[0])
+            control = (
+                (radius > runtime_config.ring_outer_px * 1.5)
+                & ~prep.source_mask
+                & ~prep.fit_mask
+                & np.isfinite(prep.residual_snr)
+            )
+            values = prep.residual_snr[control]
+            if values.size >= 100:
+                empirical_median = float(np.median(values))
+                empirical_scale_raw = float(robust_rms(values))
+                empirical_scale = float(
+                    np.clip(
+                        empirical_scale_raw,
+                        runtime_config.adaptive_snr_scale_min,
+                        runtime_config.adaptive_snr_scale_max,
+                    )
+                )
+
+                def calibrated(value: float) -> float:
+                    return float(
+                        max(
+                            runtime_config.adaptive_snr_threshold_floor,
+                            empirical_median + empirical_scale * float(value),
+                        )
+                    )
+
+                original_thresholds = tuple(runtime_config.snr_thresholds)
+                runtime_config = replace(
+                    runtime_config,
+                    snr_thresholds=tuple(calibrated(value) for value in original_thresholds),
+                    sep_detect_sigma=calibrated(runtime_config.sep_detect_sigma),
+                    residual_structure_snr_low=calibrated(
+                        runtime_config.structure_snr_low
+                    ),
+                    arc_snr_low=None,
+                )
+                prep = replace(
+                    prep,
+                    detection_calibration={
+                        "method": "empirical_blank_field_residual_standardization",
+                        "control_pixel_count": int(values.size),
+                        "residual_snr_median": empirical_median,
+                        "residual_snr_robust_scale_raw": empirical_scale_raw,
+                        "residual_snr_robust_scale_used": empirical_scale,
+                        "base_thresholds_sigma": list(original_thresholds),
+                        "effective_thresholds_input_rms_units": list(
+                            runtime_config.snr_thresholds
+                        ),
+                        "effective_sep_threshold_input_rms_units": float(
+                            runtime_config.sep_detect_sigma
+                        ),
+                        "interpretation": "Thresholds are calibrated to the empirical blank-field residual distribution; coherent-area and persistence guards remain active.",
+                    },
+                )
+        if prep.model_success:
+            threshold_detections, level_map = threshold_stability(prep, runtime_config)
+            configured_threshold_masks, _ = threshold_masks(prep, runtime_config)
+            consensus_detections = sep_consensus(prep, runtime_config)
+            segments, residual_segmentation, footprint, sep_seed_mask = consensus_residual_structures(
+                prep, runtime_config, consensus_detections
+            )
+            geometric_paths_raw = geometric_path_search(prep, runtime_config, segments)
+        else:
+            threshold_detections = []
+            configured_threshold_masks = []
+            consensus_detections = []
+            level_map = np.zeros(prep.image.data.shape, dtype=np.int16)
+            residual_segmentation = np.zeros(prep.image.data.shape, dtype=np.int32)
+            footprint = np.zeros(prep.image.data.shape, dtype=bool)
+            sep_seed_mask = np.zeros(prep.image.data.shape, dtype=bool)
+            segments = []
+            geometric_paths_raw = []
         comparison_snr: np.ndarray | None = None
         residual_correlation: float | None = None
         if comparison.success and comparison.residual is not None:
@@ -234,7 +314,7 @@ class VisionPipeline:
             status = partition.status
             for path_index in consistent_path_indices:
                 supported_candidate_ids_by_path[path_index].append(candidate_id)
-            near_core = radius_px <= runtime_config.near_core_radius_px
+            near_core = core_overlap_fraction(mask) > 0
             model_survival = comparison_fraction(mask)
             threshold_count, threshold_total, threshold_fraction = (
                 threshold_persistence(mask)
@@ -354,7 +434,7 @@ class VisionPipeline:
                 dy = recovered.y - prep.nucleus_yx[0]
                 radius_px = float(np.hypot(dx, dy))
                 angle_deg = position_angle(recovered.x, recovered.y, prep.nucleus_yx)
-                near_core = radius_px <= runtime_config.near_core_radius_px
+                near_core = core_overlap_fraction(mask) > 0
                 model_survival = comparison_fraction(mask)
                 threshold_count, threshold_total, threshold_fraction = (
                     threshold_persistence(mask)
@@ -500,8 +580,15 @@ class VisionPipeline:
 
         candidate_structure_audits = audit_structure_candidates(
             model_candidates,
-            data_usable=(image.finite_fraction > 0.99 and prep.background_rms > 0),
+            data_usable=(
+                image.finite_fraction > 0.99
+                and prep.background_rms > 0
+                and prep.model_success
+            ),
             foreground_model_success=prep.model_success,
+            core_residual_unreliable=(
+                "foreground_core_residual_unreliable" in prep.flags
+            ),
             snr_min_survival=runtime_config.snr_min_survival,
         )
         candidate_by_id = {candidate.id: candidate for candidate in model_candidates}
@@ -576,6 +663,15 @@ class VisionPipeline:
                 (centroid_x, centroid_y),
             )
             integrated_flux = float(prep.residual[mask].sum())
+            curved = measure_curved_geometry(mask, prep.nucleus_yx)
+            nearby_survival = None
+            negative_fraction = None
+            if comparison_snr is not None:
+                from scipy.ndimage import maximum_filter
+                # One-pixel tolerance is diagnostic only, not additional proof.
+                nearby = maximum_filter((comparison_snr >= runtime_config.structure_snr_low).astype(float), size=3)
+                nearby_survival = float(np.mean(nearby[mask]))
+                negative_fraction = float(np.mean(comparison_snr[mask] <= -runtime_config.structure_snr_low))
             measurement_ids: list[str] = []
             structure_measurements = [
                 ("integrated_snr", candidate.integrated_snr, None, min(0.7, abs(candidate.integrated_snr) / 20.0), "audited_candidate_signal"),
@@ -587,6 +683,9 @@ class VisionPipeline:
                 ("sep_survival_fraction", candidate.sep_survival_fraction, None, candidate.sep_survival_fraction or 0.0, "shared_residual_detection"),
                 ("inner_connection_fraction", inner_fraction, None, 0.55, "subtraction_quality"),
                 ("foreground_comparison_survival_fraction", candidate.foreground_comparison_survival_fraction, None, 0.55 if candidate.foreground_comparison_survival_fraction is not None else 0.0, "foreground_model_comparison"),
+                *[(kind, value, "deg" if kind == "angular_occupied_deg" else None, 0.55, "audited_candidate_morphology") for kind, value in curved.items()],
+                ("comparison_nearby_survival_fraction", nearby_survival, None, 0.5, "foreground_model_comparison"),
+                ("comparison_negative_fraction", negative_fraction, None, 0.5, "foreground_model_comparison"),
             ]
             for kind, value, unit, reliability, correlation_group in structure_measurements:
                 measurement_id = f"M_{structure_id}_{kind}"
@@ -631,6 +730,11 @@ class VisionPipeline:
                     inner_connection_fraction=inner_fraction,
                     connects_to_inner_region=inner_fraction > 0.0,
                     near_core=candidate.near_core,
+                    subtraction_core_overlap_fraction=candidate.subtraction_core_overlap_fraction,
+                    foreground_comparison_survival_fraction=candidate.foreground_comparison_survival_fraction,
+                    comparison_nearby_survival_fraction=nearby_survival,
+                    comparison_negative_fraction=negative_fraction,
+                    **curved,
                     source_candidate_ids=[candidate.id],
                     candidate_audit_ids=[audit.id],
                     measurement_ids=measurement_ids,
@@ -702,7 +806,7 @@ class VisionPipeline:
                     value=comparison.success,
                     reliability=1.0,
                     method=comparison.method,
-                    description="Whether the audit-only PSF-convolved MGE comparison fit completed",
+                    description="Whether the audit-only alternative foreground model is available",
                     correlation_group="foreground_model_comparison",
                     flags=comparison.flags,
                 ),
@@ -1057,6 +1161,26 @@ class VisionPipeline:
                 "residual_snr": prep.residual_snr,
                 "source_mask": prep.source_mask.astype(np.uint8),
                 "fit_mask": prep.fit_mask.astype(np.uint8),
+                "source_protection_weight": (
+                    prep.source_protection_weight
+                    if prep.source_protection_weight is not None
+                    else np.ones_like(prep.image.data)
+                ),
+                "human_foreground_seed": (
+                    prep.human_foreground_seed.astype(np.uint8)
+                    if prep.human_foreground_seed is not None
+                    else np.zeros_like(prep.image.data, dtype=np.uint8)
+                ),
+                "human_fit_exclude": (
+                    prep.human_fit_exclude.astype(np.uint8)
+                    if prep.human_fit_exclude is not None
+                    else np.zeros_like(prep.image.data, dtype=np.uint8)
+                ),
+                "human_analysis_exclude": (
+                    prep.human_analysis_exclude.astype(np.uint8)
+                    if prep.human_analysis_exclude is not None
+                    else np.zeros_like(prep.image.data, dtype=np.uint8)
+                ),
                 "initial_segmentation": prep.segmentation,
                 "residual_segmentation": residual_segmentation,
                 "sep_footprint": footprint.astype(np.uint8),
@@ -1092,6 +1216,19 @@ class VisionPipeline:
                 arrays["comparison_psf_mge_residual"] = comparison.residual
             np.savez_compressed(artifact_path, **arrays)
             artifacts["vision_arrays"] = str(artifact_path)
+            segmentation_path = write_layered_segmentation_fits(
+                prep=prep,
+                structures=structures,
+                candidate_audits=candidate_structure_audits,
+                model_candidate_masks=model_candidate_masks,
+                primary_mask=audit_primary_mask,
+                recovery_mask=audit_recovery_mask,
+                foreground_contaminated_mask=audit_foreground_contaminated_mask,
+                trace_mask=audit_trace_mask,
+                comparison=comparison,
+                path=output / "vision_segmentation.fits",
+            )
+            artifacts["layered_segmentation_fits"] = str(segmentation_path)
             diagnostic_path = self._write_diagnostic(
                 prep, audited_structure_mask, [], runtime_config, output
             )
@@ -1119,7 +1256,7 @@ class VisionPipeline:
                     output=output,
                     candidate_points=[
                         (
-                            candidate.id,
+                            f"{candidate.id} -> {promoted_structure_id_by_candidate[candidate.id]}" if candidate.id in promoted_structure_id_by_candidate else f"{candidate.id} (未晋级)",
                             candidate.centroid_xy[0],
                             candidate.centroid_xy[1],
                             candidate.status,
@@ -1143,6 +1280,8 @@ class VisionPipeline:
             "Geometry is not used to declare a signal real, but it is used with S/N persistence to route candidates into primary, recovery, foreground-contaminated, or trace handoff classes.",
             "Primary candidates and stable off-route recovery candidates enter the formal structure list with distinct provenance; comparison-erased and trace-only candidates remain fully traceable for review.",
             "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.",
+            "Robust clipping around a PSF-convolved foreground-light model is not simultaneous lens-light, lens-mass, and source-light inference; some lensed flux can still be absorbed by the foreground model.",
+            "A photometrically selected centre is a light-distribution hypothesis and does not establish which galaxy is foreground without redshift information.",
         ]
         if image.wcs is None or image.pixel_scale_arcsec is None:
             limitations.append(
@@ -1154,10 +1293,15 @@ class VisionPipeline:
             )
         else:
             limitations.append(
-                "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution."
+                "A PSF image is present and the formal detection subtraction uses a PSF-convolved MGE when that fit succeeds; the pre-existing isophotal model is retained as a same-exposure sensitivity check."
             )
         if image.input_format == "png":
             limitations.append("PNG noise was estimated from image pixels; no supplied RMS map was available.")
+        if prep.human_analysis_exclude is not None and np.any(prep.human_analysis_exclude):
+            limitations.append(
+                "Human-marked unrelated regions were excluded from fitting, detection and colour apertures; "
+                "masked non-detections are not evidence against lensing."
+            )
         if output is not None:
             artifacts["observation_summary_cn"] = str(
                 output / "observation_summary_cn.md"
@@ -1179,7 +1323,11 @@ class VisionPipeline:
             image_shape=image.data.shape,
             nucleus_xy=(float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
             data_quality=DataQuality(
-                usable=finite_fraction > 0.99 and prep.background_rms > 0,
+                usable=(
+                    finite_fraction > 0.99
+                    and prep.background_rms > 0
+                    and prep.model_success
+                ),
                 supplied_rms=image.supplied_rms,
                 finite_fraction=finite_fraction,
                 background_median=prep.background_median,
@@ -1191,6 +1339,7 @@ class VisionPipeline:
                 flags=flags,
             ),
             foreground_galaxy=ForegroundGalaxyObservation(
+                center_selection=prep.center_selection,
                 detected=prep.foreground_detected,
                 center_xy=(float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0])),
                 peak_value=prep.foreground_peak_value,
@@ -1270,6 +1419,33 @@ class VisionPipeline:
             artifacts=artifacts,
             limitations=limitations,
             provenance=Provenance(parameters=runtime_config.to_dict()),
+        )
+        from .candidate_handoff import attach_candidate_review
+
+        review_arrays = {
+            "source_mask": prep.source_mask,
+            **{f"geometric_path_mask_G{i}": p.route_mask for i, p in enumerate(geometric_paths_raw, 1)},
+            "data": prep.image.data, "rms": prep.image.rms,
+            "residual": prep.residual, "nucleus_yx": np.asarray(prep.nucleus_yx),
+            **{f"model_candidate_mask_{cid}": mask for cid, mask in model_candidate_masks.items()},
+        }
+        if prep.image.psf is not None:
+            review_arrays["psf"] = prep.image.psf
+        if comparison.success and comparison.residual is not None:
+            review_arrays["comparison_psf_mge_residual"] = comparison.residual
+        document = attach_candidate_review(
+            document, review_arrays, source="live_pipeline", output_dir=output,
+        )
+        from .supplementary import attach_supplementary
+        document = attach_supplementary(document, review_arrays, prep.image, runtime_config)
+        document = document.model_copy(
+            update={
+                "supplementary_diagnostics": {
+                    **document.supplementary_diagnostics,
+                    "foreground_fit_bank": prep.foreground_fit_candidates,
+                    "detection_calibration": prep.detection_calibration,
+                }
+            }
         )
         if output is not None:
             write_observation_summary_cn(document, output)

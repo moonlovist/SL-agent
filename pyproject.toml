@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lens-expert-agent"
-version = "0.18.0"
+version = "0.30.0"
 description = "Evidence-first expert reasoning agent for strong gravitational lens inspection"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,9 +21,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+ui = ["napari[pyqt6,optional]>=0.6,<1"]
 
 [project.scripts]
 lens-agent = "expert_agent.cli:main"
+lens-agent-ui = "expert_agent.ui.app:main"
+lens-agent-structure-review = "expert_agent.tools.colour_structure_review:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -35,4 +38,4 @@ expert_agent = ["skills/*.md", "knowledge/*.md"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-p no:cacheprovider"
+addopts = "-p no:cacheprovider -p no:napari -p no:napari-plugin-engine -p no:npe2 -p no:zarr"

@@ -59,6 +59,94 @@ def _origin(prep: PreprocessedImage) -> str:
     return "lower" if prep.image.input_format == "fits" else "upper"
 
 
+def grading_evidence_mask(arrays, evidence_preparation: dict) -> np.ndarray:
+    """Return the exact pixel union admitted by deterministic evidence preparation."""
+    if "data" not in arrays:
+        raise ValueError("vision arrays do not contain the science image")
+    mask = np.zeros(np.asarray(arrays["data"]).shape, dtype=bool)
+    included = [
+        item
+        for item in evidence_preparation.get("items", [])
+        if item.get("included") is True
+    ]
+    for item in included:
+        key = item.get("mask_key")
+        if not key or key not in arrays:
+            raise ValueError(f"included grading evidence is missing pixel mask: {key}")
+        candidate_mask = np.asarray(arrays[key], dtype=bool)
+        if candidate_mask.shape != mask.shape:
+            raise ValueError(f"grading evidence mask has unexpected shape: {key}")
+        mask |= candidate_mask
+    return mask
+
+
+def rewrite_overview_with_grading_evidence(document, evidence_preparation: dict) -> Path | None:
+    """Make panel 4 show final grading inputs, not the earlier vision handoff."""
+    diagnostic_path = document.artifacts.get("diagnostic_image")
+    arrays_path = document.artifacts.get("vision_arrays")
+    if not diagnostic_path or not arrays_path or not evidence_preparation.get("items"):
+        return None
+    diagnostic = Path(diagnostic_path)
+    arrays_file = Path(arrays_path)
+    if not arrays_file.is_file():
+        return None
+
+    with np.load(arrays_file, allow_pickle=False) as saved:
+        required = {"data", "model", "residual_snr", "nucleus_yx"}
+        if not required.issubset(saved.files):
+            return None
+        data = np.asarray(saved["data"])
+        model = np.asarray(saved["model"])
+        residual_snr = np.asarray(saved["residual_snr"])
+        final_mask = grading_evidence_mask(saved, evidence_preparation)
+        nucleus_yx = np.asarray(saved["nucleus_yx"], dtype=int)
+
+    y, x = map(int, nucleus_yx)
+    half = min(60, y, x, data.shape[0] - y, data.shape[1] - x)
+    if half <= 0:
+        return None
+    view = np.s_[y - half : y + half, x - half : x + half]
+    plt = _matplotlib(diagnostic.parent)
+    figure, axes = plt.subplots(1, 4, figsize=(16, 4))
+    panels = [data, model, residual_snr, final_mask.astype(np.uint8)]
+    titles = [
+        f"{document.band}_FLUX 输入（中央切图）",
+        "前景光模型",
+        "前景减除后的残差 S/N",
+        "最终进入后续判断的结构\n白色=进入，黑色=未进入",
+    ]
+    origin = "lower" if document.input_format == "fits" else "upper"
+    try:
+        for panel_index, (axis, panel, title) in enumerate(zip(axes, panels, titles)):
+            shown = panel[view]
+            kwargs = {"interpolation": "nearest"}
+            finite = shown[np.isfinite(shown)]
+            if finite.size and panel_index in {0, 1}:
+                low, high = np.percentile(finite, [1.0, 99.5])
+                if high > low:
+                    kwargs.update(vmin=float(low), vmax=float(high))
+            elif finite.size and panel_index == 2:
+                limit = float(np.percentile(np.abs(finite), 99.0))
+                if limit > 0:
+                    kwargs.update(vmin=-limit, vmax=limit)
+            elif panel_index == 3:
+                kwargs.update(vmin=0, vmax=1)
+            axis.imshow(
+                shown,
+                origin=origin,
+                cmap="gray" if panel_index != 2 else "coolwarm",
+                **kwargs,
+            )
+            axis.set_title(title)
+            axis.set_xticks([])
+            axis.set_yticks([])
+        figure.tight_layout()
+        figure.savefig(diagnostic, dpi=120)
+    finally:
+        plt.close(figure)
+    return diagnostic
+
+
 def normalize_euclid_display(array: np.ndarray) -> np.ndarray:
     """Normalize flux for human display without changing scientific arrays."""
     values = np.asarray(array, dtype=float)
@@ -169,8 +257,8 @@ def write_foreground_model_comparison(
         (data_view, "1. 原始VIS中央切图", "gray", data_low, data_high),
         (primary_model, f"2. 当前模型\n{prep.model_method}", "gray", data_low, data_high),
         (primary_residual, "3. 当前模型擦除后", "coolwarm", -residual_limit, residual_limit),
-        (comparison_model, "4. PSF-MGE比较模型", "gray", data_low, data_high),
-        (comparison_residual, "5. PSF-MGE擦除后", "coolwarm", -residual_limit, residual_limit),
+        (comparison_model, f"4. 敏感性比较模型\n{comparison.method}", "gray", data_low, data_high),
+        (comparison_residual, "5. 比较模型擦除后", "coolwarm", -residual_limit, residual_limit),
         (model_difference, "6. 两块‘橡皮擦’的差异", "coolwarm", -residual_limit, residual_limit),
     )
     for axis, (values, title, cmap, vmin, vmax) in zip(axes.ravel(), panels):
@@ -179,7 +267,7 @@ def write_foreground_model_comparison(
         axis.set_xticks([])
         axis.set_yticks([])
     figure.suptitle(
-        "前景星系擦除方法对比（PSF-MGE当前仅用于审计，不参与结构检测）\n"
+        "前景星系擦除方法对比（当前模型参与检测，比较模型仅用于敏感性审计）\n"
         "红/蓝表示正/负残差；两种结果都保留的结构更不依赖单一模型"
     )
     figure.tight_layout()
@@ -374,6 +462,7 @@ def write_signal_audit(
     foreground_contaminated_mask: np.ndarray,
     trace_mask: np.ndarray,
     output: Path,
+    candidate_points: list[tuple[str, float, float, str]] | None = None,
 ) -> Path:
     """Show the complete candidate pool and four-way reasoning handoff."""
     plt = _matplotlib(output)
@@ -425,6 +514,12 @@ def write_signal_audit(
         label="弱线索：只留追溯",
     )
     axes[1].set_title("审计后的四路交接（不是透镜等级）")
+    for index, (label, x, y, _) in enumerate(candidate_points or []):
+        axes[1].annotate(label, (x - xs.start, y - ys.start),
+                         xytext=((1 if index % 2 else -1) * 48, 20 + 20 * (index // 2)),
+                         textcoords="offset points", fontsize=7, color="black",
+                         bbox=dict(facecolor="white", alpha=0.85, edgecolor="none"),
+                         arrowprops=dict(arrowstyle="-", color="white", lw=0.7))
     axes[1].legend(loc="upper right", fontsize=7)
     figure.suptitle(
         "先审计信号真实性；绿色和可信青色均带完整测量进入规则层"
@@ -539,6 +634,14 @@ def write_field_context(
             )
         )
     axis.plot(center_x, center_y, "r+", ms=11, mew=1.8)
+    selection = prep.center_selection
+    if selection:
+        rx, ry = selection["reference_xy"]
+        axis.plot(rx, ry, "c+", ms=8, label="目标参考位置")
+        for item in selection.get("candidates", []):
+            if item["sep_label"] != selection.get("selected_sep_label"):
+                x, y = item["centroid_xy"]
+                axis.plot(x, y, "o", ms=5, mfc="none", mec="orange")
     for index, segment in enumerate(segments, start=1):
         axis.plot(segment.x, segment.y, "mx", ms=8, mew=1.4)
         axis.annotate(
@@ -601,161 +704,73 @@ def write_field_context(
     return path
 
 
-def write_rgb_context(
-    prep: PreprocessedImage,
-    config: VisionConfig,
-    segments: list[ResidualStructure],
-    output: Path,
-    candidate_points: list[tuple[str, float, float, str]] | None = None,
-) -> Path | None:
-    """Overlay the analysis region on a sibling RGB preview after orientation matching."""
-    rgb_path = prep.image.path.parent / "rgb_0.png"
-    if not rgb_path.exists():
-        return None
-    try:
-        from PIL import Image
-        from scipy import ndimage
-    except ImportError:
-        return None
-    rgb = np.asarray(Image.open(rgb_path).convert("RGB"))
-    if rgb.shape[:2] != prep.image.data.shape:
-        return None
-    gray = np.asarray(rgb, dtype=float).mean(axis=2)
-    science = ndimage.gaussian_filter(prep.image.data, 1.5)
+def target_selection_requires_diagnostic(
+    selection: dict,
+    *,
+    competitive_margin: float = 0.05,
+) -> bool:
+    """Return whether target routing needs a standalone human audit image."""
+    if selection.get("human_override") is not None:
+        return True
+    if selection.get("selection_basis") == "human_in_the_loop_native_pixel_annotation":
+        return True
 
-    def normalized(values: np.ndarray) -> np.ndarray:
-        finite = values[np.isfinite(values)]
-        if not finite.size:
-            return np.zeros_like(values, dtype=float)
-        low, high = np.percentile(finite, [1.0, 99.0])
-        clipped = np.clip(values, low, high)
-        std = float(np.nanstd(clipped))
-        return (clipped - float(np.nanmean(clipped))) / max(std, 1e-9)
+    # This record exists when the unconstrained morphology winner and the
+    # centre-prior winner disagree, irrespective of which side won the gate.
+    if selection.get("central_prior_gate"):
+        return True
 
-    target = normalized(science).ravel()
-    candidates = {
-        "identity": gray,
-        "flip_y": gray[::-1, :],
-        "flip_x": gray[:, ::-1],
-        "rotate_180": gray[::-1, ::-1],
-    }
-    scored = []
-    for name, candidate in candidates.items():
-        score = float(
-            np.corrcoef(
-                target,
-                normalized(ndimage.gaussian_filter(candidate, 1.5)).ravel(),
-            )[0, 1]
-        )
-        scored.append((score, name))
-    score, mapping = max(scored)
-    if not np.isfinite(score) or score < 0.3:
-        return None
+    scores = sorted(
+        (
+            float(item["routing_score"])
+            for item in selection.get("candidates", [])
+            if item.get("routing_score") is not None
+            and np.isfinite(item["routing_score"])
+        ),
+        reverse=True,
+    )
+    return len(scores) >= 2 and scores[0] - scores[1] <= competitive_margin
 
-    height, width = gray.shape
 
-    def to_png(x: float, y: float) -> tuple[float, float]:
-        if mapping == "identity":
-            return x, y
-        if mapping == "flip_y":
-            return x, height - 1 - y
-        if mapping == "flip_x":
-            return width - 1 - x, y
-        return width - 1 - x, height - 1 - y
-
+def write_target_selection(prep: PreprocessedImage, output: Path) -> Path:
+    """Plot target routing only when the selection requires human review."""
     plt = _matplotlib(output)
-    from matplotlib.patches import Circle, Rectangle
-
-    figure, axis = plt.subplots(figsize=(8.5, 8.5))
-    axis.imshow(rgb, origin="upper")
-    center_x, center_y = prep.nucleus_yx[1], prep.nucleus_yx[0]
-    png_center_x, png_center_y = to_png(center_x, center_y)
-    half = min(
-        60, center_y, center_x,
-        prep.image.data.shape[0] - center_y,
-        prep.image.data.shape[1] - center_x,
+    figure, axis = plt.subplots(figsize=(6, 6))
+    finite = prep.image.data[np.isfinite(prep.image.data)]
+    low, high = np.percentile(finite, [1, 99.8])
+    axis.imshow(
+        prep.image.data,
+        origin=_origin(prep),
+        cmap="gray",
+        vmin=low,
+        vmax=high,
     )
-    crop_corners = [
-        to_png(center_x + dx, center_y + dy)
-        for dx in (-half, half)
-        for dy in (-half, half)
-    ]
-    crop_x = min(item[0] for item in crop_corners)
-    crop_y = min(item[1] for item in crop_corners)
-    axis.add_patch(
-        Rectangle(
-            (crop_x, crop_y), 2 * half, 2 * half,
-            fill=False, edgecolor="cyan", linewidth=1.3,
-            label="diagnostic crop",
+    selected_label = prep.center_selection.get("selected_sep_label")
+    for item in prep.center_selection.get("candidates", []):
+        x, y = item["centroid_xy"]
+        chosen = item["sep_label"] == selected_label
+        color = "lime" if chosen else "orange"
+        axis.plot(
+            x,
+            y,
+            "o",
+            mfc="none",
+            mec=color,
+            ms=12 if chosen else 8,
+            mew=2,
         )
-    )
-    for radius, linestyle, label in (
-        (config.ring_inner_px, "--", "search inner radius"),
-        (config.ring_outer_px, "-", "search outer radius"),
-    ):
-        axis.add_patch(
-            Circle(
-                (png_center_x, png_center_y), radius, fill=False,
-                edgecolor="yellow", linestyle=linestyle, linewidth=1.1,
-                label=label,
-            )
-        )
-    axis.plot(png_center_x, png_center_y, "r+", ms=11, mew=1.8)
-    for index, segment in enumerate(segments, start=1):
-        x, y = to_png(segment.x, segment.y)
-        axis.plot(x, y, "mx", ms=8, mew=1.4)
         axis.annotate(
-            f"S{index}", (x + 3, y - 3), color="magenta",
-            fontsize=9, weight="bold",
+            f"#{item['sep_label']}  {item.get('routing_score', 0):.3f}",
+            (x + 3, y + 3),
+            color=color,
+            fontsize=8,
         )
-    candidate_colors = {
-        "sep_only": "orange",
-        "sep_geometry_consistent": "lime",
-        "geometry_recovered": "magenta",
-    }
-    for candidate_id, candidate_x, candidate_y, status in candidate_points or []:
-        x, y = to_png(candidate_x, candidate_y)
-        color = candidate_colors.get(status, "orange")
-        axis.plot(x, y, "s", color=color, ms=5, mew=1.0)
-        axis.annotate(
-            candidate_id, (x + 3, y - 3), color=color,
-            fontsize=9, weight="bold",
-        )
-    north, east = orientation_vectors(
-        prep.image, (float(center_x), float(center_y))
-    )
-    if north is not None and east is not None:
-        base_x, base_y = 35.0, 50.0
-        mapped_center = np.asarray(to_png(center_x, center_y))
-        for vector, label, color in (
-            (north, "N", "lime"), (east, "E", "cyan")
-        ):
-            mapped_tip = np.asarray(
-                to_png(center_x + vector[0], center_y + vector[1])
-            )
-            mapped_vector = mapped_tip - mapped_center
-            length = float(np.hypot(*mapped_vector))
-            mapped_vector = mapped_vector / max(length, 1e-9)
-            axis.annotate(
-                "",
-                xy=(base_x + 25 * mapped_vector[0], base_y + 25 * mapped_vector[1]),
-                xytext=(base_x, base_y),
-                arrowprops=dict(arrowstyle="->", color=color, lw=2.0),
-            )
-            axis.text(
-                base_x + 30 * mapped_vector[0],
-                base_y + 30 * mapped_vector[1],
-                label, color=color, weight="bold",
-            )
     axis.set_title(
-        f"RGB-to-FITS location audit: {prep.image.object_id}\n"
-        f"orientation mapping={mapping}; image correlation={score:.3f}"
+        "Pre-fit target routing audit\n"
+        "written only for competition/override; scores are not grading evidence"
     )
-    axis.set_xlabel("RGB pixel x")
-    axis.set_ylabel("RGB pixel y")
-    axis.legend(loc="upper left", fontsize=7)
     figure.tight_layout()
-    path = output / "vision_rgb_context.png"
+    path = output / "vision_target_selection.png"
     figure.savefig(path, dpi=140)
     plt.close(figure)
     return path
@@ -787,11 +802,15 @@ def write_manifest(
         },
         "scientific_channel": "raw_foreground_subtracted_residual_snr",
         "wavelet_denoising_applied": False,
+        "target_selection": prep.center_selection,
+        "foreground_fit_bank": prep.foreground_fit_candidates,
+        "detection_calibration": prep.detection_calibration,
         "parameters": config.to_dict(),
         "process": [
             "load calibrated flux and RMS (or conservative PNG fallback)",
-            "locate central light concentration and create masks",
-            "fit foreground-galaxy light model",
+            "rank at most four extended objects by raw configuration proxies and select exactly one routing target",
+            "derive a continuous closed elliptical fit boundary from adjacent, radius-compatible two-sided radial minima",
+            "compare double-geometry MGE, double-Sersic, isophotal, and fixed-MGE foreground models and expose one primary",
             "compute residual and residual S/N",
             "run all configured S/N thresholds",
             "run SEP deblending parameter grid",
@@ -802,6 +821,7 @@ def write_manifest(
             "audit signal reality and foreground-subtraction sensitivity",
             "route candidates into primary, recovery, foreground-contaminated, and trace handoffs",
             "expose only primary candidates as current reasoning structures while retaining every audit outcome",
+            "write a layered FITS segmentation product on the native WCS grid",
             "write structured Observation and trace artifacts",
         ],
         "files": files,
@@ -812,6 +832,7 @@ def write_manifest(
             "residual": "flux minus foreground model",
             "residual_snr": "residual divided by RMS",
             "source_mask": "contaminating-source exclusion mask",
+            "source_protection_weight": "binary foreground-fit inclusion map: fitted boundary interior plus distant sky; ambiguous source annulus excluded",
             "threshold_level_map": "number of accepted S/N threshold levels survived",
             "sep_raw_consensus_segmentation": "exact labels of the raw multi-parameter SEP pixel unions",
             "sep_raw_consensus_footprint": "all raw SEP consensus pixels; trace-only",
@@ -829,11 +850,12 @@ def write_manifest(
             "signal_audit_review_mask": "compatibility union of recovery-provenance and foreground-contaminated masks",
             "signal_audit_trace_mask": "candidates retained only for traceability because detector-level signal facts were insufficient",
             "arc_mask": "deprecated compatibility alias of residual_structure_mask; it must not be interpreted as a confirmed arc mask",
-            "comparison_psf_mge_model": "audit-only PSF-convolved fixed-geometry MGE foreground model when available",
-            "comparison_psf_mge_residual": "flux minus the audit-only PSF-MGE comparison model when available",
+            "comparison_psf_mge_model": "legacy array name for the audit-only alternative foreground model when available",
+            "comparison_psf_mge_residual": "legacy array name for flux minus the audit-only alternative foreground model when available",
         },
         "notes": [
             "PNG files are human-readable diagnostics; NPZ arrays remain the numerical evidence.",
+            "The layered FITS keeps field objects, residual structures, and foreground-model products separate because foreground and lensed light can share detector pixels.",
             "Threshold and SEP results share the same residual and are correlated measurements.",
             "Raw SEP detections are retained for traceability; only primary handoff candidates become measured structures.",
             "A geometric path restricts where SEP searches again; it is not evidence that the full path is luminous.",
@@ -872,6 +894,8 @@ def write_visual_audit_bundle(
     candidate_points: list[tuple[str, float, float, str]] | None = None,
 ) -> dict[str, str]:
     try:
+        import matplotlib.pyplot as plt
+
         threshold_path = write_threshold_process(prep, config, threshold_detections, level_map, output)
         sep_path = write_sep_consensus(prep, config, consensus_detections, output)
         structure_path = write_model_chain(
@@ -892,6 +916,7 @@ def write_visual_audit_bundle(
             audit_foreground_contaminated_mask,
             audit_trace_mask,
             output,
+            candidate_points=candidate_points,
         )
         path_search_path = write_geometric_path_search(prep, geometric_paths, output)
         expert_views_path = write_expert_views(prep, output)
@@ -899,13 +924,60 @@ def write_visual_audit_bundle(
             prep, foreground_comparison, output
         )
         # Raw SEP seeds are already shown exactly in the SEP diagnostic. Do not
-        # mark them as formal measured structures in full-field/RGB context.
+        # mark them as formal measured structures in full-field context.
         field_path = write_field_context(
             prep, config, [], output, candidate_points=candidate_points
         )
-        rgb_path = write_rgb_context(
-            prep, config, [], output, candidate_points=candidate_points
+        origin = _origin(prep)
+        low, high = np.percentile(prep.image.data[np.isfinite(prep.image.data)], [1, 99.8])
+        target_path = (
+            write_target_selection(prep, output)
+            if target_selection_requires_diagnostic(prep.center_selection)
+            else None
         )
+
+        boundary_path = None
+        if prep.source_protection_weight is not None:
+            boundary_figure, boundary_axes = plt.subplots(1, 4, figsize=(18, 4.5))
+            boundary_axes[0].imshow(prep.image.data, origin=origin, cmap="gray", vmin=low, vmax=high)
+            boundary_axes[0].set_title("Input + fitted minimum boundary")
+            boundary_audit = prep.foreground_fit_candidates.get("source_boundary", {})
+            boundary_radius = boundary_audit.get("boundary_radius_px")
+            if boundary_radius is not None:
+                selected = prep.center_selection.get("selected_centroid_xy")
+                cx, cy = (
+                    map(float, selected)
+                    if isinstance(selected, (list, tuple)) and len(selected) == 2
+                    else (float(prep.nucleus_yx[1]), float(prep.nucleus_yx[0]))
+                )
+                q = float(boundary_audit.get("boundary_axis_ratio_q") or 1.0)
+                pa = np.radians(float(boundary_audit.get("boundary_position_angle_deg") or 0.0))
+                theta = np.linspace(0, 2 * np.pi, 361)
+                xr = float(boundary_radius) * np.cos(theta)
+                yr = q * float(boundary_radius) * np.sin(theta)
+                ex = cx + xr * np.cos(pa) - yr * np.sin(pa)
+                ey = cy + xr * np.sin(pa) + yr * np.cos(pa)
+                boundary_axes[0].plot(ex, ey, color="cyan", lw=1.5)
+            shown = boundary_axes[1].imshow(prep.source_protection_weight, origin=origin, cmap="viridis", vmin=0, vmax=1)
+            boundary_axes[1].set_title("Fit inclusion: 1=fit, 0=excluded")
+            boundary_figure.colorbar(shown, ax=boundary_axes[1], fraction=0.046)
+            boundary_axes[2].imshow(prep.model, origin=origin, cmap="gray")
+            boundary_axes[2].set_title(f"Selected foreground model\n{prep.model_method}")
+            residual_snr = np.divide(
+                prep.residual,
+                prep.image.rms,
+                out=np.zeros_like(prep.residual),
+                where=prep.image.rms > 0,
+            )
+            boundary_axes[3].imshow(residual_snr, origin=origin, cmap="coolwarm", vmin=-5, vmax=5)
+            boundary_axes[3].set_title("Foreground-subtracted residual S/N")
+            for axis in boundary_axes:
+                axis.set_xlim(max(0, prep.nucleus_yx[1] - 45), min(prep.image.data.shape[1], prep.nucleus_yx[1] + 45))
+                axis.set_ylim(max(0, prep.nucleus_yx[0] - 45), min(prep.image.data.shape[0], prep.nucleus_yx[0] + 45))
+            boundary_figure.tight_layout()
+            boundary_path = output / "vision_source_boundary.png"
+            boundary_figure.savefig(boundary_path, dpi=140)
+            plt.close(boundary_figure)
     except ImportError:
         return {}
     files = {
@@ -920,10 +992,15 @@ def write_visual_audit_bundle(
         "field_context_diagnostic": str(field_path),
         "vision_manifest": str(output / "vision_manifest.json"),
     }
+    segmentation_path = output / "vision_segmentation.fits"
+    if segmentation_path.exists():
+        files["layered_segmentation_fits"] = str(segmentation_path)
     if model_comparison_path is not None:
         files["foreground_model_comparison_diagnostic"] = str(model_comparison_path)
-    if rgb_path is not None:
-        files["rgb_context_diagnostic"] = str(rgb_path)
+    if boundary_path is not None:
+        files["source_boundary_diagnostic"] = str(boundary_path)
+    if target_path is not None:
+        files["target_selection_diagnostic"] = str(target_path)
     manifest_path = write_manifest(prep, config, files, output)
     files["vision_manifest"] = str(manifest_path)
     return files

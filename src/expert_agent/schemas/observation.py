@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 
 class StrictModel(BaseModel):
@@ -12,7 +12,7 @@ class StrictModel(BaseModel):
 
 class Provenance(StrictModel):
     pipeline: str = "expert_agent.vision"
-    pipeline_version: str = "0.18.0"
+    pipeline_version: str = "0.29.0"
     generated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -69,6 +69,27 @@ class StructureObservation(StrictModel):
     inner_connection_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     connects_to_inner_region: bool | None = None
     near_core: bool
+    subtraction_core_overlap_fraction: float | None = Field(default=None, ge=0, le=1)
+    comparison_integrated_snr: float | None = None
+    occupied_angle_bins_5deg: list[int] | None = None
+    foreground_comparison_survival_fraction: float | None = Field(default=None, ge=0, le=1)
+    angular_occupied_deg: float | None = Field(default=None, ge=0, le=360)
+    radial_fractional_width: float | None = Field(default=None, ge=0)
+    local_tangential_fraction: float | None = Field(default=None, ge=0, le=1)
+    local_shape_count: int = Field(default=0, ge=0)
+    comparison_nearby_survival_fraction: float | None = Field(default=None, ge=0, le=1)
+    comparison_negative_fraction: float | None = Field(default=None, ge=0, le=1)
+    # Visibility in the input VIS image after subtracting a label-blind radial
+    # control estimated at the same foreground-centric radius.  These are
+    # measurements, not proof that the structure is lensed or behind the
+    # foreground galaxy.
+    input_radial_contrast_snr: float | None = None
+    input_radial_positive_fraction: float | None = Field(default=None, ge=0, le=1)
+    input_radial_control_coverage: float | None = Field(default=None, ge=0, le=1)
+    # Observed radial thickness of the exact candidate mask.  PSF-normalized
+    # width is omitted when no valid PSF measurement exists.
+    radial_width_px: float | None = Field(default=None, ge=0)
+    radial_width_psf: float | None = Field(default=None, ge=0)
     source_candidate_ids: list[str] = Field(default_factory=list)
     candidate_audit_ids: list[str] = Field(default_factory=list)
     measurement_ids: list[str] = Field(default_factory=list)
@@ -86,6 +107,7 @@ class ForegroundGalaxyObservation(StrictModel):
     """Measured properties of the central light distribution, not a lens label."""
 
     detected: bool
+    center_selection: dict[str, Any] = Field(default_factory=dict)
     center_xy: tuple[float, float]
     peak_value: float
     integrated_flux: float | None = None
@@ -319,8 +341,64 @@ class CandidateStructureAuditObservation(StrictModel):
     rationale: str
 
 
+class CandidateHandoffEntry(StrictModel):
+    """Full pixel measurements for review, separate from grading eligibility."""
+
+    candidate_id: str
+    formal_structure_id: str | None = None
+    legacy_verdict: str | None = None
+    legacy_handoff_class: str | None = None
+    status: Literal["formal_reference", "measured_for_review", "unmeasurable"]
+    physical_origin: Literal["unresolved"] = "unresolved"
+    mask_key: str
+    mask_sha256: str | None = None
+    measurement: StructureObservation | None = None
+    # Diagonal input-RMS propagation only; foreground-fit uncertainty and
+    # pixel covariance are not included and this is not a calibrated error.
+    aperture_noise_diagonal: float | None = Field(default=None, gt=0)
+    comparison_aperture_flux: float | None = None
+    comparison_detection: Literal["detected", "below_threshold", "unavailable"]
+    comparison_threshold_sigma: float = Field(gt=0)
+    uncertainty_notes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def consistent_measurement_state(self):
+        if (self.status == "unmeasurable") != (self.measurement is None):
+            raise ValueError("measurement availability must match review status")
+        if self.status == "formal_reference" and self.formal_structure_id is None:
+            raise ValueError("formal reference requires an existing structure ID")
+        if self.measurement is not None:
+            if self.measurement.source_candidate_ids != [self.candidate_id]:
+                raise ValueError("review measurement must reference its source candidate")
+            fraction = self.measurement.foreground_comparison_survival_fraction
+            if self.comparison_detection == "unavailable" and fraction is not None:
+                raise ValueError("unavailable comparison cannot carry a survival fraction")
+            if self.comparison_detection == "below_threshold" and fraction != 0:
+                raise ValueError("below-threshold comparison requires zero threshold occupancy")
+            if self.comparison_detection == "detected" and (fraction is None or fraction <= 0):
+                raise ValueError("comparison detection requires positive threshold occupancy")
+        return self
+
+
+class CandidateHandoffReview(StrictModel):
+    policy: Literal["complete_review_v1"] = "complete_review_v1"
+    grading_policy: Literal["integrated_candidate_evidence_v1"] = "integrated_candidate_evidence_v1"
+    source: Literal["live_pipeline", "saved_pixel_artifacts"]
+    entries: list[CandidateHandoffEntry] = Field(default_factory=list)
+
+    @field_validator("grading_policy", mode="before")
+    @classmethod
+    def upgrade_legacy_grading_policy(cls, value):
+        if value in {"baseline_unchanged", "provisional_candidate_inclusive_v1"}:
+            return "integrated_candidate_evidence_v1"
+        return value
+
+
 class ObservationDocument(StrictModel):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14"] = "1.14"
+    # Versioned measurements, never class labels or externally supplied votes.
+    arc_chains: list[StructureObservation] = Field(default_factory=list)
+    supplementary_diagnostics: dict = Field(default_factory=dict)
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14", "1.15", "1.16", "1.17", "1.18"] = "1.18"
     object_id: str
     input_path: str
     input_format: Literal["fits", "png"]
@@ -339,11 +417,19 @@ class ObservationDocument(StrictModel):
     model_candidates: list[ModelCandidateObservation] = Field(default_factory=list)
     candidate_systems: list[CandidateSystemObservation] = Field(default_factory=list)
     candidate_structure_audits: list[CandidateStructureAuditObservation] = Field(default_factory=list)
+    candidate_handoff_review: CandidateHandoffReview | None = None
     structures: list[StructureObservation] = Field(default_factory=list)
     measurements: list[Measurement] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)
     provenance: Provenance
+
+    @model_serializer(mode="wrap")
+    def omit_inactive_trial_for_legacy_readers(self, handler):
+        result = handler(self)
+        if self.candidate_handoff_review is None:
+            result.pop("candidate_handoff_review", None)
+        return result
 
     def measurement_map(self) -> dict[str, Measurement]:
         return {item.id: item for item in self.measurements}

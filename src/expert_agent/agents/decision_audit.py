@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..core.base_agent import BaseAgent
 from ..core.state import ExpertState
+from ..core.config import ReasoningConfig
 from ..schemas.reasoning import DecisionAuditResult
 
 
@@ -24,8 +25,9 @@ class DecisionAudit(BaseAgent):
         "source_reconstruction",
     )
 
-    def __init__(self):
+    def __init__(self, config: ReasoningConfig | None = None):
         super().__init__("DecisionAudit")
+        self.config = config or ReasoningConfig()
 
     def run(self, state: ExpertState) -> ExpertState:
         self.log("轻量检查事实引用、证据独立性、替代解释和评分一致性")
@@ -56,6 +58,10 @@ class DecisionAudit(BaseAgent):
             if "." not in ref:
                 return True
             parts = ref.split(".")
+            if root == "candidate_handoff_review":
+                review = document.candidate_handoff_review
+                return bool(review is not None and len(parts) == 3 and parts[1] == "entries"
+                            and parts[2] in {e.candidate_id for e in review.entries})
             entity_roots = {
                 "structures": {item.id for item in document.structures},
                 "ring_candidates": {item.id for item in document.ring_candidates},
@@ -66,7 +72,7 @@ class DecisionAudit(BaseAgent):
             return True
 
         hallucinated: list[str] = []
-        all_facts = dossier.observed_facts + dossier.supporting_evidence + dossier.contradicting_evidence
+        all_facts = dossier.observed_facts + dossier.supporting_evidence + dossier.contradicting_evidence + dossier.candidate_review_facts
         for fact in all_facts:
             missing_refs = [ref for ref in fact.observation_refs if not ref_exists(ref)]
             if missing_refs:
@@ -97,10 +103,57 @@ class DecisionAudit(BaseAgent):
 
         specificity_refs = set(dossier.lens_specificity.fact_refs)
         measurement_as_proof: list[str] = []
+        review_ids = {f.id for f in dossier.candidate_review_facts} | {g.id for g in dossier.candidate_configuration_review}
+        if review_ids.intersection(decisive + assessment.decisive_counterevidence):
+            measurement_as_proof.append("Unvalidated candidate review was used as decisive grading evidence.")
+        if document.candidate_handoff_review is not None:
+            entries = {e.candidate_id: e for e in document.candidate_handoff_review.entries}
+            candidate_ids = {c.id for c in document.model_candidates}
+            if set(entries) != candidate_ids or len(entries) != len(document.candidate_handoff_review.entries):
+                hallucinated.append("Candidate review must contain each model candidate exactly once.")
+            formal = {s.id: s for s in (state.source_observation_document or document).structures}
+            for entry in entries.values():
+                if entry.formal_structure_id is not None and (
+                    entry.formal_structure_id not in formal
+                    or entry.candidate_id not in formal[entry.formal_structure_id].source_candidate_ids
+                ):
+                    hallucinated.append(f"{entry.candidate_id}: invalid formal structure reference")
+            if {f.id for f in dossier.candidate_review_facts} != {f"CRF_{cid}" for cid in entries}:
+                hallucinated.append("Review facts must account for every candidate handoff entry.")
+            paths = {p.id: p for p in document.geometric_paths}
+            candidates = {c.id: c for c in document.model_candidates}
+            for group in dossier.candidate_configuration_review:
+                invalid = any(not ref_exists(ref) for ref in group.observation_refs)
+                invalid |= not set(group.unresolved_candidate_ids).issubset(group.candidate_ids)
+                invalid |= any(cid not in entries or entries[cid].measurement is None for cid in group.candidate_ids)
+                if group.path_id is not None:
+                    invalid |= group.path_id not in paths
+                    invalid |= any(cid not in candidates or group.path_id not in candidates[cid].geometry_consistent_path_ids for cid in group.candidate_ids)
+                if invalid:
+                    hallucinated.append(f"{group.id}: invalid candidate review group references")
+        candidate_evidence = state.candidate_evidence
+        if candidate_evidence is not None:
+            hallucinated.append("A retired second grading pass supplied candidate_evidence.")
+        # Replay from source measurements, never from the already-selected vote.
+        # This establishes reproducibility, not independent astronomical confirmation.
+        if state.source_observation_document is not None:
+            import contextlib
+            import io
+            from .expert_assessment_agent import ExpertAssessmentAgent
+            replay = ExpertState(observation_document=state.source_observation_document)
+            with contextlib.redirect_stdout(io.StringIO()):
+                ExpertAssessmentAgent(self.config).run(replay)
+            if (replay.expert_assessment != assessment
+                    or replay.evidence_dossier != dossier
+                    or replay.evidence_preparation != state.evidence_preparation
+                    or replay.require_observation() != document):
+                hallucinated.append("Decision/evidence does not reproduce from source measurements and fixed parameters.")
         high_vote_possible = any(
             item in {"B", "A"} for item in assessment.plausible_vote_categories
         )
-        if high_vote_possible and not specificity_refs.intersection(decisive):
+        if high_vote_possible and not (
+            specificity_refs.intersection(decisive)
+        ):
             measurement_as_proof.append("B/A vote lacks decisive lens-specific relational evidence.")
 
         recovery_penalized = [
@@ -129,7 +182,7 @@ class DecisionAudit(BaseAgent):
         if assessment.provisional_score_range is not None and assessment.provisional_grade is not None:
             mismatch.append("An ambiguous score range was forced into a point grade.")
 
-        abstention = not document.data_quality.usable
+        abstention = not document.data_quality.usable or "foreground_center_ambiguous" in document.data_quality.flags
         if abstention and assessment.vote_category != "insufficient_for_grading":
             mismatch.append("Unusable data should trigger abstention, not X or a lens grade.")
 
@@ -154,7 +207,7 @@ class DecisionAudit(BaseAgent):
             alternative_ignored=alternatives_ignored,
             external_answer_leakage=leakage,
             rationale_score_mismatch=mismatch,
-            abstention_recommended=abstention,
+            abstention_recommended=abstention or assessment.vote_category == "insufficient_for_grading" or bool(corrections),
             required_corrections=corrections,
         )
         self.record_reasoning(
@@ -162,7 +215,9 @@ class DecisionAudit(BaseAgent):
             "decision_audit",
             {
                 "audit_passed": state.decision_audit.audit_passed,
-                "full_hypothesis_reasoning_rerun": False,
+                "full_hypothesis_reasoning_rerun": state.source_observation_document is not None,
+                "deterministic_replay_used": state.source_observation_document is not None,
+                "independent_scientific_validation": False,
                 "required_corrections": corrections,
             },
         )

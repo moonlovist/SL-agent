@@ -1,8 +1,12 @@
 # Lens Expert Agent 中文使用说明书
 
-> 适用版本：`lens-expert-agent 0.18.0`
+> 适用版本：`lens-expert-agent 0.29.0`
 >
-> 当前状态：底层视觉测量保持稳定；候选交接已升级；输出单专家暂定类别；正式 Q1 聚合分数等待标定
+> 当前状态：已升级前景中心选择、弯曲结构测量与逐结构比较；输出单专家暂定类别；正式 Q1 聚合分数等待标定
+
+本版具体变更见 [v0.19.0 修改说明](V0190_CENTER_STRUCTURE_CHANGE_CN.md)。默认输入是目标居中的切图。
+若目标不在切图中央，可在 `analyze` 命令同时提供 `--center-x` 和 `--center-y`，以图像数组的
+零起始像素坐标指定目标参考位置；不要把图中文字的上下方向当成数组坐标。中心歧义时会弃权。
 
 ## 1. 当前版本一句话说明
 
@@ -35,6 +39,20 @@ DecisionAudit：轻量独立错误检查
 
 ## 3. 安装
 
+安装桌面界面及测试依赖：
+
+```powershell
+python -m pip install -e ".[dev,ui]"
+```
+
+启动完整桌面流程：
+
+```powershell
+lens-agent ui
+```
+
+主界面支持单 FITS/文件夹导入、后台顺序跑批、A/B/C/X/无法判断分组、过程图与判定依据浏览、人工校正后的版本化重跑、系统完成提醒，以及日间/夜间主题。普通批处理不会因前景失败自动弹窗；需要时由用户点击“人工校正”。
+
 在项目根目录执行：
 
 ```powershell
@@ -56,6 +74,38 @@ lens-agent analyze "G:\Astronomy\New data\A\样本文件夹名" --output outputs
 lens-agent analyze "G:\Astronomy\sample.fits" --output outputs
 lens-agent analyze "G:\Astronomy\sample.png" --output outputs
 ```
+
+### 人工指定前景星系
+
+在正式前景拟合前打开原生像素标注窗口：
+
+```powershell
+lens-agent analyze "G:\Astronomy\sample.fits" --interactive-foreground --output outputs
+```
+
+最简操作只需三步：
+
+1. 把唯一的绿色点拖到正确前景星系附近；
+2. 点击“按绿色点选择最近对象并生成第2层保守核心”；程序不会再复制整个 SEP 岛；
+3. 检查第 2 层位于正确星系的明亮、连续核心，然后点击“接受人工前景并继续完整重跑”。
+
+第 2 层不是完整前景外缘，也不是要直接减除的区域；人只需确认对象及可信核心，不必沿
+星系轮廓精细抠图。只有自动范围明显吞入 arc/环/源像时，才用画笔或橡皮修正
+第 2 层，或在第 3 层涂出明确禁止参与前景拟合的结构。编号比标签颜色更可靠；不同
+napari 版本的标签颜色可能不同。
+
+人工中心会在不超过 3 像素的范围内按亮核精调。人工改换目标后，拟合掩膜与残差检测
+掩膜会围绕新中心重新生成；不会继承旧自动目标的遮罩。若所有前景模型未通过背景零点、
+宽环残留及核心残差质量检查，视觉候选检测停止并返回无法评级，而不是把失败残差评为 X。
+
+若完整运行后才发现前景错误，可从旧结果重新标注并写到新目录：
+
+```powershell
+lens-agent foreground-review "outputs\样本名" --output outputs\human_foreground_rerun
+```
+
+人工标注保存为带输入哈希的 `foreground_override.json` 和原生网格 FITS 掩膜；它只改变
+前景选择与拟合输入，后续检测和评级必须完整重跑。旧结果不会被覆盖。
 
 PNG 没有原始 FITS 的通量、RMS、PSF 和 WCS 信息，因此只适合降级观察，不能与
 科学 FITS 证据完全等价。

@@ -11,6 +11,7 @@ def audit_structure_candidates(
     *,
     data_usable: bool,
     foreground_model_success: bool,
+    core_residual_unreliable: bool = False,
     snr_min_survival: int = 3,
 ) -> list[CandidateStructureAuditObservation]:
     """Audit signal reality, then route candidates for downstream reasoning.
@@ -19,9 +20,10 @@ def audit_structure_candidates(
     Geometry is never used to claim that a signal is real.  Stable off-route
     signals are promoted with recovery provenance so that the expert layer can
     evaluate their morphology instead of losing them at the handoff boundary.
-    Proximity to the subtraction core is a caution, not an exclusion: only
-    affirmative erasure by the independent foreground comparison isolates a
-    candidate as foreground-contaminated.
+    The legacy 'erasure' label means zero above-threshold comparison pixels,
+    NOT demonstrated flux erasure or physical foreground contamination. The
+    complete-review handoff therefore preserves every candidate for the one
+    integrated grading pass with neutral model-sensitivity measurements.
     """
 
     results: list[CandidateStructureAuditObservation] = []
@@ -63,7 +65,10 @@ def audit_structure_candidates(
             candidate.near_core
             or (core_overlap is not None and core_overlap > 0.0)
         )
-        foreground_contamination_risk = comparison_not_erased is False
+        # Threshold occupancy is model sensitivity, not an origin diagnosis.
+        foreground_contamination_risk = bool(
+            touches_subtraction_core and core_residual_unreliable
+        )
         discovery_context = (
             "route_recovery"
             if candidate.origin == "path_recovery"
@@ -133,6 +138,8 @@ def audit_structure_candidates(
             caution_flags.append("geometry_route_support_absent")
         if touches_subtraction_core:
             caution_flags.append("touches_subtraction_sensitive_core")
+        if foreground_contamination_risk:
+            caution_flags.append("core_residual_failed_subtraction_quality_audit")
 
         base_signal_ok = bool(
             detector_support and connected_signal and positive_integrated_signal

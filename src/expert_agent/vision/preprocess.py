@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -57,6 +57,13 @@ class PreprocessedImage:
     tidal_asymmetry: float | None
     core_residual_fraction: float | None
     flags: list[str]
+    center_selection: dict = field(default_factory=dict)
+    source_protection_weight: np.ndarray | None = None
+    foreground_fit_candidates: dict = field(default_factory=dict)
+    detection_calibration: dict = field(default_factory=dict)
+    human_foreground_seed: np.ndarray | None = None
+    human_fit_exclude: np.ndarray | None = None
+    human_analysis_exclude: np.ndarray | None = None
 
 
 def robust_rms(values: np.ndarray) -> float:
@@ -277,6 +284,344 @@ def _ellipse_model(
     return model
 
 
+def _target_morphology_metrics(data, rms, obj, config):
+    """Measure inexpensive raw-image configuration proxies for routing only."""
+    from scipy import ndimage
+
+    cx, cy = float(obj["x"]), float(obj["y"])
+    yy, xx = np.indices(data.shape)
+    radius = np.hypot(xx - cx, yy - cy)
+    names = obj.dtype.names or ()
+    size = float(
+        np.sqrt(max(float(obj["a"] * obj["b"]), 1.0))
+        if "a" in names and "b" in names
+        else 1.0
+    )
+    inner = max(2.5, min(0.7 * size, 7.0))
+    outer = min(float(config.ring_outer_px), max(10.0, 2.8 * size))
+    smoothed = ndimage.gaussian_filter(np.asarray(data, float), 1.0)
+    annulus = (radius >= inner) & (radius <= outer)
+    if int(annulus.sum()) < 30:
+        return dict(angular_coverage=0.0, multiplicity=0.0, annular_contrast=0.0)
+    radial_bin = np.floor(radius).astype(int)
+    profile = np.zeros(int(np.ceil(outer)) + 2, dtype=float)
+    for index in range(profile.size):
+        ring = radial_bin == index
+        profile[index] = float(np.median(smoothed[ring])) if ring.any() else 0.0
+    departure = smoothed - profile[np.clip(radial_bin, 0, profile.size - 1)]
+    local_noise = max(
+        float(np.median(np.asarray(rms)[annulus])),
+        robust_rms(departure[annulus]),
+        1e-8,
+    )
+    positive = annulus & (departure > 1.5 * local_noise)
+    angle = (np.arctan2(yy - cy, xx - cx) + 2 * np.pi) % (2 * np.pi)
+    angle_bin = np.floor(
+        angle / (2 * np.pi) * config.target_morphology_angle_bins
+    ).astype(int)
+    occupied = sum(
+        np.count_nonzero(positive & (angle_bin == index)) >= 2
+        for index in range(config.target_morphology_angle_bins)
+    )
+    labels, count = ndimage.label(positive)
+    component_count = sum(
+        np.count_nonzero(labels == label) >= 3 for label in range(1, count + 1)
+    )
+    contrast = float(np.percentile(departure[annulus], 95) / local_noise)
+    return {
+        "angular_coverage": float(occupied / config.target_morphology_angle_bins),
+        "multiplicity": float(min(component_count, 4) / 4.0),
+        "annular_contrast": float(np.clip((contrast - 1.0) / 5.0, 0.0, 1.0)),
+    }
+
+
+def select_foreground_center(data, objects, segmentation, config, rms=None):
+    """Choose one analysis target from at most four extended objects.
+
+    This is a pre-modelling routing choice.  Its metrics never enter lens
+    evidence or grading and it never forks the downstream analysis.
+    """
+    from scipy import ndimage
+
+    height, width = data.shape
+    reference = config.target_center_xy or (width // 2, height // 2)
+    rx, ry = map(float, reference)
+    if not (np.isfinite(rx) and np.isfinite(ry) and 0 <= rx < width and 0 <= ry < height):
+        raise ValueError("Target centre must be finite and inside the image")
+    record = {
+        "reference_xy": [rx, ry],
+        "reference_source": "explicit" if config.target_center_xy else "cutout_center",
+        "candidates": [],
+        "routing_only": True,
+        "affects_grading": False,
+    }
+    if not len(objects):
+        record.update(
+            status="selected",
+            reason="no_detection_center_fallback",
+            selected_xy=[int(round(rx)), int(round(ry))],
+            selected_centroid_xy=[rx, ry],
+        )
+        return (int(round(ry)), int(round(rx))), None, record
+
+    distances = np.hypot(objects["x"] - rx, objects["y"] - ry)
+    noise = np.asarray(
+        rms if rms is not None else np.full(data.shape, robust_rms(data)), float
+    )
+    local_fallback = None
+    if (
+        config.target_center_xy is None
+        and float(np.min(distances)) > config.center_max_offset_px
+    ):
+        # A bright star's diffraction spike can bridge a real central galaxy
+        # into a remote low-threshold SEP island.  Retry target deblending at a
+        # high significance only for routing; residual detection still uses
+        # the full multi-threshold pipeline below.
+        try:
+            import sep
+
+            local_data = np.ascontiguousarray(data, dtype="=f8")
+            local_noise = np.ascontiguousarray(noise, dtype="=f8")
+            local_background = sep.Background(local_data)
+            local_objects, local_segmentation = sep.extract(
+                local_data - local_background.back(),
+                5.0,
+                err=local_noise,
+                minarea=config.sep_min_area,
+                deblend_nthresh=64,
+                deblend_cont=0.0001,
+                segmentation_map=True,
+            )
+            if len(local_objects):
+                local_distances = np.hypot(
+                    local_objects["x"] - rx, local_objects["y"] - ry
+                )
+                local_index = int(np.argmin(local_distances))
+                local_area = float(
+                    local_objects["a"][local_index]
+                    * local_objects["b"][local_index]
+                )
+                if (
+                    local_distances[local_index] <= config.center_max_offset_px
+                    and local_area >= config.target_candidate_min_area_px
+                ):
+                    local_label = local_index + 1
+                    local_mask = local_segmentation == local_label
+                    peak = np.argmax(np.where(local_mask, data, -np.inf))
+                    local_py, local_px = np.unravel_index(peak, data.shape)
+                    obj = local_objects[local_index]
+                    local_fallback = {
+                        "sep_label": f"H5-{local_label}",
+                        "centroid_xy": [float(obj["x"]), float(obj["y"])],
+                        "offset_px": float(local_distances[local_index]),
+                        "a_px": float(obj["a"]),
+                        "b_px": float(obj["b"]),
+                        "theta_rad": float(obj["theta"]),
+                        "flux": float(obj["flux"]),
+                        "peak_xy": [int(local_px), int(local_py)],
+                        "selection_source": "high_sigma_central_deblend",
+                        **_target_morphology_metrics(data, noise, obj, config),
+                    }
+        except Exception:
+            local_fallback = None
+    if config.target_center_xy is not None:
+        pool = [int(np.argmin(distances))]
+        basis = "explicit_nearest_detected_source"
+    else:
+        names = objects.dtype.names or ()
+        area = (
+            np.maximum(np.asarray(objects["a"] * objects["b"], float), 1e-6)
+            if "a" in names and "b" in names
+            else np.ones(len(objects), dtype=float)
+        )
+        flux = (
+            np.maximum(np.abs(np.asarray(objects["flux"], float)), 1e-6)
+            if "flux" in names
+            else np.maximum(np.asarray([data[int(round(y)), int(round(x))] for x, y in zip(objects["x"], objects["y"])]), 1e-6)
+        )
+        eligible = np.flatnonzero(area >= float(config.target_candidate_min_area_px))
+        if not eligible.size:
+            eligible = np.arange(len(objects))
+        shortlist_rank = (
+            np.log1p(area[eligible])
+            + 0.25 * np.log1p(flux[eligible])
+            + 0.6 * np.exp(-distances[eligible] / max(config.center_search_half_size, 1))
+        )
+        limit = max(1, min(int(config.target_candidate_max), 4))
+        pool = [
+            int(eligible[index])
+            for index in np.argsort(shortlist_rank)[::-1][:limit]
+        ]
+        nearest = int(np.argmin(distances))
+        if distances[nearest] <= config.center_max_offset_px and nearest not in pool:
+            pool = [*pool[: max(limit - 1, 0)], nearest]
+        basis = "raw_morphology_among_extended_shortlist"
+
+    scored = []
+    for index in pool:
+        metrics = _target_morphology_metrics(data, noise, objects[index], config)
+        centrality = float(
+            np.exp(-distances[index] / max(config.center_search_half_size, 1))
+        )
+        score = (
+            0.50 * metrics["angular_coverage"]
+            + 0.25 * metrics["multiplicity"]
+            + 0.20 * metrics["annular_contrast"]
+            + 0.05 * centrality
+        )
+        record["candidates"].append(
+            {
+                "sep_label": int(index + 1),
+                "centroid_xy": [float(objects[index]["x"]), float(objects[index]["y"])],
+                "offset_px": float(distances[index]),
+                "a_px": float(objects[index]["a"]) if "a" in (objects.dtype.names or ()) else None,
+                "b_px": float(objects[index]["b"]) if "b" in (objects.dtype.names or ()) else None,
+                "theta_rad": float(objects[index]["theta"]) if "theta" in (objects.dtype.names or ()) else None,
+                "flux": float(objects[index]["flux"]) if "flux" in (objects.dtype.names or ()) else None,
+                **metrics,
+                "centrality_prior": centrality,
+                "routing_score": float(score),
+            }
+        )
+        scored.append((score, centrality, -int(index), int(index)))
+    if local_fallback is not None:
+        local_centrality = float(
+            np.exp(-local_fallback["offset_px"] / max(config.center_search_half_size, 1))
+        )
+        local_fallback["centrality_prior"] = local_centrality
+        local_fallback["routing_score"] = float(
+            0.50 * local_fallback["angular_coverage"]
+            + 0.25 * local_fallback["multiplicity"]
+            + 0.20 * local_fallback["annular_contrast"]
+            + 0.05 * local_centrality
+        )
+        record["candidates"].append(local_fallback)
+    chosen = max(scored)[-1]
+    chosen_local = False
+    record["candidates"].sort(
+        key=lambda item: (-item["routing_score"], item["sep_label"])
+    )
+    if config.target_center_xy is None:
+        central = [
+            item
+            for item in record["candidates"]
+            if item["offset_px"] <= config.center_max_offset_px
+        ]
+        if central:
+            central_best = max(
+                central,
+                key=lambda item: (
+                    item["routing_score"],
+                    -item["sep_label"] if isinstance(item["sep_label"], int) else 0,
+                ),
+            )
+            overall = next(
+                item for item in record["candidates"] if item["sep_label"] == chosen + 1
+            )
+            if overall["sep_label"] != central_best["sep_label"]:
+                central_area = max(
+                    float(central_best.get("a_px") or 1.0)
+                    * float(central_best.get("b_px") or 1.0),
+                    1e-6,
+                )
+                overall_area = max(
+                    float(overall.get("a_px") or 1.0)
+                    * float(overall.get("b_px") or 1.0),
+                    1e-6,
+                )
+                central_flux = abs(float(central_best.get("flux") or central_area))
+                overall_flux = abs(float(overall.get("flux") or overall_area))
+                separation = float(
+                    np.hypot(
+                        float(overall["centroid_xy"][0]) - float(central_best["centroid_xy"][0]),
+                        float(overall["centroid_xy"][1]) - float(central_best["centroid_xy"][1]),
+                    )
+                )
+                ellipse_overlap = bool(
+                    separation
+                    <= 1.2
+                    * (
+                        float(central_best.get("a_px") or np.sqrt(central_area))
+                        + float(overall.get("a_px") or np.sqrt(overall_area))
+                    )
+                )
+                footprint_overlap = False
+                if isinstance(central_best["sep_label"], int) and isinstance(overall["sep_label"], int):
+                    central_pixels = segmentation == int(central_best["sep_label"])
+                    overall_pixels = segmentation == int(overall["sep_label"])
+                    footprint_overlap = bool(
+                        np.any(
+                            ndimage.binary_dilation(central_pixels, iterations=2)
+                            & ndimage.binary_dilation(overall_pixels, iterations=2)
+                        )
+                    )
+                # Low-threshold SEP footprints can nearly touch through diffuse
+                # sky or a diffraction bridge.  That is not sufficient evidence
+                # that the two extended light distributions overlap.  Require
+                # the measured ellipses themselves to overlap; keep footprint
+                # proximity only as an audit value.
+                light_profiles_overlap = ellipse_overlap
+                offcenter_override = bool(
+                    overall["offset_px"] <= config.center_blend_radius_px
+                    and overall_area >= 2.0 * central_area
+                    and overall_flux >= 2.0 * central_flux
+                    and light_profiles_overlap
+                    and overall["routing_score"] >= central_best["routing_score"] + 0.05
+                    and overall["angular_coverage"]
+                    >= central_best["angular_coverage"] + 0.10
+                )
+                if not offcenter_override:
+                    if central_best.get("selection_source") == "high_sigma_central_deblend":
+                        chosen_local = True
+                    else:
+                        chosen = int(central_best["sep_label"] - 1)
+                record["central_prior_gate"] = {
+                    "central_sep_label": central_best["sep_label"],
+                    "raw_winner_sep_label": overall["sep_label"],
+                    "offcenter_override_accepted": offcenter_override,
+                    "larger": bool(overall_area >= 2.0 * central_area),
+                    "brighter": bool(overall_flux >= 2.0 * central_flux),
+                    "light_profiles_overlap": light_profiles_overlap,
+                    "segmentation_footprints_near": footprint_overlap,
+                    "centroid_separation_px": separation,
+                    "rule": "offcenter_must_be_larger_brighter_overlapping_and_have_clear_morphology_advantage",
+                }
+
+    if chosen_local and local_fallback is not None:
+        px, py = local_fallback["peak_xy"]
+        record.update(
+            status="selected",
+            selected_sep_label=local_fallback["sep_label"],
+            selected_xy=[int(px), int(py)],
+            selected_centroid_xy=local_fallback["centroid_xy"],
+            offset_px=float(np.hypot(px - rx, py - ry)),
+            selection_basis="high_sigma_central_deblend_after_low_threshold_bridge",
+            reason="single_analysis_target_selected_before_foreground_modelling",
+            local_deblended_target={
+                key: local_fallback[key]
+                for key in ("centroid_xy", "peak_xy", "a_px", "b_px", "theta_rad", "flux")
+            },
+        )
+        return (int(py), int(px)), None, record
+
+    allowed = segmentation == chosen + 1
+    if allowed.any():
+        peak = np.argmax(np.where(allowed, data, -np.inf))
+        py, px = np.unravel_index(peak, data.shape)
+    else:
+        px, py = int(round(objects[chosen]["x"])), int(round(objects[chosen]["y"]))
+    record.update(
+        status="selected",
+        selected_sep_label=chosen + 1,
+        selected_xy=[int(px), int(py)],
+        selected_centroid_xy=[float(objects[chosen]["x"]), float(objects[chosen]["y"])],
+        offset_px=float(np.hypot(px - rx, py - ry)),
+        selection_basis=basis,
+        reason="single_analysis_target_selected_before_foreground_modelling",
+    )
+    return (int(py), int(px)), chosen, record
+
+
 def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
     try:
         import sep
@@ -290,11 +635,6 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
     data = np.ascontiguousarray(image.data, dtype="=f8")
     rms = np.ascontiguousarray(image.rms, dtype="=f8")
     height, width = data.shape
-    cy, cx = height // 2, width // 2
-    half = min(config.center_search_half_size, cy, cx, height - cy, width - cx)
-    central = data[cy - half : cy + half, cx - half : cx + half]
-    local_y, local_x = np.unravel_index(int(np.argmax(central)), central.shape)
-    nucleus = (int(local_y + cy - half), int(local_x + cx - half))
 
     background = sep.Background(data)
     background_array = background.back()
@@ -307,6 +647,9 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
         deblend_cont=0.01 if image.input_format == "png" else 0.005,
         segmentation_map=True,
     )
+    nucleus, central_index, center_selection = select_foreground_center(
+        data, objects, segmentation, config, rms=rms
+    )
     source_mask = np.zeros(data.shape, dtype=bool)
     fit_mask = np.zeros(data.shape, dtype=bool)
     initial_eps, initial_pa = 0.2, 0.0
@@ -317,47 +660,86 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
     multiple_core_count: int | None = None
     if len(objects):
         distances = (objects["x"] - nucleus[1]) ** 2 + (objects["y"] - nucleus[0]) ** 2
-        central_index = int(np.argmin(distances))
         foreground_detected = True
-        central_label = central_index + 1
+        local_target = center_selection.get("local_deblended_target")
+        if local_target is not None:
+            yy, xx = np.indices(data.shape)
+            target_radius = max(
+                config.near_core_radius_px,
+                2.5 * np.sqrt(local_target["a_px"] * local_target["b_px"]),
+            )
+            protected_target = (
+                np.hypot(xx - nucleus[1], yy - nucleus[0]) <= target_radius
+            )
+            fit_mask = segmentation != 0
+            fit_mask = ndimage.binary_dilation(fit_mask, iterations=3)
+            fit_mask[protected_target] = False
+            source_mask = segmentation != 0
+            source_mask = ndimage.binary_dilation(source_mask, iterations=3)
+            source_mask[
+                np.hypot(xx - nucleus[1], yy - nucleus[0])
+                <= config.ring_outer_px
+            ] = False
+            initial_eps = float(
+                np.clip(
+                    1 - local_target["b_px"] / max(local_target["a_px"], 1e-9),
+                    0.05,
+                    0.7,
+                )
+            )
+            initial_pa = float(local_target["theta_rad"])
+            foreground_flux = float(local_target["flux"])
+            foreground_axis_ratio = float(
+                local_target["a_px"] / max(local_target["b_px"], 1e-9)
+            )
+            foreground_reliability = float(
+                np.clip(
+                    abs(foreground_flux) / max(20.0 * background.globalrms, 1e-9),
+                    0.25,
+                    1.0,
+                )
+            )
+            multiple_core_count = None
+        else:
+            central_label = central_index + 1
         # Fit the foreground using the central object only, so candidate arcs do
         # not bias its isophotes. During residual detection, however, preserve
         # non-central sources inside the analysis annulus and mask only external
         # contaminants. The prototype used one mask for both purposes and could
         # erase the very arcs it intended to measure.
-        fit_mask = (segmentation != 0) & (segmentation != central_label)
-        fit_mask = ndimage.binary_dilation(fit_mask, iterations=3)
-        external_labels = (
-            np.where(distances > config.ring_outer_px**2)[0] + 1
-        ).tolist()
-        source_mask = np.isin(segmentation, external_labels)
-        source_mask = ndimage.binary_dilation(source_mask, iterations=3)
-        initial_eps = float(
-            np.clip(
-                1 - objects["b"][central_index] / max(objects["a"][central_index], 1e-9),
-                0.05,
-                0.7,
+            fit_mask = (segmentation != 0) & (segmentation != central_label)
+            fit_mask = ndimage.binary_dilation(fit_mask, iterations=3)
+            external_labels = (
+                np.where(distances > config.ring_outer_px**2)[0] + 1
+            ).tolist()
+            source_mask = np.isin(segmentation, external_labels)
+            source_mask = ndimage.binary_dilation(source_mask, iterations=3)
+            initial_eps = float(
+                np.clip(
+                    1 - objects["b"][central_index] / max(objects["a"][central_index], 1e-9),
+                    0.05,
+                    0.7,
+                )
             )
-        )
-        initial_pa = float(objects["theta"][central_index])
-        foreground_flux = float(objects["flux"][central_index])
-        foreground_axis_ratio = float(
-            objects["a"][central_index] / max(objects["b"][central_index], 1e-9)
-        )
-        foreground_reliability = float(
-            np.clip(abs(foreground_flux) / max(20.0 * background.globalrms, 1e-9), 0.25, 1.0)
-        )
-        # Keep the core screen inside the subtraction-sensitive central scale.
-        # A wider aperture can incorrectly count the very annular structures
-        # under investigation as additional galaxy nuclei.
-        core_radius = config.near_core_radius_px
-        central_flux_scale = max(abs(foreground_flux), 1e-9)
-        plausible_secondary = (
-            (distances <= core_radius**2)
-            & (np.arange(len(objects)) != central_index)
-            & (np.abs(objects["flux"]) >= 0.1 * central_flux_scale)
-        )
-        multiple_core_count = int(np.count_nonzero(plausible_secondary))
+            initial_pa = float(objects["theta"][central_index])
+            foreground_flux = float(objects["flux"][central_index])
+            foreground_axis_ratio = float(
+                objects["a"][central_index] / max(objects["b"][central_index], 1e-9)
+            )
+            foreground_reliability = float(
+                np.clip(abs(foreground_flux) / max(20.0 * background.globalrms, 1e-9), 0.25, 1.0)
+            )
+            # Keep the core screen inside the subtraction-sensitive central scale.
+            # A wider aperture can incorrectly count the very annular structures
+            # under investigation as additional galaxy nuclei.
+            core_radius = config.near_core_radius_px
+            central_flux_scale = max(abs(foreground_flux), 1e-9)
+            plausible_secondary = (
+                (distances <= core_radius**2)
+                & (np.arange(len(objects)) != central_index)
+                & (np.abs(objects["flux"]) >= 0.1 * central_flux_scale)
+            )
+            multiple_core_count = int(np.count_nonzero(plausible_secondary))
 
     flags: list[str] = []
     if image.input_format == "png":
@@ -435,4 +817,5 @@ def preprocess(image: ImageData, config: VisionConfig) -> PreprocessedImage:
         tidal_asymmetry=tidal_asymmetry,
         core_residual_fraction=core_residual_fraction,
         flags=flags,
+        center_selection=center_selection,
     )

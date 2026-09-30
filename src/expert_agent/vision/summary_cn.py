@@ -39,6 +39,9 @@ def _translate_limitation(text: str) -> str:
         "Candidate-structure audit promotion identifies measurable residual structures, not arcs, rings, multiple images, or lenses; scientific calibration is still required.": "候选结构审计只确认某个候选是否足以作为可测量残差结构交给后端；它不把该结构直接认定为弧、环、多重像或强透镜，相关判据仍需用专家标注样本进行科学标定。",
         "Geometric paths only guide masked SEP searches; unfilled path regions are not treated as rings or missing evidence against lensing.": "几何路径只负责限制 SEP 再次搜索的位置；路径上没有亮像素的部分既不算环，也不能据此反对透镜解释。",
         "A PSF image is present and used by the audit-only comparison model, but the formal detection subtraction does not yet use PSF convolution.": "输入中有 PSF 图像，且审计用的比较模型使用了它；但当前主检测通道的前景减除尚未使用 PSF 卷积。",
+        "A PSF image is present and the formal detection subtraction uses a PSF-convolved MGE when that fit succeeds; the pre-existing isophotal model is retained as a same-exposure sensitivity check.": "输入中有 PSF 图像；PSF-MGE 成功时它用于主检测通道，原等亮度线模型作为同一曝光上的敏感性对照保留。",
+        "Robust clipping around a PSF-convolved foreground-light model is not simultaneous lens-light, lens-mass, and source-light inference; some lensed flux can still be absorbed by the foreground model.": "PSF 卷积前景光模型周围的稳健剔除不等于同时拟合透镜光、透镜质量与背景源光；仍可能有部分被透镜像的光被前景模型吸收。",
+        "A photometrically selected centre is a light-distribution hypothesis and does not establish which galaxy is foreground without redshift information.": "光度上选出的中心只是光分布假设；没有红移信息时，不能由此确定哪个星系位于前景。",
     }
     return translations.get(text, text)
 
@@ -127,6 +130,9 @@ def _structure_section(
         f"- 环向覆盖角度：{_value(structure.angular_extent_deg)}°",
         f"- 轴比：{_value(structure.axis_ratio)}",
         f"- 与理想切向方向的偏差：{_value(structure.tangential_misalignment_deg)}°",
+        f"- 输入 VIS 同半径背景对比 S/N：{_value(structure.input_radial_contrast_snr)}（可见性诊断，不是透镜显著性）",
+        f"- 输入 VIS 正对比像素比例：{_value(structure.input_radial_positive_fraction)}；有效同半径控制覆盖：{_value(structure.input_radial_control_coverage)}",
+        f"- 径向厚度：{_value(structure.radial_width_px)} 像素；相对 PSF 宽度：{_value(structure.radial_width_psf)}",
         (
             f"- S/N 多阈值稳定性：{threshold_count}/{threshold_runs}，"
             f"存活比例 {_value(structure.threshold_survival_fraction)}"
@@ -205,9 +211,9 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                 "",
                 "### 前景星系两种擦除方法的比较",
                 "",
-                f"- 第二种PSF-MGE比较模型是否成功：{_yes_no(model_comparison.comparison_success)}",
+                f"- 敏感性比较模型 `{model_comparison.comparison_method}` 是否可用：{_yes_no(model_comparison.comparison_success)}",
                 f"- 当前模型残差RMS：{_value(model_comparison.primary_residual_robust_rms, 6)}",
-                f"- PSF-MGE残差RMS：{_value(model_comparison.comparison_residual_robust_rms, 6)}",
+                f"- 比较模型残差RMS：{_value(model_comparison.comparison_residual_robust_rms, 6)}",
                 f"- 模型链候选像素换一种擦法后仍超过同一S/N门槛的比例：{_value(model_comparison.measured_structure_pixel_survival_fraction, 3)}",
                 f"- 两种残差在搜索环内的相关程度：{_value(model_comparison.residual_correlation, 3)}",
                 "- 重要：第二种模型当前只用于暴露模型敏感性，没有参与结构检测或最终判断。",
@@ -291,7 +297,7 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
                     f"- 候选级S/N多阈值存活：{item.snr_threshold_survival_count if item.snr_threshold_survival_count is not None else '未测得'}/{item.snr_threshold_total_count if item.snr_threshold_total_count is not None else '未测得'}；存活比例：{_value(item.snr_threshold_survival_fraction, 3)}",
                     f"- 有像素重叠的路线：{', '.join(item.path_ids) or '无'}；通过几何一致性检查的路线：{', '.join(item.geometry_consistent_path_ids) or '无'}",
                     f"- 所属候选系统：{', '.join(item.candidate_system_ids) or '无'}；是否位于前景减除敏感的近中心区域：{_yes_no(item.near_core)}；候选像素与敏感中心区的重叠比例：{_value(item.subtraction_core_overlap_fraction, 3)}",
-                    f"- 换用PSF-MGE比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
+                    f"- 换用前景敏感性比较残差后仍超过门槛的像素比例：{_value(item.foreground_comparison_survival_fraction, 3)}",
                     f"- 结构支持来源：{', '.join(item.support_sources) or '未记录'}",
                     "- 解释限制：这是视觉链提出的结构候选，不是弧、环、多重像或透镜标签。",
                     "",
@@ -451,6 +457,63 @@ def render_observation_summary_cn(document: ObservationDocument) -> str:
             "",
         ]
     )
+    if document.candidate_handoff_review is not None:
+        from ..agents.candidate_review import render_candidate_review_cn
+
+        lines.extend(render_candidate_review_cn(document))
+    diagnostic = document.supplementary_diagnostics
+    if diagnostic:
+        colour = diagnostic.get("multiband", {})
+        lines.extend(["", "## 多波段颜色与补充测量", "",
+            f"- 多波段测光状态：{colour.get('status', 'unavailable')}；VIS形态仍保持原分辨率。",
+            f"- 颜色PSF匹配：{colour.get('psf_matching', {}).get('method', '不可用')}；目标FWHM={_value(colour.get('psf_matching', {}).get('target_fwhm_px'))}像素。",
+            "- 原图污染孔径颜色只供显示；评级使用候选保护、固定椭圆径向前景扣除和旋转控制误差后的颜色关系。",
+            "- 只有后续被明确透镜构型关联为同源像的候选对才允许颜色参与评级；可靠异色可削弱该构型，一致性只能支持已有形态，不能单独升级。候选与前景颜色相似只记歧义，不单独降级。",
+            "- 核心混光、孔径重叠、波段不足或低信噪比记为未知；未知不是颜色一致，也不是颜色冲突。",
+            f"- 联合弧链：{len(document.arc_chains)} 组；成员只合并真实像素，不填断口，不把碎片数量当成多像数量。",
+            "- 全路径有符号测量保留负值和低于阈值的像素；名义信噪比未标定搜索次数、原生相关噪声及模型误差。",
+            "- PSF伪影、本征结构来源尚未完成诊断；残差代理不能证明它们，也不能排除它们。", ""])
+        for chain in document.arc_chains:
+            lines.append(f"- {chain.id}：成员 {', '.join(chain.source_candidate_ids)}；真实像素 {chain.pixel_count}；实际角覆盖 {chain.angular_occupied_deg}°。")
+        lines.extend(["", "### 孔径颜色（未去除前景污染）", "",
+                      "| 孔径 | VIS−Y | VIS−J | VIS−H |", "|---|---|---|---|"])
+        for key, values in colour.get("colours", {}).items():
+            entries = []
+            for band in ("NIR_Y", "NIR_J", "NIR_H"):
+                pair = values.get(f"VIS-{band}", {})
+                entries.append(f"{pair['value_mag']:.3f} ± {pair['error_mag_nominal']:.3f}" if pair.get("value_mag") is not None else "未知/低信噪比")
+            lines.append("| " + " | ".join([key, *entries]) + " |")
+        relation = colour.get("relationship_audit", {})
+        pair_status = {
+            "strongly_inconsistent": "明显不一致（可限制A）",
+            "consistent_with_achromatic_scaling": "允许亮度倍率后的颜色一致",
+            "inconclusive": "结论不确定", "unknown": "不可测/混光",
+        }
+        foreground_status = {
+            "distinct_from_foreground": "与前景颜色显著不同",
+            "indistinguishable_from_foreground": "无法与前景颜色区分（仅歧义，不单独降级）",
+            "inconclusive": "结论不确定", "unknown": "不可测/核心混光",
+        }
+        lines.extend(["", "### 候选颜色关系（全量测量）", "",
+                      "这里只列出全部候选对；专家层随后只允许被支持透镜构型连接的同源候选对投票。",
+                      "",
+                      "| 候选关系 | 判定 | 最大非灰度颜色差 | 显著度/原因 |", "|---|---|---:|---|"])
+        for item in relation.get("component_pairs", []):
+            difference = item.get("maximum_color_departure_mag")
+            significance = item.get("maximum_departure_sigma")
+            detail = (f"{significance:.2f}σ" if significance is not None
+                      else item.get("reason", "未给出"))
+            lines.append(f"| {item['first']} ↔ {item['second']} | {pair_status.get(item.get('status'), item.get('status'))} | "
+                         f"{difference:.3f} mag | {detail} |" if difference is not None else
+                         f"| {item['first']} ↔ {item['second']} | {pair_status.get(item.get('status'), item.get('status'))} | 未测得 | {detail} |")
+        for item in relation.get("candidate_vs_foreground", []):
+            difference = item.get("maximum_color_departure_mag")
+            significance = item.get("maximum_departure_sigma")
+            detail = (f"{significance:.2f}σ" if significance is not None
+                      else item.get("reason", "未给出"))
+            lines.append(f"| {item['candidate']} ↔ 前景 | {foreground_status.get(item.get('status'), item.get('status'))} | "
+                         f"{difference:.3f} mag | {detail} |" if difference is not None else
+                         f"| {item['candidate']} ↔ 前景 | {foreground_status.get(item.get('status'), item.get('status'))} | 未测得 | {detail} |")
     return "\n".join(lines)
 
 

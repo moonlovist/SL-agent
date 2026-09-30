@@ -95,15 +95,16 @@ def test_off_route_weak_candidate_is_trace_only() -> None:
     assert result.handoff_class == "trace_candidate"
 
 
-def test_comparison_model_erasure_is_foreground_contaminated() -> None:
+def test_zero_comparison_threshold_occupancy_does_not_prove_contamination() -> None:
     result = audit_structure_candidates(
         [_candidate(comparison_survival=0.0)],
         data_usable=True,
         foreground_model_success=True,
     )[0]
 
-    assert result.verdict == "hold_for_review"
-    assert result.handoff_class == "foreground_contaminated"
+    assert result.verdict == "promoted"
+    assert result.handoff_class == "primary_candidate"
+    assert result.checks["foreground_contamination_risk"] is False
 
 
 def test_fallback_foreground_core_overlap_is_caution_not_erasure() -> None:
@@ -126,6 +127,20 @@ def test_fallback_foreground_far_route_candidate_can_remain_primary() -> None:
 
     assert result.handoff_class == "primary_candidate"
     assert "primary_foreground_fit_used_fallback" in result.caution_flags
+
+
+def test_unreliable_core_residual_is_quarantined_not_promoted() -> None:
+    result = audit_structure_candidates(
+        [_candidate(core_overlap=0.5)],
+        data_usable=True,
+        foreground_model_success=True,
+        core_residual_unreliable=True,
+    )[0]
+
+    assert result.verdict == "hold_for_review"
+    assert result.handoff_class == "foreground_contaminated"
+    assert result.checks["foreground_contamination_risk"] is True
+    assert "core_residual_failed_subtraction_quality_audit" in result.caution_flags
 
 
 def test_route_supported_weak_candidate_is_recovery_not_deleted() -> None:

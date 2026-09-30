@@ -16,6 +16,7 @@ from ..schemas.reasoning import (
     HypothesisAnalysis,
     ObservationAuditResult,
     DecisionAuditResult,
+    CandidateEvidenceIntegration,
     EvidenceDossier,
     GradingSchemeStatus,
     HypothesisComparison,
@@ -28,6 +29,8 @@ class ExpertState:
     image_path: str | None = None
     object_id: str | None = None
     observation_document: ObservationDocument | None = None
+    source_observation_document: ObservationDocument | None = None
+    evidence_preparation: dict[str, Any] = field(default_factory=dict)
     observations: list[dict[str, Any]] = field(default_factory=list)
     observation_audit: ObservationAuditResult | None = None
     hypotheses: list[Hypothesis] = field(default_factory=list)
@@ -48,6 +51,7 @@ class ExpertState:
     hypothesis_comparison: list[HypothesisComparison] = field(default_factory=list)
     expert_assessment: ProvisionalExpertAssessment | None = None
     decision_audit: DecisionAuditResult | None = None
+    candidate_evidence: CandidateEvidenceIntegration | None = None
     grading_scheme: GradingSchemeStatus = field(default_factory=GradingSchemeStatus)
 
     def require_observation(self) -> ObservationDocument:
@@ -67,11 +71,15 @@ class ExpertState:
 
         active = {
             "object_id": self.object_id,
+            "evidence_preparation": dump(self.evidence_preparation),
             "evidence_dossier": dump(self.evidence_dossier),
             "hypothesis_comparison": dump(self.hypothesis_comparison),
             "expert_assessment": dump(self.expert_assessment),
             "decision_audit": dump(self.decision_audit),
+            "candidate_evidence": dump(self.candidate_evidence),
             "grading_scheme": dump(self.grading_scheme),
             "reasoning_trace": dump(self.reasoning_trace),
         }
+        if self.candidate_evidence is None:
+            active.pop("candidate_evidence")
         return active

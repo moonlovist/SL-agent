@@ -17,6 +17,14 @@ class ReportWriter(BaseAgent):
         audit = state.decision_audit
         if dossier is None or assessment is None or audit is None:
             raise ValueError("ReportWriter requires assessment and decision audit")
+        publishable = audit.audit_passed and assessment.vote_category in {"A", "B", "C"}
+        published_grade = assessment.vote_category if publishable else "unknown"
+        publication_reason = (
+            "provisional_q1_style_category_not_catalog_calibrated" if publishable
+            else "audit_failed" if not audit.audit_passed
+            else "non_lens_vote_X" if assessment.vote_category == "X"
+            else "insufficient_evidence_or_unresolved_processing"
+        )
 
         def fact_lines(items):
             return [
@@ -40,6 +48,10 @@ class ReportWriter(BaseAgent):
             [
                 f"# Strong-lens expert assessment: {state.object_id}",
                 "",
+                f"- Published grade: **{published_grade}** ({publication_reason})",
+                "- 算法测量 + 固定规则；无多模态模型，无生成式补弧；尚未完成 Q1 目录校准。",
+                "- 唯一正式评级来自一次证据裁决；核查用重放不是第二次投票。",
+                "",
                 "## Evidence dossier",
                 "",
                 f"- Signal reality: **{dossier.signal_reality.status}** - {dossier.signal_reality.rationale}",
@@ -61,6 +73,10 @@ class ReportWriter(BaseAgent):
                 "",
                 *missing_lines,
                 "",
+                "### Processing cautions / 处理风险",
+                "",
+                *[f"- {item.id}: {item.description}" for item in dossier.processing_cautions],
+                "",
                 "## Provisional expert assessment",
                 "",
                 f"- Vote category: **{assessment.vote_category}**",
@@ -81,14 +97,52 @@ class ReportWriter(BaseAgent):
                 "A formal official_expert_score remains null until labelled Q1 calibration and "
                 "independent validation are completed.",
                 "",
-                "FITS reading, foreground subtraction, SEP, S/N-threshold detection, and geometry-route "
-                "generation remain unchanged. The candidate handoff is recall-preserving: stable "
-                "off-route structures enter reasoning with recovery provenance, and near-core/model-fit "
-                "cautions do not erase independently surviving signals.",
+                "Foreground selection uses the target position rather than the brightest neighbour. "
+                "Curved structures have pixel-derived local morphology; comparison threshold occupancy "
+                "is not a retained-flux fraction. Signed same-aperture flux checks model sensitivity, "
+                "not independent observations. Missing measurements are unknown.",
             ]
         )
+        candidate_evidence = state.candidate_evidence
+        if candidate_evidence is not None:
+            qualified = [item for item in candidate_evidence.grading_items if item.role != "excluded"]
+            markdown = "\n".join([
+                f"# Strong-lens expert assessment: {state.object_id}", "",
+                "## 候选证据纳入情况", "",
+                f"- 纳入评级的候选：{', '.join(item.candidate_id for item in qualified) or '无'}",
+                f"- 构型关系：{len(candidate_evidence.configurations)} 组",
+                f"- 竞争性非透镜指标：{'有' if candidate_evidence.competitive_non_lens_explanation else '无'}",
+                "- model-chain 候选已经直接进入上方唯一的正式评级，不再另列基线与修订评级。", "",
+                *markdown.splitlines()[2:],
+            ])
+        if state.require_observation().candidate_handoff_review is not None:
+            from .candidate_review import render_candidate_review_cn
+
+            markdown += "\n" + "\n".join(render_candidate_review_cn(state.require_observation()))
+            markdown += "\n\n### 候选路线分组（搜索来源，不等同于评级构型）\n\n"
+            markdown += "\n".join(
+                f"- {item.id}: {', '.join(item.candidate_ids)}；路线只记来源，不作为独立票。"
+                for item in dossier.candidate_configuration_review
+            ) or "未形成可复核分组。"
+        if candidate_evidence is not None:
+            markdown += "\n\n### 正式评级采用的候选空间构型\n\n"
+            markdown += "\n".join(
+                f"- {item.id}: clear arc {item.primary_candidate_id} + companion {item.companion_candidate_id}; 方位分离 {item.azimuth_separation_deg:.1f}°，半径比 {item.radius_ratio:.2f}。"
+                for item in candidate_evidence.configurations
+            ) or "- 没有达到当前策略要求的 clear-arc + companion 构型。"
+        if state.evidence_preparation:
+            markdown += "\n\n## 确定性证据合并记录\n\n"
+            markdown += "同一套最小像素/名义信号条件筛查所有来源；纳入表示可测量，不表示真实透镜。详细数值、掩膜指纹及规则参数见 summary.json 的 evidence_preparation。\n\n"
+            markdown += "| 候选 | 进入本次判断 | 结构引用 | 原因 |\n|---|---|---|---|\n"
+            for item in state.evidence_preparation.get("items", []):
+                markdown += f"| {item['candidate_id']} | {'是' if item['included'] else '否'} | {item['structure_id'] or '—'} | {'; '.join(item['reasons'])} |\n"
+            conditions = next((t["content"] for t in state.reasoning_trace if t["action"] == "decision_conditions"), {})
+            markdown += "\n### 本次命中的裁决条件\n\n"
+            markdown += "\n".join(f"- {key}: `{value}`" for key, value in conditions.items())
         state.final_report_markdown = markdown
         state.final_decision = state.to_dict()
+        state.final_decision["published_grade"] = published_grade
+        state.final_decision["publication_reason"] = publication_reason
         state.final_decision["report_markdown"] = markdown
         self.record_reasoning(
             state,
