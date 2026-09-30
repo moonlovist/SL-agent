@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..core.base_agent import BaseAgent
 from ..core.state import ExpertState
+from ..core.llm_client import failure_message
 
 
 class ReportWriter(BaseAgent):
@@ -139,10 +140,40 @@ class ReportWriter(BaseAgent):
             conditions = next((t["content"] for t in state.reasoning_trace if t["action"] == "decision_conditions"), {})
             markdown += "\n### 本次命中的裁决条件\n\n"
             markdown += "\n".join(f"- {key}: `{value}`" for key, value in conditions.items())
+        if state.llm_assessment is not None:
+            review = state.llm_assessment
+            markdown = markdown.replace(
+                "- 算法测量 + 固定规则；无多模态模型，无生成式补弧；尚未完成 Q1 目录校准。",
+                "- 算法测量 + 固定规则票 + 实验性 DeepSeek 物理评审；尚未完成 Q1 目录校准。")
+            markdown += "\n\n## DeepSeek 物理假设与裁决（实验性）\n\n"
+            markdown += "数值测量 → 透镜/非透镜假设 → 引用及数值核查 → 模型裁决。两阶段使用同一模型，不是两位独立专家。\n\n"
+            markdown += "模型未接收图像、目标身份、官方等级或规则票；引用核查不等于物理确认，尚未完成 Q1 标定或透镜方程检验。\n\n"
+            markdown += f"- 请求模型：{review['requested_model']}\n- 运行状态：{review['status']}\n"
+            if review["status"] == "completed":
+                vote = review["assessment"]
+                markdown += f"- 模型暂定等级：**{vote['vote_category']}**\n- 裁决：{vote['disposition']}\n"
+                markdown += f"- 与规则票一致：{'是' if review['agrees_with_rules'] else '否，需人工复核'}\n"
+                markdown += f"\n{vote['rationale']}\n\n### 模型采用的测量证据\n\n"
+                for item in vote["supporting_evidence"]:
+                    refs = ', '.join(c['observation_ref'] for c in item['measurements'])
+                    markdown += f"- {item['statement']}（{refs}）\n"
+                markdown += "\n### 模型限制与竞争解释\n\n"
+                markdown += "\n".join(f"- {item}" for item in vote['limitations'] + vote['competing_explanations'])
+            else:
+                markdown += f"- 失败原因：{failure_message(review['error'])}（{review['error']}）；没有可用的模型等级。规则结果保留供查看。\n"
+            if review.get("hypotheses"):
+                markdown += "\n\n### 已比较的物理假设\n\n"
+                for hypothesis in review['hypotheses']['hypotheses']:
+                    markdown += f"- {hypothesis['id']}：{hypothesis['configuration']}（{hypothesis['family']}，{hypothesis['status']}）\n"
         state.final_report_markdown = markdown
         state.final_decision = state.to_dict()
         state.final_decision["published_grade"] = published_grade
         state.final_decision["publication_reason"] = publication_reason
+        if state.llm_assessment is not None:
+            review = state.llm_assessment
+            state.final_decision["llm_grade"] = (
+                review['assessment']['vote_category'] if review['status'] == 'completed' else None)
+            state.final_decision["judgment_mode"] = "rules_and_deepseek_experimental"
         state.final_decision["report_markdown"] = markdown
         self.record_reasoning(
             state,

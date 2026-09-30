@@ -5,7 +5,10 @@ See [the delivery and reproducibility note](src/docs/DELIVERY_V0300_CN.md).
 See [the desktop workflow revision](src/docs/SCIENTIFIC_REVISION_V0290_UI_CN.md).
 This trial uses quality-controlled calibrated colour relationships in the A/B confidence boundary and adds measured arc unions; it is not Q1-catalogue calibrated.
 See [the deterministic revision contract](src/docs/DETERMINISTIC_V0210_CN.md).
-No multimodal model or generative restoration is used. New measurements are merged
+The default workflow uses no language model or generative restoration. An optional
+DeepSeek verification workflow on the `feature/deepseek-judgment` branch consumes
+numerical observations and produces a separate experimental vote (see below).
+New measurements are merged
 before one rule-based decision; the former max-of-two-grades pass has been removed.
 The following older centre-selection guide remains useful: see the
 [Chinese change and validation guide](src/docs/V0190_CENTER_STRUCTURE_CHANGE_CN.md)
@@ -21,8 +24,8 @@ FITS/PNG -> VisionPipeline -> signal-reality handoff -> Observation JSON -> conf
 ```
 
 The vision layer reports measured facts and provenance. It never emits a lens
-classification. `ExpertAssessmentAgent` is the only active scientific interpretation
-layer: it builds one traceable evidence dossier, compares competing explanations, and
+classification. In the default workflow, `ExpertAssessmentAgent` builds one
+traceable evidence dossier, compares competing explanations, and
 issues one explicitly uncalibrated expert vote category. `DecisionAudit` only
 checks integrity and replays the deterministic decision from source measurements.
 Replay is not a second vote or independent scientific validation.
@@ -32,6 +35,64 @@ Replay is not a second vote or independent scientific validation.
 ```powershell
 python -m pip install -e ".[dev,ui]"
 ```
+
+## Experimental DeepSeek verification
+
+This branch adapts the executable-verification protocol of
+[FORMA, arXiv:2607.06128](https://arxiv.org/abs/2607.06128) to lens candidates.
+Deterministic pixel measurements feed a hypothesis stage comparing lens and
+non-lens interpretations, reviewing every canonical structure. Code checks cited
+references and materializes their values from the original observations. Explicit
+numeric claims, if supplied, must match within a recorded floating-point tolerance.
+A second model call adjudicates the verified dossier; a
+failed hypothesis or adjudication can be revised once in total. Versioned local
+knowledge covers lens geometry, arcs, colours, intrinsic morphology and artifacts.
+The two calls use the same model
+and do not constitute independent expert voting.
+
+Copy `.env.example` to `.env` and set `DEEPSEEK_API_KEY` locally, or supply that
+environment variable. `.env` is ignored by Git. Environment values override the
+local file; CLI options override the backend/model settings. The local file is
+read from the working directory, so run these commands from the project root.
+
+```sh
+lens-agent analyze "example/target" --judgment deepseek --output outputs/deepseek
+lens-agent reason "outputs/target/observation.json" --judgment deepseek --output outputs/review
+lens-agent analyze "example/target" --judgment rules --output outputs/baseline
+```
+
+The desktop selector offers **固定规则** and **规则 + DeepSeek**. Completed results
+show the model's vote, supporting measurements, limitations and alternatives.
+The existing published grade and UI grouping continue to use the audited rule
+vote; `summary.json.llm_grade` holds the experimental vote. `llm_input.json` and
+`llm_assessment.json` preserve the anonymous input, hypotheses, checks, bounded
+revision and API token usage. Credentials and model hidden reasoning are never
+written to run manifests or source snapshots. Images, reference grades, identity
+and sky coordinates are excluded from the model input.
+The handoff includes multiband measurements, keyed structures and current scene
+statistics, while removing obsolete intermediate atomic statistics and display
+diagnostics. Both input and prompt hashes are recorded.
+
+Allowed observation references are enumerated in the output schema, and a single
+repair budget is shared across both stages. Reference/value checks establish data
+integrity, not astrophysical truth.
+Lens-equation closure and catalogue calibration remain unperformed. An unusable
+Observation must lead to abstention. Provider/validation failure yields no model
+grade and CLI exit code 3; the saved rule result remains available in the UI.
+Normal successful runs return 0; rule-audit failure returns 2.
+
+Compare saved predictions with labels **after inference**:
+
+```sh
+lens-agent evaluate ../euclid_q1_sample/selected_10_catalog.csv outputs/deepseek_pilot --output outputs/pilot_evaluation.json
+```
+
+The comparison includes coverage, all-target and definite-only agreement,
+per-grade recall, a confusion matrix and missing/failed targets. Ten available
+modelled A/B targets are a workflow pilot, not a calibration set. Establish
+human-level A/B discrimination using a larger labelled sample, difficult C/X
+controls, a frozen rubric and independent held-out evaluation. Human corrections
+should enter a separate development set; held-out labels must never enter prompts.
 
 ## Desktop workflow
 

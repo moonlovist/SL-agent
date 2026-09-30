@@ -113,6 +113,7 @@ class ResultSnapshot:
     audit_passed: bool | None = None
     needs_review: bool = False
     flags: list[str] = field(default_factory=list)
+    llm_assessment: dict[str, Any] | None = None
 
     @property
     def group(self) -> str:
@@ -188,6 +189,7 @@ def load_result_snapshot(output_dir: str | Path) -> ResultSnapshot:
         audit_passed=audit.get("audit_passed"),
         needs_review=needs_review,
         flags=flags,
+        llm_assessment=summary.get("llm_assessment"),
     )
 
 

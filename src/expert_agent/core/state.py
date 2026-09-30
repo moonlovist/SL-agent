@@ -53,6 +53,8 @@ class ExpertState:
     decision_audit: DecisionAuditResult | None = None
     candidate_evidence: CandidateEvidenceIntegration | None = None
     grading_scheme: GradingSchemeStatus = field(default_factory=GradingSchemeStatus)
+    llm_assessment: dict[str, Any] | None = None
+    llm_input: dict[str, Any] | None = None
 
     def require_observation(self) -> ObservationDocument:
         if self.observation_document is None:
@@ -82,4 +84,6 @@ class ExpertState:
         }
         if self.candidate_evidence is None:
             active.pop("candidate_evidence")
+        if self.llm_assessment is not None:
+            active["llm_assessment"] = dump(self.llm_assessment)
         return active

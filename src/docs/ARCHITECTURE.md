@@ -1,5 +1,46 @@
 # LensAgent MWA Architecture
 
+## Experimental executable verification branch
+
+`feature/deepseek-judgment` adds an opt-in, observation-only DeepSeek workflow
+inspired by [FORMA](https://arxiv.org/abs/2607.06128). Pixel extraction and the
+audited rule vote remain the baseline. The model generates competing physical
+hypotheses, deterministic tools validate references and fill original measured values,
+and a second model role adjudicates the dossier. One revision in total is allowed
+after citation/schema failure. Failure or unusable data leads to abstention or an
+explicit unavailable model vote, never an invented official score.
+
+```text
+FITS → numerical vision → canonical Observation
+                           ├─ rule assessment → DecisionAudit → published_grade
+                           └─ anonymized measurements → hypothesis analyst
+                                → citation/value checks → model adjudicator
+                                → citation/quality gates → experimental llm_grade
+                                      ↓
+                            report + desktop comparison
+Reference catalogue → post-inference evaluation only
+```
+
+Responsibilities are separated across `core/llm_client.py` (transport/settings),
+`schemas/llm_reasoning.py` (typed hypotheses/votes),
+`tools/evidence_verification.py` (executable checks),
+`agents/llm_assessment.py` (bounded verification workflow), and
+`core/evaluation.py` (label comparison). The model does not see file paths,
+target identity, sky coordinates, rule votes or catalogue labels. The final report
+retains the baseline and experimental vote separately. Two calls to one model are
+two roles, not independent experts. Tool checks verify references, not scientific
+accuracy; lens-model closure is explicitly marked unperformed.
+Every canonical structure must receive a cited review. Current scene statistics
+and multiband measurements enter the handoff; obsolete extraction-era statistics
+are excluded. Explicit model-supplied numbers are checked with relative/absolute
+tolerance `1e-12`. These checks address integrity and evidence coverage, rather
+than turning model self-confidence into a scientific probability. Both model roles
+receive the versioned local lens/arc/colour/artifact knowledge bundle. Its hash is
+archived alongside input and prompt hashes; model citation choices are enumerated
+from the actual non-missing measurements.
+
+The sections below describe the deterministic baseline and historical revisions.
+
 ## v0.21 experimental superseding contract
 
 Read [DETERMINISTIC_V0210_CN.md](DETERMINISTIC_V0210_CN.md). FITS pixels are

@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from .core.config import VisionConfig
+from .core.llm_client import LLMConfig
 from .core.state import ExpertState
 from .core.workflow import ExpertWorkflow
 from .schemas.observation import ObservationDocument
@@ -102,23 +103,43 @@ def _load_saved_preprocessing(
         return None
 
 
-def _reason(observation: ObservationDocument, output_dir: Path, *, mode: str = "observation_replay") -> ExpertState:
+def _reason(observation: ObservationDocument, output_dir: Path, *, mode: str = "observation_replay", llm_config: LLMConfig | None = None) -> ExpertState:
     state = ExpertState(
         image_path=observation.input_path,
         object_id=observation.object_id,
         observation_document=observation,
     )
-    result = ExpertWorkflow().run(state)
+    result = ExpertWorkflow(llm_config=llm_config).run(state)
     from .core.reproducibility import write_manifest
     _write_json(output_dir / "source_observation.json", observation.model_dump(mode="json"))
     _write_json(output_dir / "reasoning_observation.json", result.require_observation().model_dump(mode="json"))
     write_manifest(observation, output_dir, mode=mode, result=result)
     _write_json(output_dir / "reasoning.json", result.to_dict())
     _write_json(output_dir / "summary.json", result.final_decision)
+    if result.llm_assessment is not None:
+        _write_json(output_dir / "llm_input.json", result.llm_input)
+        _write_json(output_dir / "llm_assessment.json", result.llm_assessment)
+        if result.llm_assessment["status"] == "completed":
+            print(f"DeepSeek vote: {result.llm_assessment['assessment']['vote_category']}")
+        else:
+            print(f"DeepSeek unavailable: {result.llm_assessment['error']}")
     (output_dir / "report.md").write_text(
         result.final_report_markdown or "", encoding="utf-8"
     )
     return result
+
+
+def _llm_config(args: argparse.Namespace) -> LLMConfig:
+    return LLMConfig.from_environment(backend=getattr(args, "judgment", None),
+                                      model=getattr(args, "llm_model", None))
+
+
+def _result_exit_code(result: ExpertState) -> int:
+    if not result.decision_audit.audit_passed:
+        return 2
+    if result.llm_assessment is not None and result.llm_assessment["status"] != "completed":
+        return 3
+    return 0
 
 
 def analyze(args: argparse.Namespace) -> int:
@@ -163,14 +184,14 @@ def analyze(args: argparse.Namespace) -> int:
     _write_json(
         output_dir / "observation.json", observation.model_dump(mode="json")
     )
-    result = _reason(observation, output_dir, mode="full_image_pipeline")
+    result = _reason(observation, output_dir, mode="full_image_pipeline", llm_config=_llm_config(args))
     print(f"Object: {observation.object_id}")
     print(f"Score status: {result.expert_assessment.score_status}")
     print(f"Vote category: {result.expert_assessment.vote_category}")
     print(f"Plausible vote categories: {list(result.expert_assessment.plausible_vote_categories)}")
     print(f"Decision audit passed: {result.decision_audit.audit_passed}")
     print(f"Report: {output_dir / 'report.md'}")
-    return 0 if result.decision_audit.audit_passed else 2
+    return _result_exit_code(result)
 
 
 def foreground_review(args: argparse.Namespace) -> int:
@@ -233,13 +254,13 @@ def foreground_review(args: argparse.Namespace) -> int:
         input_path, output_dir=output_dir, foreground_override=override
     )
     _write_json(output_dir / "observation.json", observation.model_dump(mode="json"))
-    result = _reason(observation, output_dir, mode="human_foreground_rerun")
+    result = _reason(observation, output_dir, mode="human_foreground_rerun", llm_config=_llm_config(args))
     print(f"Object: {observation.object_id}")
     print(f"Vote category: {result.expert_assessment.vote_category}")
     print(f"Decision audit passed: {result.decision_audit.audit_passed}")
     print(f"Human override: {output_dir / 'foreground_override.json'}")
     print(f"Report: {output_dir / 'report.md'}")
-    return 0 if result.decision_audit.audit_passed else 2
+    return _result_exit_code(result)
 
 
 def reason(args: argparse.Namespace) -> int:
@@ -247,19 +268,31 @@ def reason(args: argparse.Namespace) -> int:
     observation = ObservationDocument.model_validate_json(path.read_text(encoding="utf-8"))
     output_dir = Path(args.output).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = _reason(observation, output_dir)
+    result = _reason(observation, output_dir, llm_config=_llm_config(args))
     print(f"Score status: {result.expert_assessment.score_status}")
     print(f"Vote category: {result.expert_assessment.vote_category}")
     print(f"Plausible vote categories: {list(result.expert_assessment.plausible_vote_categories)}")
     print(f"Decision audit passed: {result.decision_audit.audit_passed}")
     print(f"Report: {output_dir / 'report.md'}")
-    return 0 if result.decision_audit.audit_passed else 2
+    return _result_exit_code(result)
 
 
 def desktop_ui(args: argparse.Namespace) -> int:
     from .ui.app import main as run_ui
 
     return run_ui(["--project", args.project])
+
+
+def evaluate(args: argparse.Namespace) -> int:
+    from .core.evaluation import evaluate_catalogue
+    metrics = evaluate_catalogue(Path(args.catalogue).expanduser().resolve(),
+                                 Path(args.results).expanduser().resolve())
+    output = Path(args.output).expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(output, metrics)
+    print(json.dumps({key: metrics[key] for key in ("rules", "deepseek")}, indent=2))
+    print(f"Pilot comparison: {output}")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -312,6 +345,11 @@ def build_parser() -> argparse.ArgumentParser:
     reason_parser.add_argument("observation")
     reason_parser.add_argument("--output", default="outputs/reasoning_only")
     reason_parser.set_defaults(handler=reason)
+    for command_parser in (analyze_parser, review_parser, reason_parser):
+        command_parser.add_argument("--judgment", choices=("rules", "deepseek"), default=None,
+                                    help="Add a DeepSeek hypothesis/audit vote; defaults to local settings")
+        command_parser.add_argument("--llm-model", default=None,
+                                    help="DeepSeek model; defaults to DEEPSEEK_MODEL or deepseek-v4-pro")
     ui_parser = subparsers.add_parser(
         "ui", help="Open the desktop batch-review application"
     )
@@ -321,6 +359,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="UI project/output directory",
     )
     ui_parser.set_defaults(handler=desktop_ui)
+    evaluation_parser = subparsers.add_parser("evaluate", help="Compare saved votes to a labelled catalogue after inference")
+    evaluation_parser.add_argument("catalogue", help="CSV with id_str and grade")
+    evaluation_parser.add_argument("results", help="Directory containing one saved run per target")
+    evaluation_parser.add_argument("--output", default="outputs/grade_evaluation.json")
+    evaluation_parser.set_defaults(handler=evaluate)
     return parser
 
 

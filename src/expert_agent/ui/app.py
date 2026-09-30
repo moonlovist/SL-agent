@@ -21,6 +21,7 @@ from .project import (
     utc_now,
 )
 from .theme import PALETTE, stylesheet
+from ..core.llm_client import LLMConfig, failure_message
 
 
 CORE_ARTIFACTS = (
@@ -35,6 +36,8 @@ CORE_ARTIFACTS = (
 )
 
 RESULT_FILES = (
+    ("llm_assessment.json", "DeepSeek 假设与裁决"),
+    ("llm_input.json", "DeepSeek 使用的观测测量"),
     ("observation_summary_cn.md", "中文观测摘要"),
     ("report.md", "完整评审报告"),
     ("summary.json", "判定结果 summary.json"),
@@ -508,6 +511,13 @@ class LensAgentWindow(QtWidgets.QMainWindow):
         self.import_files_button.setFixedSize(98, 36)
         self.import_folder_button.setFixedSize(110, 36)
         self.start_button.setFixedSize(96, 36)
+        self.judgment_selector = QtWidgets.QComboBox()
+        self.judgment_selector.addItem("固定规则", "rules")
+        self.judgment_selector.addItem("规则 + DeepSeek", "deepseek")
+        self.judgment_selector.setCurrentIndex(
+            1 if LLMConfig.from_environment().backend == "deepseek" else 0)
+        self.judgment_selector.setToolTip("DeepSeek 接收观测数值并产生实验性判断；通常调用两次 API，引用错误时最多纠正一次。")
+        header_layout.addWidget(self.judgment_selector)
         header_layout.addWidget(self.import_files_button)
         header_layout.addWidget(self.import_folder_button)
         header_layout.addWidget(self.start_button)
@@ -853,6 +863,7 @@ class LensAgentWindow(QtWidgets.QMainWindow):
                 arguments=[
                     "-m", "expert_agent", "analyze", record.input_path,
                     "--output", run.output_root,
+                    "--judgment", str(self.judgment_selector.currentData()),
                 ],
                 label="自动分析" if run.kind == "auto" else "人工重跑",
             )
@@ -902,13 +913,15 @@ class LensAgentWindow(QtWidgets.QMainWindow):
             return
         record, run = self._find_run(job.object_id, job.run_id)
         run.finished_utc = utc_now()
-        if exit_code == 0:
+        if exit_code in {0, 3}:
             try:
                 snapshot = load_result_snapshot(run.output_dir)
                 self.snapshots[record.object_id] = snapshot
                 run.status = "completed"
                 run.grade = snapshot.grade
                 record.status = "completed"
+                if exit_code == 3:
+                    run.error = "DeepSeek 未完成；规则结果可用，详情见模型评审状态。"
                 self._notify("LensAgent 分析完成", f"{record.object_id}：{snapshot.grade}")
             except Exception as exc:
                 run.status = "failed"
@@ -950,6 +963,7 @@ class LensAgentWindow(QtWidgets.QMainWindow):
                 "-m", "expert_agent", "foreground-review", current.output_dir,
                 "--output", run.output_root,
                 "--ui-theme", self.project.theme,
+                "--judgment", str(self.judgment_selector.currentData()),
             ],
             label="人工校正与重跑",
         )
@@ -1012,7 +1026,7 @@ class LensAgentWindow(QtWidgets.QMainWindow):
             return
         record, run = self._find_run(job.object_id, job.run_id)
         run.finished_utc = utc_now()
-        if exit_code == 0:
+        if exit_code in {0, 3}:
             try:
                 snapshot = load_result_snapshot(run.output_dir)
                 self.snapshots[record.object_id] = snapshot
@@ -1020,6 +1034,8 @@ class LensAgentWindow(QtWidgets.QMainWindow):
                 run.grade = snapshot.grade
                 record.current_run_id = run.run_id
                 record.status = "completed"
+                if exit_code == 3:
+                    run.error = "DeepSeek 未完成；规则结果可用，详情见模型评审状态。"
                 self._notify("人工重跑完成", f"{record.object_id}：{snapshot.grade}")
             except Exception as exc:
                 run.status = "failed"
@@ -1358,7 +1374,7 @@ class LensAgentWindow(QtWidgets.QMainWindow):
         grade_row = QtWidgets.QHBoxLayout(grade_card)
         grade_row.setContentsMargins(14, 12, 14, 12)
         grade_copy = QtWidgets.QVBoxLayout()
-        grade_kicker = QtWidgets.QLabel("AGENT 暂定等级")
+        grade_kicker = QtWidgets.QLabel("规则暂定等级")
         grade_kicker.setObjectName("gradeKicker")
         grade_copy.addWidget(grade_kicker)
         grade = QtWidgets.QLabel(snapshot.grade)
@@ -1380,6 +1396,21 @@ class LensAgentWindow(QtWidgets.QMainWindow):
         )
         grade_row.addWidget(reference_pill)
         layout.addWidget(grade_card)
+        review = snapshot.llm_assessment
+        if review is not None:
+            if review.get("status") == "completed":
+                vote = review["assessment"]
+                label = "无法判断" if vote["vote_category"] == "insufficient_data" else vote["vote_category"]
+                agreement = "与规则票一致" if review.get("agrees_with_rules") else "与规则票不同，建议人工复核"
+                layout.addWidget(self._text_section(
+                    f"DeepSeek 暂定等级：{label}", f"{agreement}\n{vote['rationale']}"))
+                layout.addWidget(self._bullet_section(
+                    "DeepSeek 测量依据", [item['statement'] for item in vote['supporting_evidence']], "support"))
+                layout.addWidget(self._bullet_section(
+                    "DeepSeek 限制及竞争解释", vote['limitations'] + vote['competing_explanations'], "limit"))
+            else:
+                layout.addWidget(self._text_section(
+                    "DeepSeek 未完成", f"{failure_message(review.get('error', 'unknown'))}\n本次没有模型等级，规则结果仍可查看。"))
         if snapshot.needs_review:
             warning = QtWidgets.QLabel("⚠ 前景或数据质量建议人工复核")
             warning.setObjectName("reviewWarning")

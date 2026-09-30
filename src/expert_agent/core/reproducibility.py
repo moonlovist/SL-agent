@@ -57,5 +57,10 @@ def write_manifest(observation, output_dir: Path, *, mode: str, result):
                         "Same-code replay verifies implementation consistency, not scientific accuracy.",
                         "Input image hash in reason mode is context only: that mode consumes Observation JSON."],
     }
+    if result.llm_assessment is not None:
+        manifest["llm"] = {key: result.llm_assessment.get(key) for key in
+                           ("provider", "requested_model", "prompt_version", "prompt_sha256",
+                            "input_sha256", "knowledge_sha256", "status", "stages", "limitations")}
+        manifest["limitations"].append("LLM inference is not guaranteed deterministic even at temperature zero.")
     (output_dir / "run_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest

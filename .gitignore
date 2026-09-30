@@ -5,6 +5,9 @@ __pycache__/
 pytest-cache-files-*/
 .pip-temp/
 .venv/
+.env
+.env.*
+!.env.example
 outputs/
 outputs*/
 lensagent_ui_outputs/
